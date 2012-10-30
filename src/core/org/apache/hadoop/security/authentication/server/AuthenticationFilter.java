@@ -386,15 +386,23 @@ public class AuthenticationFilter implements Filter {
       LOG.warn("Authentication exception: " + ex.getMessage(), ex);
     }
     if (unauthorizedResponse) {
-      if (!httpResponse.isCommitted()) {
-        Cookie cookie = createCookie("");
-        cookie.setMaxAge(0);
-        httpResponse.addCookie(cookie);
-        httpResponse.sendError(HttpServletResponse.SC_UNAUTHORIZED, unauthorizedMsg);
-      }
+      removeCookie (httpResponse);
+      httpResponse.sendError(HttpServletResponse.SC_UNAUTHORIZED, unauthorizedMsg);
     }
   }
 
+  /** 
+   * Removes the cookie 
+   */
+
+  private void removeCookie (HttpServletResponse httpResponse)
+  throws IOException{
+    if (!httpResponse.isCommitted()) {
+      Cookie cookie = createCookie("");
+      cookie.setMaxAge(0);
+      httpResponse.addCookie(cookie);
+    }	
+  }
   /**
    * Creates the Hadoop authentiation HTTP cookie.
    * <p/>
