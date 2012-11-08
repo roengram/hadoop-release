@@ -39,3 +39,6 @@ Condor release branched from Apache @ https://svn.apache.org/repos/asf/hadoop/co
 
     HADOOP-8923. Do not show intermediate web-ui page when authentication
     cookie (SPENGO/custom) expires.
+
+    HDFS-4108. Fix dfsnodelist to work in secure mode. Contributed by Benoy
+    Antony.

@@ -33,6 +33,7 @@
   import="java.text.DateFormat"
   import="java.net.InetAddress"
   import="java.net.URLEncoder"
+  import="java.net.URLDecoder"
 %>
 <%!
   static String getDelegationToken(final NameNode nn,
@@ -50,7 +51,7 @@
     return token.encodeToUrlString();
   }
 
-  public void redirectToRandomDataNode(
+  public void redirectToDataNode(
                             ServletContext context, 
                             HttpServletRequest request,
                             HttpServletResponse resp
@@ -63,7 +64,13 @@
       tokenString = getDelegationToken(nn, ugi, request, conf);
     }
     FSNamesystem fsn = nn.getNamesystem();
-    String datanode = fsn.randomDataNode();
+    String datanode = request.getParameter ("datanode");
+    if (datanode != null) {
+       datanode = URLDecoder.decode (datanode);
+    }
+    else  {
+       datanode = fsn.randomDataNode();
+    }
     String redirectLocation;
     String nodeToRedirect;
     int redirectPort;
@@ -94,7 +101,7 @@
 
 <body>
 <% 
-  redirectToRandomDataNode(application, request, response); 
+  redirectToDataNode(application, request, response); 
 %>
 <hr>
 

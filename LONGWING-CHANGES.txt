@@ -1,0 +1,32 @@
+LONGWING changes
+
+  Merged from bimota-1.1.2
+    HDFS-4108. Fix dfsnodelist to work in secure mode. (Benoy Antony via
+    acmurthy) 
+
+    HADOOP-8923. Do not show intermediate web-ui page when authentication cookie
+    (SPENGO/custom) expires. (Benoy Antony via acmurthy)
+
+  Changes now available from Apache
+
+    HADOOP-8878. Uppercase namenode hostname causes issues with security turned
+    on. (Arpit Gupta via acmurthy)
+
+    HADOOP-7621. Alfredo config should not be readable by users. (atm)
+
+    HADOOP-7665. Include SPENGO configs in core-default.xml. (atm) 
+
+    HADOOP-7666. Backport TestAuthenticationFilter to branch-1. (atm)
+
+  Unknown?
+
+    LWHADOOP-6. eBay specific patch for authenticating users from different
+    realm without a trust relationship. (Benoy Antony via acmurthy)
+
+    HADOOP-3482. Fix hdfs scripts for secure datanodes. (Benoy Antony via
+    acmurthy)
+
+  No longer in the code based
+    LWHDFS-1. Add support for downgrade tool to downgrade from Release 0.22 to
+    HDP. (suresh)
+

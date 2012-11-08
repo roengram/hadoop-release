@@ -30,6 +30,7 @@
 	import="java.text.DateFormat"
 	import="java.lang.Math"
 	import="java.net.URLEncoder"
+	import="org.apache.hadoop.security.UserGroupInformation"
 %>
 <%!
 	JspHelper jspHelper = new JspHelper();
@@ -65,11 +66,24 @@ String NodeHeaderStr(String name) {
 	return ret;
 }
 
+String getBrowseUrl ( DatanodeDescriptor d, int nnHttpPort ) throws IOException{
+    String url = null;
+    if (UserGroupInformation.isSecurityEnabled()) {
+      url = "/nn_browsedfscontent.jsp?datanode="+
+        URLEncoder.encode(d.getHostName() + ":" + d.getInfoPort());
+    }
+    else {
+      url = "http://" + d.getHostName() + ":" + d.getInfoPort()
+        + "/browseDirectory.jsp?namenodeInfoPort=" + nnHttpPort + "&dir="
+        + URLEncoder.encode("/", "UTF-8");
+    }
+    return url;
+}
+
 void generateDecommissioningNodeData(JspWriter out, DatanodeDescriptor d,
       String suffix, boolean alive, int nnHttpPort) throws IOException {
-    String url = "http://" + d.getHostName() + ":" + d.getInfoPort()
-      + "/browseDirectory.jsp?namenodeInfoPort=" + nnHttpPort + "&dir="
-      + URLEncoder.encode("/", "UTF-8");
+
+    String url = getBrowseUrl(d, nnHttpPort);
 
     String name = d.getHostName() + ":" + d.getPort();
     if (!name.matches("\\d+\\.\\d+.\\d+\\.\\d+.*"))
@@ -121,11 +135,7 @@ i.e. "http://dn1.hadoop.apache.org:50075/..."
 Note that "d.getHost():d.getPort()" is what DFS clients use
 to interact with datanodes.
 	 */
-	// from nn_browsedfscontent.jsp:
-	String url = "http://" + d.getHostName() + ":" + d.getInfoPort() +
-	"/browseDirectory.jsp?namenodeInfoPort=" +
-	nnHttpPort + "&dir=" +
-	URLEncoder.encode("/", "UTF-8");
+  String url = getBrowseUrl(d, nnHttpPort);
 
 	String name = d.getHostName() + ":" + d.getPort();
 	if ( !name.matches( "\\d+\\.\\d+.\\d+\\.\\d+.*" ) ) 
