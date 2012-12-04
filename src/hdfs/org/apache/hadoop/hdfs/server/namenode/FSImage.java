@@ -1362,7 +1362,7 @@ public class FSImage extends Storage {
     out.write(name.array(), name.arrayOffset(), nameLen);
     if (!node.isDirectory()) {  // write file inode
       INodeFile fileINode = (INodeFile)node;
-      out.writeShort(fileINode.getReplication());
+      out.writeShort(fileINode.getBlockReplication());
       out.writeLong(fileINode.getModificationTime());
       out.writeLong(fileINode.getAccessTime());
       out.writeLong(fileINode.getPreferredBlockSize());
@@ -1516,7 +1516,7 @@ public class FSImage extends Storage {
                                            String path) 
                                            throws IOException {
     writeString(path, out);
-    out.writeShort(cons.getReplication());
+    out.writeShort(cons.getBlockReplication());
     out.writeLong(cons.getModificationTime());
     out.writeLong(cons.getPreferredBlockSize());
     int nrBlocks = cons.getBlocks().length;

@@ -371,7 +371,7 @@ class BlocksMap {
    * Add block b belonging to the specified file inode to the map.
    */
   BlockInfo addINode(Block b, INodeFile iNode) {
-    BlockInfo info = checkBlockInfo(b, iNode.getReplication());
+    BlockInfo info = checkBlockInfo(b, iNode.getBlockReplication());
     info.inode = iNode;
     return info;
   }

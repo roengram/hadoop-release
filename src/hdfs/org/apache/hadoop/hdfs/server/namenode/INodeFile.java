@@ -78,7 +78,7 @@ class INodeFile extends INode {
    * Get block replication for the file 
    * @return block replication value
    */
-  public short getReplication() {
+  public short getBlockReplication() {
     return (short) ((header & HEADERMASK) >> BLOCKBITS);
   }
 
@@ -183,7 +183,7 @@ class INodeFile extends INode {
         isUnderConstruction()) {
       size += getPreferredBlockSize() - blocks[blocks.length-1].getNumBytes();
     }
-    return size * getReplication();
+    return size * getBlockReplication();
   }
   
   /**
@@ -203,7 +203,7 @@ class INodeFile extends INode {
       return (INodeFileUnderConstruction)this;
     }
     return new INodeFileUnderConstruction(name,
-        getReplication(), modificationTime, getPreferredBlockSize(),
+        getBlockReplication(), modificationTime, getPreferredBlockSize(),
         blocks, getPermissionStatus(),
         clientName, clientMachine, clientNode);
   }

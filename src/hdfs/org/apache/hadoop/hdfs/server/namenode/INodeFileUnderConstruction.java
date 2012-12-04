@@ -130,7 +130,7 @@ class INodeFileUnderConstruction extends INodeFile {
   INodeFile convertToInodeFile() {
     INodeFile obj = new INodeFile(getPermissionStatus(),
                                   getBlocks(),
-                                  getReplication(),
+                                  getBlockReplication(),
                                   getModificationTime(),
                                   getModificationTime(),
                                   getPreferredBlockSize());

@@ -786,7 +786,7 @@ public class FSEditLog {
             //
             INodeFileUnderConstruction cons = new INodeFileUnderConstruction(
                                       node.getLocalNameBytes(),
-                                      node.getReplication(), 
+                                      node.getBlockReplication(), 
                                       node.getModificationTime(),
                                       node.getPreferredBlockSize(),
                                       node.getBlocks(),
@@ -1264,7 +1264,7 @@ public class FSEditLog {
 
     UTF8 nameReplicationPair[] = new UTF8[] { 
       new UTF8(path), 
-      FSEditLog.toLogReplication(newNode.getReplication()),
+      FSEditLog.toLogReplication(newNode.getBlockReplication()),
       FSEditLog.toLogLong(newNode.getModificationTime()),
       FSEditLog.toLogLong(newNode.getAccessTime()),
       FSEditLog.toLogLong(newNode.getPreferredBlockSize())};
@@ -1282,7 +1282,7 @@ public class FSEditLog {
   public void logCloseFile(String path, INodeFile newNode) {
     UTF8 nameReplicationPair[] = new UTF8[] {
       new UTF8(path),
-      FSEditLog.toLogReplication(newNode.getReplication()),
+      FSEditLog.toLogReplication(newNode.getBlockReplication()),
       FSEditLog.toLogLong(newNode.getModificationTime()),
       FSEditLog.toLogLong(newNode.getAccessTime()),
       FSEditLog.toLogLong(newNode.getPreferredBlockSize())};

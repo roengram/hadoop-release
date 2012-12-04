@@ -867,7 +867,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       return 0;
     }
     assert !fileINode.isDirectory() : "Block cannot belong to a directory";
-    return fileINode.getReplication();
+    return fileINode.getBlockReplication();
   }
 
   /* updates a block in under replication queue */
@@ -1445,7 +1445,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
         INodeFile node = (INodeFile) myFile;
         INodeFileUnderConstruction cons = new INodeFileUnderConstruction(
                                         node.getLocalNameBytes(),
-                                        node.getReplication(),
+                                        node.getBlockReplication(),
                                         node.getModificationTime(),
                                         node.getPreferredBlockSize(),
                                         node.getBlocks(),
@@ -1714,7 +1714,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       fileLength = pendingFile.computeContentSummary().getLength();
       blockSize = pendingFile.getPreferredBlockSize();
       clientNode = pendingFile.getClientNode();
-      replication = (int)pendingFile.getReplication();
+      replication = (int)pendingFile.getBlockReplication();
     }
 
     // choose targets for the new block to be allocated.
@@ -1876,7 +1876,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    * replication factor, then insert them into neededReplication
    */
   private void checkReplicationFactor(INodeFile file) {
-    int numExpectedReplicas = file.getReplication();
+    int numExpectedReplicas = file.getBlockReplication();
     Block[] pendingBlocks = file.getBlocks();
     int nrBlocks = pendingBlocks.length;
     for (int i = 0; i < nrBlocks; i++) {
@@ -2069,7 +2069,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       } 
       // Add this replica to corruptReplicas Map 
       corruptReplicas.addToCorruptReplicasMap(storedBlockInfo, node);
-      if (countNodes(storedBlockInfo).liveReplicas()>inode.getReplication()) {
+      if (countNodes(storedBlockInfo).liveReplicas()>inode.getBlockReplication()) {
         // the block is over-replicated so invalidate the replicas immediately
         invalidateBlock(storedBlockInfo, node);
       } else {
@@ -3222,7 +3222,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
           replIndex--;
           return false;
         }
-        requiredReplication = fileINode.getReplication(); 
+        requiredReplication = fileINode.getBlockReplication(); 
 
         // get a source data-node
         containingNodes = new ArrayList<DatanodeDescriptor>();
@@ -3268,7 +3268,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
           replIndex--;
           return false;
         }
-        requiredReplication = fileINode.getReplication(); 
+        requiredReplication = fileINode.getBlockReplication(); 
 
         // do not schedule more if enough replicas is already pending
         NumberReplicas numReplicas = countNodes(block);
@@ -3936,7 +3936,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
           try {
             String path = /* For finding parents */ 
               leaseManager.findPath((INodeFileUnderConstruction)file);
-            dir.updateSpaceConsumed(path, 0, -diff*file.getReplication());
+            dir.updateSpaceConsumed(path, 0, -diff*file.getBlockReplication());
           } catch (IOException e) {
             LOG.warn("Unexpected exception while updating disk space : " +
                      e.getMessage());
@@ -3990,7 +3990,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       return block;
 
     // handle underReplication/overReplication
-    short fileReplication = fileINode.getReplication();
+    short fileReplication = fileINode.getBlockReplication();
     if (numCurrentReplica >= fileReplication) {
       neededReplications.remove(block, numCurrentReplica, 
                                 num.decommissionedReplicas, fileReplication);
@@ -4069,7 +4069,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
         continue;
       }
       // calculate current replication
-      short expectedReplication = fileINode.getReplication();
+      short expectedReplication = fileINode.getBlockReplication();
       NumberReplicas num = countNodes(block);
       int numCurrentReplica = num.liveReplicas();
       // add to under-replicated queue if need to be
