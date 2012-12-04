@@ -113,9 +113,8 @@ class INodeDirectory extends INode {
   /**
    */
   private INode getNode(byte[][] components) {
-    INode[] inode  = new INode[1];
-    getExistingPathINodes(components, inode);
-    return inode[0];
+    INodesInPath inodesInPath = getExistingPathINodes(components, 1);
+    return inodesInPath.inodes[0];
   }
 
   /**
@@ -156,21 +155,23 @@ class INodeDirectory extends INode {
    * <code>getExistingPathINodes(["","c1","c2","c3"], [?,?,?,?])</code> should
    * fill the array with [rootINode,c1,c2,null]
    * @param components array of path component name
-   * @param existing INode array to fill with existing INodes
+   * @param numOfINodes number of INodes to return
    * @return number of existing INodes in the path
    */
-  int getExistingPathINodes(byte[][] components, INode[] existing) {
+  INodesInPath getExistingPathINodes(byte[][] components, int numOfINodes) {
     assert compareBytes(this.name, components[0]) == 0 :
       "Incorrect name " + getLocalName() + " expected " + components[0];
 
+    INodesInPath existing = new INodesInPath(numOfINodes);
     INode curNode = this;
     int count = 0;
-    int index = existing.length - components.length;
+    int index = numOfINodes - components.length;
     if (index > 0)
       index = 0;
     while ((count < components.length) && (curNode != null)) {
-      if (index >= 0)
-        existing[index] = curNode;
+      if (index >= 0) {
+        existing.inodes[index] = curNode;
+      }
       if (!curNode.isDirectory() || (count == components.length - 1))
         break; // no more child, stop here
       INodeDirectory parentDir = (INodeDirectory)curNode;
@@ -178,7 +179,7 @@ class INodeDirectory extends INode {
       count += 1;
       index += 1;
     }
-    return count;
+    return existing;
   }
 
   /**
@@ -196,11 +197,9 @@ class INodeDirectory extends INode {
    */
   INode[] getExistingPathINodes(String path) {
     byte[][] components = getPathComponents(path);
-    INode[] inodes = new INode[components.length];
-
-    this.getExistingPathINodes(components, inodes);
-    
-    return inodes;
+    INodesInPath inodes = this.getExistingPathINodes(components,
+        components.length);
+    return inodes.inodes;
   }
 
   /**
@@ -302,9 +301,8 @@ class INodeDirectory extends INode {
       return null;
     if(parent == null) {
       // Gets the parent INode
-      INode[] inodes  = new INode[2];
-      getExistingPathINodes(pathComponents, inodes);
-      INode inode = inodes[0];
+      INodesInPath inodes =  getExistingPathINodes(pathComponents, 2);
+      INode inode = inodes.inodes[0];
       if (inode == null) {
         throw new FileNotFoundException("Parent path does not exist: "+path);
       }
@@ -382,5 +380,23 @@ class INodeDirectory extends INode {
     parent = null;
     children = null;
     return total;
+  }
+  
+  /**
+   * Used by
+   * {@link INodeDirectory#getExistingPathINodes(byte[][], int, boolean)}.
+   * Containing INodes information resolved from a given path.
+   */
+  static class INodesInPath {
+    private INode[] inodes;
+    
+    public INodesInPath(int number) {
+      assert (number >= 0);
+      this.inodes = new INode[number];
+    }
+    
+    INode[] getINodes() {
+      return inodes;
+    }
   }
 }

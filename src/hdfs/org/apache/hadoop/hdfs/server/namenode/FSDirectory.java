@@ -33,6 +33,7 @@ import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants.StartupOption;
 import org.apache.hadoop.hdfs.util.ByteArray;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
+import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
 
 /*************************************************
  * FSDirectory stores the filesystem directory state.
@@ -410,8 +411,9 @@ class FSDirectory implements FSConstants, Closeable {
       }
       
       byte[][] dstComponents = INode.getPathComponents(dst);
-      INode[] dstInodes = new INode[dstComponents.length];
-      rootDir.getExistingPathINodes(dstComponents, dstInodes);
+      INodesInPath dstInodesInPath = rootDir.getExistingPathINodes(
+          dstComponents, dstComponents.length);
+      INode[] dstInodes = dstInodesInPath.getINodes();
       if (dstInodes[dstInodes.length-1] != null) {
         NameNode.stateChangeLog.warn("DIR* FSDirectory.unprotectedRenameTo: "
                                      +"failed to rename "+src+" to "+dst+ 
@@ -957,11 +959,11 @@ class FSDirectory implements FSConstants, Closeable {
     src = normalizePath(src);
     String[] names = INode.getPathNames(src);
     byte[][] components = INode.getPathComponents(names);
-    INode[] inodes = new INode[components.length];
 
     synchronized(rootDir) {
-      rootDir.getExistingPathINodes(components, inodes);
-
+      INodesInPath inodesInPath = rootDir.getExistingPathINodes(components,
+          components.length);
+      INode[] inodes = inodesInPath.getINodes();
       // find the index of the first null in inodes[]
       StringBuilder pathbuilder = new StringBuilder();
       int i = 1;
@@ -999,9 +1001,10 @@ class FSDirectory implements FSConstants, Closeable {
   INode unprotectedMkdir(String src, PermissionStatus permissions,
                           long timestamp) throws QuotaExceededException {
     byte[][] components = INode.getPathComponents(src);
-    INode[] inodes = new INode[components.length];
     synchronized (rootDir) {
-      rootDir.getExistingPathINodes(components, inodes);
+      INodesInPath inodesInPath = rootDir.getExistingPathINodes(components,
+          components.length);
+      INode[] inodes = inodesInPath.getINodes();
       unprotectedMkdir(inodes, inodes.length-1, components[inodes.length-1],
           permissions, false, timestamp);
       return inodes[inodes.length-1];
@@ -1030,9 +1033,10 @@ class FSDirectory implements FSConstants, Closeable {
     byte[] path = components[components.length-1];
     child.setLocalName(path);
     cacheName(child);
-    INode[] inodes = new INode[components.length];
     synchronized (rootDir) {
-      rootDir.getExistingPathINodes(components, inodes);
+      INodesInPath inodesInPath = rootDir.getExistingPathINodes(components,
+          components.length);
+      INode[] inodes = inodesInPath.getINodes();
       return addChild(inodes, inodes.length-1, child, childDiskspace,
                       inheritPermission);
     }
