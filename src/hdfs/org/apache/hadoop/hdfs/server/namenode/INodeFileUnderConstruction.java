@@ -27,6 +27,16 @@ import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 
 
 class INodeFileUnderConstruction extends INodeFile {
+  /** Cast INode to INodeFileUnderConstruction. */
+  public static INodeFileUnderConstruction valueOf(INode inode, String path
+      ) throws IOException {
+    final INodeFile file = INodeFile.valueOf(inode, path);
+    if (!file.isUnderConstruction()) {
+      throw new IOException("File is not under construction: " + path);
+    }
+    return (INodeFileUnderConstruction)file;
+  }
+
   String clientName;         // lease holder
   private final String clientMachine;
   private final DatanodeDescriptor clientNode; // if client is a cluster node too.

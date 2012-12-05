@@ -32,7 +32,7 @@ public abstract class NameNodeAdapter {
   }
 
   public static boolean checkFileProgress(FSNamesystem fsn, String path, boolean checkall) throws IOException {
-    INodeFile f = fsn.dir.getFileINode(path);
+    INodeFile f = INodeFile.valueOf(fsn.dir.getINode(path), path);
     return fsn.checkFileProgress(f, checkall);
   }
 

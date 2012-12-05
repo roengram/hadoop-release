@@ -1446,14 +1446,7 @@ public class FSImage extends Storage {
 
       // verify that file exists in namespace
       String path = cons.getLocalName();
-      INode old = fsDir.getFileINode(path);
-      if (old == null) {
-        throw new IOException("Found lease for non-existent file " + path);
-      }
-      if (old.isDirectory()) {
-        throw new IOException("Found lease for directory " + path);
-      }
-      INodeFile oldnode = (INodeFile) old;
+      INodeFile oldnode = INodeFile.valueOf(fsDir.getINode(path), path);
       fsDir.replaceNode(path, oldnode, cons);
       fs.leaseManager.addLease(cons.clientName, path); 
     }

@@ -1115,10 +1115,11 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
                                                        boolean doAccessTime, 
                                                        boolean needBlockToken)
                                                        throws IOException {
-    INodeFile inode = dir.getFileINode(src);
-    if(inode == null) {
+    INode i = dir.getINode(src);
+    if(i == null || i.isDirectory()) {
       return null;
     }
+    INodeFile inode = (INodeFile)i;
     if (doAccessTime && isAccessTimeSupported()) {
       dir.setTimes(src, inode, -1, now(), false);
     }
@@ -1218,7 +1219,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     if (isPermissionEnabled) {
       checkPathAccess(src, FsAction.WRITE);
     }
-    INodeFile inode = dir.getFileINode(src);
+    INodeFile inode = INodeFile.valueOf(dir.getINode(src), src);
     if (inode != null) {
       dir.setTimes(src, inode, mtime, atime, true);
       if (auditLog.isInfoEnabled() && isExternalInvocation()) {
@@ -1408,7 +1409,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     }
 
     try {
-      INode myFile = dir.getFileINode(src);
+      INode myFile = dir.getINode(src);
       recoverLeaseInternal(myFile, src, holder, clientMachine, false);
 
       try {
@@ -1503,7 +1504,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       throw new IOException("Invalid name: " + src);
     }
 
-    INode inode = dir.getFileINode(src);
+    INodeFile inode = INodeFile.valueOf(dir.getINode(src), src);
     if (inode == null) {
       throw new FileNotFoundException("File not found " + src);
     }
@@ -1793,7 +1794,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   // make sure that we still have the lease on this file.
   private INodeFileUnderConstruction checkLease(String src, String holder) 
                                                       throws IOException {
-    INodeFile file = dir.getFileINode(src);
+    INodeFile file = INodeFile.valueOf(dir.getINode(src), src);
     checkLease(src, holder, file);
     return (INodeFileUnderConstruction)file;
   }
@@ -2383,7 +2384,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
 
     LOG.info("Recovering lease=" + lease + ", src=" + src);
 
-    INodeFile iFile = dir.getFileINode(src);
+    INodeFile iFile = INodeFile.valueOf(dir.getINode(src), src);
     if (iFile == null) {
       final String message = "DIR* internalReleaseCreate: "
         + "attempt to release a create lock on "
@@ -5335,8 +5336,9 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
 
   /**
    * Set the total number of blocks in the system. 
+   * @throws IOException 
    */
-  void setBlockTotal() {
+  void setBlockTotal() throws IOException {
     if (safeMode == null)
       return;
     safeMode.setBlockTotal((int)getSafeBlockCount());
@@ -5361,12 +5363,12 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    * This method returns the total number of blocks excluding the last blocks of
    * files under construction with length zero.
    */
-  private long getSafeBlockCount() {
+  long getSafeBlockCount() throws IOException {
     // Calculate number of blocks excluded in safe block count
     long numExcludedBlocks = 0;
     for (Lease lease : leaseManager.getSortedLeases()) {
       for (String path : lease.getPaths()) {
-        INode node = dir.getFileINode(path);
+        INodeFile node = INodeFile.valueOf(dir.getINode(path), path);
         if (node == null) {
           LOG.error("Found a lease for nonexisting file: " + path);
           continue;
@@ -5787,7 +5789,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       for (Lease lease : leaseManager.getSortedLeases()) {
         for(String path : lease.getPaths()) {
           // verify that path exists in namespace
-          INode node = dir.getFileINode(path);
+          INodeFile node = INodeFile.valueOf(dir.getINode(path), path);
           if (node == null) {
             throw new IOException("saveLeases found path " + path +
                                   " but no matching entry in namespace.");

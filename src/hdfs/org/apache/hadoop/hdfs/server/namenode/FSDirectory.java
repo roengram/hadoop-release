@@ -790,16 +790,13 @@ class FSDirectory implements FSConstants, Closeable {
       return ((INodeFile)targetNode).getBlocks();
     }
   }
-
+  
   /**
-   * Get {@link INode} associated with the file.
+   * Get {@link INode} associated with the file / directory.
    */
-  INodeFile getFileINode(String src) {
+  INode getINode(String src) {
     synchronized (rootDir) {
-      INode inode = rootDir.getNode(src);
-      if (inode == null || inode.isDirectory())
-        return null;
-      return (INodeFile)inode;
+      return rootDir.getNode(src);
     }
   }
 
@@ -1361,7 +1358,7 @@ class FSDirectory implements FSConstants, Closeable {
 
   boolean unprotectedSetTimes(String src, long mtime, long atime, boolean force) 
                               throws IOException {
-    INodeFile inode = getFileINode(src);
+    INodeFile inode = (INodeFile)rootDir.getNode(src);
     return unprotectedSetTimes(src, inode, mtime, atime, force);
   }
 
