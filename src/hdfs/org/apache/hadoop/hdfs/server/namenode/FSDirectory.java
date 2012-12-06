@@ -623,7 +623,7 @@ class FSDirectory implements FSConstants, Closeable {
     synchronized(rootDir) {
       INode targetNode = rootDir.getNode(src);
       assert targetNode != null : "should be taken care in isDir() above";
-      if (((INodeDirectory)targetNode).getChildren().size() != 0) {
+      if (((INodeDirectory)targetNode).getChildrenList().size() != 0) {
         dirNotEmpty = false;
       }
     }
@@ -746,7 +746,7 @@ class FSDirectory implements FSConstants, Closeable {
             HdfsFileStatus.EMPTY_NAME, targetNode)}, 0);
       }
       INodeDirectory dirInode = (INodeDirectory)targetNode; 
-      List<INode> contents = dirInode.getChildren();
+      List<INode> contents = dirInode.getChildrenList();
       int startChild = dirInode.nextChild(startAfter);
       int totalNumChildren = contents.size();
       int numOfListing = Math.min(totalNumChildren-startChild, this.lsLimit);
@@ -1225,7 +1225,7 @@ class FSDirectory implements FSConstants, Closeable {
      * INode. using 'parent' is not currently recommended. */
     nodesInPath.add(dir);
 
-    for (INode child : dir.getChildren()) {
+    for (INode child : dir.getChildrenList()) {
       if (child.isDirectory()) {
         updateCountForINodeWithQuota((INodeDirectory)child, 
                                      counts, nodesInPath);

@@ -1398,7 +1398,7 @@ public class FSImage extends Storage {
                                 INodeDirectory current,
                                 DataOutputStream out) throws IOException {
     int newPrefixLength = prefixLength;
-    if (current.getChildrenRaw() == null)
+    if (current.getChildren() == null)
       return;
     for(INode child : current.getChildren()) {
       // print all children first

@@ -163,7 +163,7 @@ class PermissionChecker {
       INodeDirectory d = directories.pop();
       check(d, access);
 
-      for(INode child : d.getChildren()) {
+      for(INode child : d.getChildrenList()) {
         if (child.isDirectory()) {
           directories.push((INodeDirectory)child);
         }

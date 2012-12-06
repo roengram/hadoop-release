@@ -17,7 +17,9 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import org.apache.hadoop.fs.Path;
@@ -34,6 +36,7 @@ import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
  * directory inodes.
  */
 abstract class INode implements Comparable<byte[]>, FSInodeInfo {
+  static final List<INode> EMPTY_LIST = Collections.unmodifiableList(new ArrayList<INode>());
   protected byte[] name;
   protected INodeDirectory parent;
   protected long modificationTime;

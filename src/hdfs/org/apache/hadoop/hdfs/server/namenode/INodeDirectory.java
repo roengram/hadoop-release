@@ -18,6 +18,7 @@
 package org.apache.hadoop.hdfs.server.namenode;
 
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -32,6 +33,18 @@ import org.apache.hadoop.hdfs.protocol.Block;
  * Directory INode class.
  */
 class INodeDirectory extends INode {
+  /** Cast INode to INodeDirectory. */
+  public static INodeDirectory valueOf(INode inode, String path
+      ) throws IOException {
+    if (inode == null) {
+      throw new IOException("Directory does not exist: " + path);
+    }
+    if (!inode.isDirectory()) {
+      throw new IOException("Path is not a directory: " + path);
+    }
+    return (INodeDirectory)inode; 
+  }
+
   protected static final int DEFAULT_FILES_PER_DIRECTORY = 5;
   final static String ROOT_NAME = "";
 
@@ -111,6 +124,7 @@ class INodeDirectory extends INode {
   }
 
   /**
+   * @return the INode of the last component in components, or null if the last
    */
   private INode getNode(byte[][] components) {
     INodesInPath inodesInPath = getExistingPathINodes(components, 1);
@@ -361,11 +375,15 @@ class INodeDirectory extends INode {
   }
 
   /**
+   * @return an empty list if the children list is null;
+   *         otherwise, return the children list.
+   *         The returned list should not be modified.
    */
-  List<INode> getChildren() {
-    return children==null ? new ArrayList<INode>() : children;
+  public List<INode> getChildrenList() {
+    return children==null ? EMPTY_LIST : children;
   }
-  List<INode> getChildrenRaw() {
+  /** @return the children list which is possibly null. */
+  public List<INode> getChildren() {
     return children;
   }
 
