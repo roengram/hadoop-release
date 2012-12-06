@@ -5396,7 +5396,11 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
 
     return getBlocksTotal() - numExcludedBlocks;
   }
-  
+  /** @return the FSDirectory. */
+  public FSDirectory getFSDirectory() {
+    return dir;
+  }
+
   /**
    * Enter safe mode manually.
    * @throws IOException
