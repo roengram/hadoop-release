@@ -87,13 +87,6 @@ abstract class INode implements Comparable<byte[]>, FSInodeInfo {
     }
   }
 
-  protected INode() {
-    name = null;
-    parent = null;
-    modificationTime = 0;
-    accessTime = 0;
-  }
-
   INode(PermissionStatus permissions, long mTime, long atime) {
     this.name = null;
     this.parent = null;

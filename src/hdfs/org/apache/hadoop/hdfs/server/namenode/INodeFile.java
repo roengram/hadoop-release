@@ -59,11 +59,6 @@ class INodeFile extends INode {
         modificationTime, atime, preferredBlockSize);
   }
 
-  protected INodeFile() {
-    blocks = null;
-    header = 0;
-  }
-
   protected INodeFile(PermissionStatus permissions, BlockInfo[] blklist,
                       short replication, long modificationTime,
                       long atime, long preferredBlockSize) {
