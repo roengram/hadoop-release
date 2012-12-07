@@ -762,7 +762,7 @@ class FSDirectory implements FSConstants, Closeable {
       HdfsFileStatus listing[] = new HdfsFileStatus[numOfListing];
       for (int i=0; i<numOfListing; i++) {
         INode cur = contents.get(startChild+i);
-        listing[i] = createFileStatus(cur.name, cur);
+        listing[i] = createFileStatus(cur.getLocalNameBytes(), cur);
       }
       return new DirectoryListing(
           listing, totalNumChildren-startChild-numOfListing);
@@ -887,7 +887,7 @@ class FSDirectory implements FSConstants, Closeable {
     for(int i = 0; i < numOfINodes; i++) {
       if (inodes[i].isQuotaSet()) { // a directory with quota
         INodeDirectoryWithQuota node =(INodeDirectoryWithQuota)inodes[i]; 
-        node.updateNumItemsInTree(nsDelta, dsDelta);
+        node.addSpaceConsumed(nsDelta, dsDelta);
       }
     }
   }
@@ -1012,7 +1012,7 @@ class FSDirectory implements FSConstants, Closeable {
       byte[] name, PermissionStatus permission, boolean inheritPermission,
       long timestamp) throws QuotaExceededException {
     final INodeDirectory dir = new INodeDirectory(name, permission, timestamp);
-    final INode inode = addChild(inodesInPath, pos, dir, -1, true);
+    final INode inode = addChild(inodesInPath, pos, dir, -1, inheritPermission);
     inodesInPath.setINode(pos, inode);
   }
   

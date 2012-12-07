@@ -1398,15 +1398,15 @@ public class FSImage extends Storage {
                                 INodeDirectory current,
                                 DataOutputStream out) throws IOException {
     int newPrefixLength = prefixLength;
-    if (current.getChildren() == null)
+    if (current.getChildrenList().isEmpty())
       return;
-    for(INode child : current.getChildren()) {
+    for(INode child : current.getChildrenList()) {
       // print all children first
       parentPrefix.position(prefixLength);
       parentPrefix.put(PATH_SEPARATOR).put(child.getLocalNameBytes());
       saveINode2Image(parentPrefix, child, out);
     }
-    for(INode child : current.getChildren()) {
+    for(INode child : current.getChildrenList()) {
       if(!child.isDirectory())
         continue;
       parentPrefix.position(prefixLength);

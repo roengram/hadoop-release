@@ -48,22 +48,19 @@ class INodeDirectory extends INode {
   protected static final int DEFAULT_FILES_PER_DIRECTORY = 5;
   final static String ROOT_NAME = "";
 
-  private List<INode> children;
+  private List<INode> children = null;
 
   INodeDirectory(String name, PermissionStatus permissions) {
     super(name, permissions);
-    this.children = null;
   }
 
   public INodeDirectory(PermissionStatus permissions, long mTime) {
     super(permissions, mTime, 0);
-    this.children = null;
   }
 
   /** constructor */
-  INodeDirectory(byte[] localName, PermissionStatus permissions, long mTime) {
-    this(permissions, mTime);
-    this.name = localName;
+  INodeDirectory(byte[] name, PermissionStatus permissions, long mtime) {
+    super(name, permissions, null, mtime, 0L);
   }
   
   /** copy constructor
@@ -72,7 +69,7 @@ class INodeDirectory extends INode {
    */
   INodeDirectory(INodeDirectory other) {
     super(other);
-    this.children = other.getChildren();
+    this.children = other.children;
   }
   
   /**
@@ -82,14 +79,20 @@ class INodeDirectory extends INode {
     return true;
   }
 
-  INode removeChild(INode node) {
-    assert children != null;
-    int low = Collections.binarySearch(children, node.name);
-    if (low >= 0) {
-      return children.remove(low);
-    } else {
-      return null;
+  private void assertChildrenNonNull() {
+    if (children == null) {
+      throw new AssertionError("children is null: " + this);
     }
+  }
+
+  private int searchChildren(INode inode) {
+    return Collections.binarySearch(children, inode.getLocalNameBytes());
+  }
+
+  INode removeChild(INode node) {
+    assertChildrenNonNull();
+    final int i = searchChildren(node);
+    return i >= 0? children.remove(i): null;
   }
 
   /** Replace a child that has the same name as newChild by newChild.
@@ -97,10 +100,9 @@ class INodeDirectory extends INode {
    * @param newChild Child node to be added
    */
   void replaceChild(INode newChild) {
-    if ( children == null ) {
-      throw new IllegalArgumentException("The directory is empty");
-    }
-    int low = Collections.binarySearch(children, newChild.name);
+    assertChildrenNonNull();
+
+    final int low = searchChildren(newChild);
     if (low>=0) { // an old child exists so replace by the newChild
       children.set(low, newChild);
     } else {
@@ -173,8 +175,9 @@ class INodeDirectory extends INode {
    * @return number of existing INodes in the path
    */
   INodesInPath getExistingPathINodes(byte[][] components, int numOfINodes) {
-    assert compareBytes(this.name, components[0]) == 0 :
-      "Incorrect name " + getLocalName() + " expected " + components[0];
+    assert this.compareTo(components[0]) == 0 :
+      "Incorrect name " + getLocalName() + " expected "
+      + (components[0] == null? null: DFSUtil.bytes2String(components[0]));
 
     INodesInPath existing = new INodesInPath(numOfINodes);
     INode curNode = this;
@@ -236,7 +239,7 @@ class INodeDirectory extends INode {
     if (children == null) {
       children = new ArrayList<INode>(DEFAULT_FILES_PER_DIRECTORY);
     }
-    int low = Collections.binarySearch(children, node.name);
+    final int low = searchChildren(node);
     if(low >= 0)
       return null;
     node.parent = this;
@@ -324,7 +327,7 @@ class INodeDirectory extends INode {
       parent = (INodeDirectory)inode;
     }
     // insert into the parent children list
-    newNode.name = pathComponents[pathLen-1];
+    newNode.setLocalName(pathComponents[pathComponents.length - 1]);
     if(parent.addChild(newNode, inheritPermission) == null)
       return null;
     return parent;
@@ -379,10 +382,6 @@ class INodeDirectory extends INode {
    */
   public List<INode> getChildrenList() {
     return children==null ? EMPTY_LIST : children;
-  }
-  /** @return the children list which is possibly null. */
-  public List<INode> getChildren() {
-    return children;
   }
 
   @Override
