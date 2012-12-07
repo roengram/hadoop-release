@@ -23,7 +23,6 @@ import java.util.*;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.permission.*;
-import org.apache.hadoop.ipc.Server;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.UserGroupInformation;
 
@@ -114,7 +113,7 @@ class PermissionChecker {
     }
 
     synchronized(root) {
-      INode[] inodes = root.getExistingPathINodes(path);
+      INode[] inodes = root.getExistingPathINodes(path).getINodes();
       int ancestorIndex = inodes.length - 2;
       for(; ancestorIndex >= 0 && inodes[ancestorIndex] == null;
           ancestorIndex--);

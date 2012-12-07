@@ -91,6 +91,7 @@ import org.apache.hadoop.hdfs.server.common.Storage.StorageDirType;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
 import org.apache.hadoop.hdfs.server.common.UpgradeStatusReport;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
+import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
 import org.apache.hadoop.hdfs.server.namenode.LeaseManager.Lease;
 import org.apache.hadoop.hdfs.server.namenode.UnderReplicatedBlocks.BlockIterator;
 import org.apache.hadoop.hdfs.server.namenode.metrics.FSNamesystemMBean;
@@ -1322,20 +1323,20 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
                             text + " is less than the required minimum " + minReplication);
   }
 
-  /*
+  /**
    * Verify that parent dir exists
    */
   private void verifyParentDir(String src) throws FileAlreadyExistsException,
       FileNotFoundException {
     Path parent = new Path(src).getParent();
     if (parent != null) {
-      INode[] pathINodes = dir.getExistingPathINodes(parent.toString());
-      if (pathINodes[pathINodes.length - 1] == null) {
+      final INode parentNode = dir.getINode(parent.toString());
+      if (parentNode == null) {
         throw new FileNotFoundException("Parent directory doesn't exist: "
-            + parent.toString());
-      } else if (!pathINodes[pathINodes.length - 1].isDirectory()) {
+            + parent);
+      } else if (!parentNode.isDirectory()) {
         throw new FileAlreadyExistsException("Parent path is not a directory: "
-            + parent.toString());
+            + parent);
       }
     }
   }
@@ -1735,18 +1736,20 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       if (isInSafeMode()) { //make sure it is not in safemode again.
         throw new SafeModeException("Cannot add block to " + src, safeMode);
       }
-      INode[] pathINodes = dir.getExistingPathINodes(src);
-      int inodesLen = pathINodes.length;
-      checkLease(src, clientName, pathINodes[inodesLen-1]);
-      INodeFileUnderConstruction pendingFile  = (INodeFileUnderConstruction) 
-                                                pathINodes[inodesLen - 1];
+      
+      final INodesInPath inodesInPath = dir.rootDir.getExistingPathINodes(src);
+      final INode[] inodes = inodesInPath.getINodes();
+      int inodesLen = inodes.length;
+      checkLease(src, clientName, inodes[inodesLen-1]);
+      INodeFileUnderConstruction pendingFile = (INodeFileUnderConstruction) 
+                                               inodes[inodesLen - 1];
                                                            
       if (!checkFileProgress(pendingFile, false)) {
         throw new NotReplicatedYetException("Not replicated yet:" + src);
       }
 
       // allocate new block record block locations in INode.
-      newBlock = allocateBlock(src, pathINodes);
+      newBlock = allocateBlock(src, inodesInPath);
       pendingFile.setTargets(targets);
       
       for (DatanodeDescriptor dn : targets) {
@@ -1898,16 +1901,17 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    * Allocate a block at the given pending filename
    * 
    * @param src path to the file
-   * @param inodes INode representing each of the components of src. 
-   *        <code>inodes[inodes.length-1]</code> is the INode for the file.
+   * @param inodesInPath representing each of the components of src. 
+   *                     The last INode is the INode for the file.
    */
-  private Block allocateBlock(String src, INode[] inodes) throws IOException {
+  private Block allocateBlock(String src, INodesInPath inodesInPath)
+      throws IOException {
     Block b = new Block(FSNamesystem.randBlockId.nextLong(), 0, 0); 
     while(isValidBlock(b)) {
       b.setBlockId(FSNamesystem.randBlockId.nextLong());
     }
     b.setGenerationStamp(getGenerationStamp());
-    b = dir.addBlock(src, inodes, b);
+    b = dir.addBlock(src, inodesInPath, b);
     NameNode.stateChangeLog.info("BLOCK* allocateBlock: "
                                  +src+ ". "+b);
     return b;

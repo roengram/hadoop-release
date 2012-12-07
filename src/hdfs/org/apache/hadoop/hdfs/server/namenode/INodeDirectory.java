@@ -208,13 +208,11 @@ class INodeDirectory extends INode {
    *         components in the path, and non existing components will be
    *         filled with null
    *         
-   * @see #getExistingPathINodes(byte[][], INode[])
+   * @see #getExistingPathINodes(byte[][], int)
    */
-  INode[] getExistingPathINodes(String path) {
+  INodesInPath getExistingPathINodes(String path) {
     byte[][] components = getPathComponents(path);
-    INodesInPath inodes = this.getExistingPathINodes(components,
-        components.length);
-    return inodes.inodes;
+    return this.getExistingPathINodes(components, components.length);
   }
 
   /**
@@ -416,6 +414,10 @@ class INodeDirectory extends INode {
     
     INode[] getINodes() {
       return inodes;
+    }
+    
+    void setINode(int i, INode inode) {
+      inodes[i] = inode;
     }
   }
 
