@@ -28,7 +28,6 @@ import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.DFSUtil;
-import org.apache.hadoop.hdfs.protocol.Block;
 
 /**
  * Directory INode class.
@@ -386,13 +385,14 @@ class INodeDirectory extends INode {
     return children;
   }
 
-  int collectSubtreeBlocksAndClear(List<Block> v) {
+  @Override
+  int collectSubtreeBlocksAndClear(BlocksMapUpdateInfo info) {
     int total = 1;
     if (children == null) {
       return total;
     }
     for (INode child : children) {
-      total += child.collectSubtreeBlocksAndClear(v);
+      total += child.collectSubtreeBlocksAndClear(info);
     }
     parent = null;
     children = null;

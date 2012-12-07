@@ -19,7 +19,6 @@ package org.apache.hadoop.hdfs.server.namenode;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.List;
 
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
@@ -141,11 +140,14 @@ class INodeFile extends INode {
     this.blocks[idx] = blk;
   }
 
-  int collectSubtreeBlocksAndClear(List<Block> v) {
+  @Override
+  int collectSubtreeBlocksAndClear(BlocksMapUpdateInfo info) {
     parent = null;
-    for (BlockInfo blk : blocks) {
-      v.add(blk);
-      blk.setINode(null);
+    if (blocks != null && info != null) {
+      for (BlockInfo blk : blocks) {
+        info.addDeleteBlock(blk);
+        blk.setINode(null);
+      }
     }
     blocks = null;
     return 1;
