@@ -18,12 +18,12 @@
 package org.apache.hadoop.hdfs.server.namenode;
 
 import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.hadoop.fs.PathIsNotDirectoryException;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
@@ -35,12 +35,12 @@ import org.apache.hadoop.hdfs.DFSUtil;
 class INodeDirectory extends INode {
   /** Cast INode to INodeDirectory. */
   public static INodeDirectory valueOf(INode inode, String path
-      ) throws IOException {
+      ) throws FileNotFoundException, PathIsNotDirectoryException {
     if (inode == null) {
-      throw new IOException("Directory does not exist: " + path);
+      throw new FileNotFoundException("Directory does not exist: " + path);
     }
     if (!inode.isDirectory()) {
-      throw new IOException("Path is not a directory: " + path);
+      throw new PathIsNotDirectoryException(DFSUtil.path2String(path));
     }
     return (INodeDirectory)inode; 
   }
@@ -222,10 +222,10 @@ class INodeDirectory extends INode {
    * 
    * @param node INode to insert
    * @param inheritPermission inherit permission from parent?
-   * @return  null if the child with this name already exists; 
-   *          node, otherwise
+   * @return  false if the child with this name already exists; 
+   *          otherwise, return true
    */
-  <T extends INode> T addChild(final T node, boolean inheritPermission) {
+  boolean addChild(final INode node, boolean inheritPermission) {
     if (inheritPermission) {
       FsPermission p = getFsPermission();
       //make sure the  permission has wx for the user
@@ -241,7 +241,7 @@ class INodeDirectory extends INode {
     }
     final int low = searchChildren(node);
     if(low >= 0)
-      return null;
+      return false;
     node.parent = this;
     children.add(-low - 1, node);
     // update modification time of the parent directory
@@ -249,7 +249,7 @@ class INodeDirectory extends INode {
     if (node.getGroupName() == null) {
       node.setGroup(getGroupName());
     }
-    return node;
+    return true;
   }
 
   /**
@@ -270,13 +270,6 @@ class INodeDirectory extends INode {
   }
   
   /**
-   * Equivalent to addNode(path, newNode, false).
-   * @see #addNode(String, INode, boolean)
-   */
-  <T extends INode> T addNode(String path, T newNode) throws FileNotFoundException {
-    return addNode(path, newNode, false);
-  }
-  /**
    * Add new INode to the file tree.
    * Find the parent and insert 
    * 
@@ -287,11 +280,11 @@ class INodeDirectory extends INode {
    * @throws FileNotFoundException if parent does not exist or 
    * is not a directory.
    */
-  <T extends INode> T addNode(String path, T newNode, boolean inheritPermission
+  boolean addINode(String path, INode newNode, boolean inheritPermission
       ) throws FileNotFoundException {
     if(addToParent(path, newNode, null, inheritPermission) == null)
-      return null;
-    return newNode;
+      return false;
+    return true;
   }
 
   /**
@@ -328,7 +321,7 @@ class INodeDirectory extends INode {
     }
     // insert into the parent children list
     newNode.setLocalName(pathComponents[pathComponents.length - 1]);
-    if(parent.addChild(newNode, inheritPermission) == null)
+    if(!parent.addChild(newNode, inheritPermission))
       return null;
     return parent;
   }

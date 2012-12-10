@@ -28,7 +28,8 @@ import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 
 class INodeFile extends INode {
   /** Cast INode to INodeFile. */
-  public static INodeFile valueOf(INode inode, String path) throws IOException {
+  public static INodeFile valueOf(INode inode, String path)
+      throws FileNotFoundException {
     if (inode == null) {
       throw new FileNotFoundException("File does not exist: " + path);
     }
