@@ -17,25 +17,31 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
-import java.io.*;
-import java.util.*;
+import java.io.Closeable;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.ContentSummary;
-import org.apache.hadoop.fs.PathIsNotDirectoryException;
-import org.apache.hadoop.fs.permission.*;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
-import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.protocol.Block;
-import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
+import org.apache.hadoop.hdfs.protocol.ClientProtocol;
 import org.apache.hadoop.hdfs.protocol.DirectoryListing;
+import org.apache.hadoop.hdfs.protocol.FSConstants;
+import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants.StartupOption;
-import org.apache.hadoop.hdfs.util.ByteArray;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
+import org.apache.hadoop.hdfs.util.ByteArray;
 
 /*************************************************
  * FSDirectory stores the filesystem directory state.
@@ -1267,8 +1273,7 @@ class FSDirectory implements FSConstants, Closeable {
    * @throws PathIsNotDirectoryException if the path is not a directory
    */
   INodeDirectory unprotectedSetQuota(String src, long nsQuota, long dsQuota)
-      throws FileNotFoundException, QuotaExceededException,
-      PathIsNotDirectoryException {
+      throws FileNotFoundException, QuotaExceededException {
     // sanity check
     if ((nsQuota < 0 && nsQuota != FSConstants.QUOTA_DONT_SET && 
          nsQuota < FSConstants.QUOTA_RESET) || 
@@ -1325,8 +1330,7 @@ class FSDirectory implements FSConstants, Closeable {
    * @see #unprotectedSetQuota(String, long, long)
    */
   void setQuota(String src, long nsQuota, long dsQuota)
-      throws FileNotFoundException, QuotaExceededException,
-      PathIsNotDirectoryException {
+      throws FileNotFoundException, QuotaExceededException {
     synchronized (rootDir) {    
       INodeDirectory dir = unprotectedSetQuota(src, nsQuota, dsQuota);
       if (dir != null) {

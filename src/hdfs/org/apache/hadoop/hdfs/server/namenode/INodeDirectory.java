@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.hadoop.fs.PathIsNotDirectoryException;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
@@ -35,12 +34,13 @@ import org.apache.hadoop.hdfs.DFSUtil;
 class INodeDirectory extends INode {
   /** Cast INode to INodeDirectory. */
   public static INodeDirectory valueOf(INode inode, String path
-      ) throws FileNotFoundException, PathIsNotDirectoryException {
+      ) throws FileNotFoundException {
     if (inode == null) {
       throw new FileNotFoundException("Directory does not exist: " + path);
     }
     if (!inode.isDirectory()) {
-      throw new PathIsNotDirectoryException(DFSUtil.path2String(path));
+      throw new FileNotFoundException("Is not a directory: "
+          + DFSUtil.path2String(path));
     }
     return (INodeDirectory)inode; 
   }

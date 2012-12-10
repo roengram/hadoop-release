@@ -25,7 +25,6 @@ import static org.junit.Assert.fail;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 
-import org.apache.hadoop.fs.PathIsNotDirectoryException;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.junit.Test;
@@ -186,7 +185,8 @@ public class TestINodeFile {
       try {
         INodeDirectory.valueOf(from, path);
         fail();
-      } catch(PathIsNotDirectoryException e) {
+      } catch(FileNotFoundException e) {
+        assertTrue(e.getMessage().contains("Is not a directory"));
       }
     }
 
@@ -207,7 +207,8 @@ public class TestINodeFile {
       try {
         INodeDirectory.valueOf(from, path);
         fail();
-      } catch(PathIsNotDirectoryException e) {
+      } catch(FileNotFoundException e) {
+        assertTrue(e.getMessage().contains("Is not a directory"));
       }
     }
 

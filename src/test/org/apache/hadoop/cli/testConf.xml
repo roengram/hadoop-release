@@ -3180,7 +3180,7 @@
       <comparators>
         <comparator>
           <type>SubstringComparator</type>
-          <expected-output>setQuota: org.apache.hadoop.fs.PathIsNotDirectoryException: `/test/file1': Is not a directory</expected-output>
+          <expected-output>setQuota: java.io.FileNotFoundException: Is not a directory: /test/file1</expected-output>
         </comparator>
       </comparators>
     </test>
