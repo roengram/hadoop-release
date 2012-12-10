@@ -25,6 +25,7 @@ import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -976,9 +977,8 @@ public class FSImage extends Storage {
           parentPath = getParent(path);
         }
         // add new inode
-        parentINode = fsDir.addToParent(path, parentINode, permissions,
-                                        blocks, replication, modificationTime, 
-                                        atime, nsQuota, dsQuota, blockSize);
+        parentINode = addToParent(path, parentINode, permissions, blocks,
+            replication, modificationTime, atime, nsQuota, dsQuota, blockSize);
       }
       
       // load datanode info
@@ -994,6 +994,46 @@ public class FSImage extends Storage {
     }
     
     return needToSave;
+  }
+  
+  INodeDirectory addToParent(String src, INodeDirectory parentINode,
+      PermissionStatus permissions, Block[] blocks, short replication,
+      long modificationTime, long atime, long nsQuota, long dsQuota,
+      long preferredBlockSize) {
+    // NOTE: This does not update space counts for parents
+    // create new inode
+    INode newNode;
+    FSNamesystem fsNamesys = FSNamesystem.getFSNamesystem();
+    FSDirectory fsDir = fsNamesys.dir;
+    if (blocks == null) {
+      if (nsQuota >= 0 || dsQuota >= 0) {
+        newNode = new INodeDirectoryWithQuota(permissions, modificationTime,
+            nsQuota, dsQuota);
+      } else {
+        newNode = new INodeDirectory(permissions, modificationTime);
+      }
+    } else
+      newNode = new INodeFile(permissions, blocks.length, replication,
+          modificationTime, atime, preferredBlockSize);
+    // add new node to the parent
+    INodeDirectory newParent = null;
+    try {
+      newParent = fsDir.rootDir.addToParent(src, newNode, parentINode, false);
+      fsDir.cacheName(newNode);
+    } catch (FileNotFoundException e) {
+      return null;
+    }
+    if (newParent == null)
+      return null;
+    if (blocks != null) {
+      int nrBlocks = blocks.length;
+      // Add file->block mapping
+      INodeFile newF = (INodeFile) newNode;
+      for (int i = 0; i < nrBlocks; i++) {
+        newF.setBlock(i, fsNamesys.blocksMap.addINode(blocks[i], newF));
+      }
+    }
+    return newParent;
   }
 
   /**

@@ -26,9 +26,13 @@ import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
  * Directory INode class that has a quota restriction
  */
 class INodeDirectoryWithQuota extends INodeDirectory {
-  private long nsQuota; /// NameSpace quota
+  /** Name space quota */
+  private long nsQuota = Long.MAX_VALUE;
+  /** Name space count */
   private long nsCount = 1L;
-  private long dsQuota; /// disk space quota
+  /** Disk space quota */
+  private long dsQuota = -1L;
+  /** Disk space count */
   private long diskspace = 0L;
   
   /** Convert an existing directory inode to one with the given quota
@@ -59,12 +63,9 @@ class INodeDirectoryWithQuota extends INodeDirectory {
   }
   
   /** constructor with no quota verification */
-  INodeDirectoryWithQuota(String name, PermissionStatus permissions, 
-                          long nsQuota, long dsQuota)
+  INodeDirectoryWithQuota(String name, PermissionStatus permissions)
   {
     super(name, permissions);
-    this.nsQuota = nsQuota;
-    this.dsQuota = dsQuota;
   }
   
   /** Get this directory's namespace quota

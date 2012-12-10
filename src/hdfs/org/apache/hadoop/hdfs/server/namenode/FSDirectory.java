@@ -47,7 +47,11 @@ import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
  * 
  *************************************************/
 class FSDirectory implements FSConstants, Closeable {
-
+  private static INodeDirectoryWithQuota createRoot(FSNamesystem namesystem) {
+    return new INodeDirectoryWithQuota(INodeDirectory.ROOT_NAME,
+        namesystem.createFsOwnerPermissions(new FsPermission((short) 0755)));
+  }
+  
   final FSNamesystem namesystem;
   final INodeDirectoryWithQuota rootDir;
   FSImage fsImage;  
@@ -68,9 +72,7 @@ class FSDirectory implements FSConstants, Closeable {
   }
 
   FSDirectory(FSImage fsImage, FSNamesystem ns, Configuration conf) {
-    rootDir = new INodeDirectoryWithQuota(INodeDirectory.ROOT_NAME,
-        ns.createFsOwnerPermissions(new FsPermission((short)0755)),
-        Integer.MAX_VALUE, -1);
+    rootDir = createRoot(ns);
     this.fsImage = fsImage;
     fsImage.setRestoreRemovedDirs(conf.getBoolean(
         DFSConfigKeys.DFS_NAMENODE_NAME_DIR_RESTORE_KEY,
@@ -225,51 +227,51 @@ class FSDirectory implements FSConstants, Closeable {
     }
   }
 
-  INodeDirectory addToParent( String src,
-                              INodeDirectory parentINode,
-                              PermissionStatus permissions,
-                              Block[] blocks, 
-                              short replication,
-                              long modificationTime,
-                              long atime,
-                              long nsQuota,
-                              long dsQuota,
-                              long preferredBlockSize) {
-    // NOTE: This does not update space counts for parents
-    // create new inode
-    INode newNode;
-    if (blocks == null) {
-      if (nsQuota >= 0 || dsQuota >= 0) {
-        newNode = new INodeDirectoryWithQuota(
-            permissions, modificationTime, nsQuota, dsQuota);
-      } else {
-        newNode = new INodeDirectory(permissions, modificationTime);
-      }
-    } else 
-      newNode = new INodeFile(permissions, blocks.length, replication,
-                              modificationTime, atime, preferredBlockSize);
-    // add new node to the parent
-    INodeDirectory newParent = null;
-    synchronized (rootDir) {
-      try {
-        newParent = rootDir.addToParent(src, newNode, parentINode, false);
-        cacheName(newNode);
-      } catch (FileNotFoundException e) {
-        return null;
-      }
-      if(newParent == null)
-        return null;
-      if(blocks != null) {
-        int nrBlocks = blocks.length;
-        // Add file->block mapping
-        INodeFile newF = (INodeFile)newNode;
-        for (int i = 0; i < nrBlocks; i++) {
-          newF.setBlock(i, namesystem.blocksMap.addINode(blocks[i], newF));
-        }
-      }
-    }
-    return newParent;
-  }
+//  INodeDirectory addToParent( String src,
+//                              INodeDirectory parentINode,
+//                              PermissionStatus permissions,
+//                              Block[] blocks, 
+//                              short replication,
+//                              long modificationTime,
+//                              long atime,
+//                              long nsQuota,
+//                              long dsQuota,
+//                              long preferredBlockSize) {
+//    // NOTE: This does not update space counts for parents
+//    // create new inode
+//    INode newNode;
+//    if (blocks == null) {
+//      if (nsQuota >= 0 || dsQuota >= 0) {
+//        newNode = new INodeDirectoryWithQuota(
+//            permissions, modificationTime, nsQuota, dsQuota);
+//      } else {
+//        newNode = new INodeDirectory(permissions, modificationTime);
+//      }
+//    } else 
+//      newNode = new INodeFile(permissions, blocks.length, replication,
+//                              modificationTime, atime, preferredBlockSize);
+//    // add new node to the parent
+//    INodeDirectory newParent = null;
+//    synchronized (rootDir) {
+//      try {
+//        newParent = rootDir.addToParent(src, newNode, parentINode, false);
+//        cacheName(newNode);
+//      } catch (FileNotFoundException e) {
+//        return null;
+//      }
+//      if(newParent == null)
+//        return null;
+//      if(blocks != null) {
+//        int nrBlocks = blocks.length;
+//        // Add file->block mapping
+//        INodeFile newF = (INodeFile)newNode;
+//        for (int i = 0; i < nrBlocks; i++) {
+//          newF.setBlock(i, namesystem.blocksMap.addINode(blocks[i], newF));
+//        }
+//      }
+//    }
+//    return newParent;
+//  }
 
   /**
    * Add a block to the file. Returns a reference to the added block.
@@ -530,21 +532,14 @@ class FSDirectory implements FSConstants, Closeable {
 
   /**
    * Get the blocksize of a file
-   * @param filename the filename
-   * @return the number of bytes 
+   * @param path the file path
+   * @return the block size of the file. 
    * @throws IOException if it is a directory or does not exist.
    */
-  long getPreferredBlockSize(String filename) throws IOException {
+  long getPreferredBlockSize(String path) throws IOException {
     synchronized (rootDir) {
-      INode fileNode = rootDir.getNode(filename);
-      if (fileNode == null) {
-        throw new IOException("Unknown file: " + filename);
-      }
-      if (fileNode.isDirectory()) {
-        throw new IOException("Getting block size of a directory: " + 
-                              filename);
-      }
-      return ((INodeFile)fileNode).getPreferredBlockSize();
+      return INodeFile.valueOf(rootDir.getNode(path), path)
+          .getPreferredBlockSize();
     }
   }
 
@@ -555,7 +550,7 @@ class FSDirectory implements FSConstants, Closeable {
       if (inode == null) {
          return false;
       }
-      return inode.isDirectory()? true: ((INodeFile)inode).getBlocks() != null;
+      return !inode.isFile() || ((INodeFile)inode).getBlocks() != null;
     }
   }
 
@@ -792,12 +787,8 @@ class FSDirectory implements FSConstants, Closeable {
   Block[] getFileBlocks(String src) {
     waitForReady();
     synchronized (rootDir) {
-      INode targetNode = rootDir.getNode(src);
-      if (targetNode == null)
-        return null;
-      if(targetNode.isDirectory())
-        return null;
-      return ((INodeFile)targetNode).getBlocks();
+      final INode i = rootDir.getNode(src);
+      return i != null && i.isFile()? ((INodeFile)i).getBlocks(): null;
     }
   }
   
@@ -1413,7 +1404,7 @@ class FSDirectory implements FSConstants, Closeable {
    */
   void cacheName(INode inode) {
     // Name is cached only for files
-    if (inode.isDirectory()) {
+    if (!inode.isFile()) {
       return;
     }
     ByteArray name = new ByteArray(inode.getLocalNameBytes());

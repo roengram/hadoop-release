@@ -80,17 +80,17 @@ abstract class INode implements Comparable<byte[]>, FSInodeInfo {
       return (record & ~MASK) | (bits << OFFSET);
     }
 
-    /** Set the {@link PermissionStatus} */
+    /** Encode the {@link PermissionStatus} to a long. */
     static long toLong(PermissionStatus ps) {
       long permission = 0L;
       final int user = SerialNumberManager.INSTANCE.getUserSerialNumber(
           ps.getUserName());
-      permission = PermissionStatusFormat.USER.combine(user, permission);
+      permission = USER.combine(user, permission);
       final int group = SerialNumberManager.INSTANCE.getGroupSerialNumber(
           ps.getGroupName());
-      permission = PermissionStatusFormat.GROUP.combine(group, permission);
+      permission = GROUP.combine(group, permission);
       final int mode = ps.getPermission().toShort();
-      permission = PermissionStatusFormat.MODE.combine(mode, permission);
+      permission = MODE.combine(mode, permission);
       return permission;
     }
   }
@@ -104,8 +104,9 @@ abstract class INode implements Comparable<byte[]>, FSInodeInfo {
    */
   private byte[] name = null;
   /** 
-   * Permission encoded using PermissionStatusFormat.
-   * Codes other than {@link #updatePermissionStatus(PermissionStatusFormat, long)}.
+   * Permission encoded using {@link PermissionStatusFormat}.
+   * Codes other than {@link #clonePermissionStatus(INode)}
+   * and {@link #updatePermissionStatus(PermissionStatusFormat, long)}
    * should not modify it.
    */
   private long permission = 0L;
@@ -148,13 +149,22 @@ abstract class INode implements Comparable<byte[]>, FSInodeInfo {
   boolean isRoot() {
     return name.length == 0;
   }
-
-  /** Set the {@link PermissionStatus} */
+  
+  /**
+   * Set the {@link PermissionStatus}. Used by
+   * {@link FSImage#loadFSImage(java.io.File)}
+   */
   protected void setPermissionStatus(PermissionStatus ps) {
     setUser(ps.getUserName());
     setGroup(ps.getGroupName());
     setPermission(ps.getPermission());
   }
+
+  /** Clone the {@link PermissionStatus}. */
+  void clonePermissionStatus(INode that) {
+    this.permission = that.permission;
+  }
+
   /** Get the {@link PermissionStatus} */
   protected PermissionStatus getPermissionStatus() {
     return new PermissionStatus(getUserName(),getGroupName(),getFsPermission());
@@ -196,6 +206,13 @@ abstract class INode implements Comparable<byte[]>, FSInodeInfo {
     updatePermissionStatus(PermissionStatusFormat.MODE, permission.toShort());
   }
 
+  /**
+   * Check whether it's a file.
+   */
+  public boolean isFile() {
+    return false;
+  }
+  
   /**
    * Check whether it's a directory
    */
