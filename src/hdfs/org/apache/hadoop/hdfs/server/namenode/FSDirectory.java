@@ -41,6 +41,8 @@ import org.apache.hadoop.hdfs.server.common.HdfsConstants.StartupOption;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeFileSnapshot;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeFileWithLink;
 import org.apache.hadoop.hdfs.util.ByteArray;
 
 /*************************************************
@@ -233,51 +235,40 @@ class FSDirectory implements FSConstants, Closeable {
     }
   }
 
-//  INodeDirectory addToParent( String src,
-//                              INodeDirectory parentINode,
-//                              PermissionStatus permissions,
-//                              Block[] blocks, 
-//                              short replication,
-//                              long modificationTime,
-//                              long atime,
-//                              long nsQuota,
-//                              long dsQuota,
-//                              long preferredBlockSize) {
-//    // NOTE: This does not update space counts for parents
-//    // create new inode
-//    INode newNode;
-//    if (blocks == null) {
-//      if (nsQuota >= 0 || dsQuota >= 0) {
-//        newNode = new INodeDirectoryWithQuota(
-//            permissions, modificationTime, nsQuota, dsQuota);
-//      } else {
-//        newNode = new INodeDirectory(permissions, modificationTime);
-//      }
-//    } else 
-//      newNode = new INodeFile(permissions, blocks.length, replication,
-//                              modificationTime, atime, preferredBlockSize);
-//    // add new node to the parent
-//    INodeDirectory newParent = null;
-//    synchronized (rootDir) {
-//      try {
-//        newParent = rootDir.addToParent(src, newNode, parentINode, false);
-//        cacheName(newNode);
-//      } catch (FileNotFoundException e) {
-//        return null;
-//      }
-//      if(newParent == null)
-//        return null;
-//      if(blocks != null) {
-//        int nrBlocks = blocks.length;
-//        // Add file->block mapping
-//        INodeFile newF = (INodeFile)newNode;
-//        for (int i = 0; i < nrBlocks; i++) {
-//          newF.setBlock(i, namesystem.blocksMap.addINode(blocks[i], newF));
-//        }
-//      }
-//    }
-//    return newParent;
-//  }
+  /** Add an INodeFileSnapshot to the source file. */
+  INodeFileSnapshot addFileSnapshot(String srcPath, String dstPath)
+      throws IOException, QuotaExceededException {
+    waitForReady();
+
+    final INodeFile src = rootDir.getINodeFile(srcPath);
+    INodeFileSnapshot snapshot = new INodeFileSnapshot(src,
+        src.computeContentSummary().getLength());
+    boolean added = false;
+    
+    synchronized (this) {
+      // add destination snaplink
+      added = addINode(dstPath, snapshot, -1L, false);
+
+      if (added && src.getClass() == INodeFile.class) {
+        // created a snapshot and the source is an INodeFile, replace the
+        // source.
+        replaceNode(srcPath, src, new INodeFileWithLink(src));
+      }
+    } 
+    if (!added) {
+      NameNode.stateChangeLog
+          .info("DIR* FSDirectory.addFileSnapshot: failed to add " + dstPath);
+      return null;
+    }
+
+    if (NameNode.stateChangeLog.isDebugEnabled()) {
+      NameNode.stateChangeLog.debug("DIR* FSDirectory.addFileSnapshot: "
+          + dstPath + " is added to the file system");
+    }
+    return snapshot;
+  }
+   
+
 
   /**
    * Add a block to the file. Returns a reference to the added block.

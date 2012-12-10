@@ -26,7 +26,7 @@ import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 
-class INodeFile extends INode {
+public class INodeFile extends INode {
   /** Cast INode to INodeFile. */
   public static INodeFile valueOf(INode inode, String path)
       throws FileNotFoundException {
@@ -113,6 +113,11 @@ class INodeFile extends INode {
 
   public boolean isDirectory() {
     return false;
+  }
+
+  protected INodeFile(INodeFile f) {
+    this(f.getPermissionStatus(), f.getBlocks(), f.getBlockReplication(),
+        f.getModificationTime(), f.getAccessTime(), f.getPreferredBlockSize());
   }
 
   /**
