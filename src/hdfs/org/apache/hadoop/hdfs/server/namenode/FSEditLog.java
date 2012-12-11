@@ -91,6 +91,9 @@ public class FSEditLog {
   private static final byte OP_UPDATE_MASTER_KEY = 21; //update master key
   private static final byte OP_CREATE_SNAPSHOT = 22; // create snapshot
   private static final byte OP_DELETE_SNAPSHOT = 23; // delete snapshot
+  private static final byte OP_ALLOW_SNAPSHOT = 24;  // allow snapshot
+  private static final byte OP_DISALLOW_SNAPSHOT = 25; // disallow snapshot
+
 
   private static int sizeFlushBuffer = 512*1024;
   /** Preallocation length in bytes for writing edit log. */
@@ -1410,6 +1413,14 @@ public class FSEditLog {
 
   void logDeleteSnapshot(String snapName, String snapRoot) {
     logEdit(OP_DELETE_SNAPSHOT, new UTF8(snapName), new UTF8(snapRoot));
+  }
+  
+  void logAllowSnapshot(String snapRoot) {
+    logEdit(OP_ALLOW_SNAPSHOT, new UTF8(snapRoot));
+  }
+  
+  void logDisallowSnapshot(String snapRoot) {
+    logEdit(OP_DISALLOW_SNAPSHOT, new UTF8(snapRoot));
   }
 
   static private UTF8 toLogReplication(short replication) {
