@@ -31,7 +31,7 @@ import org.apache.hadoop.hdfs.DFSUtil;
 /**
  * Directory INode class.
  */
-class INodeDirectory extends INode {
+public class INodeDirectory extends INode {
   /** Cast INode to INodeDirectory. */
   public static INodeDirectory valueOf(INode inode, String path
       ) throws FileNotFoundException {
@@ -87,6 +87,11 @@ class INodeDirectory extends INode {
 
   private int searchChildren(INode inode) {
     return Collections.binarySearch(children, inode.getLocalNameBytes());
+  }
+
+  /** Is this a snapshottable directory? */
+  public boolean isSnapshottable() {
+    return false;
   }
 
   INode removeChild(INode node) {

@@ -245,7 +245,7 @@ class FSDirectory implements FSConstants, Closeable {
         src.computeContentSummary().getLength());
     boolean added = false;
     
-    synchronized (this) {
+    synchronized (rootDir) {
       // add destination snaplink
       added = addINode(dstPath, snapshot, -1L, false);
 
@@ -694,6 +694,38 @@ class FSDirectory implements FSConstants, Closeable {
       return filesRemoved;
     }
   }
+  
+  /**
+   * Replaces the specified INode.
+   */
+  private void replaceINodeUnsynced(String path, INode oldnode, INode newnode
+      ) throws IOException {    
+    //remove the old node from the namespace 
+    if (!oldnode.removeNode()) {
+      final String mess = "FSDirectory.replaceINodeUnsynced: failed to remove "
+          + path;
+      NameNode.stateChangeLog.warn("DIR* " + mess);
+      throw new IOException(mess);
+    } 
+    
+    //add the new node
+    rootDir.addINode(path, newnode, false); 
+  }
+
+  /**
+   * Replaces the specified INodeDirectory.
+   */
+  public void replaceINodeDirectory(String path, INodeDirectory oldnode,
+      INodeDirectory newnode) throws IOException {
+    synchronized(rootDir) {
+      replaceINodeUnsynced(path, oldnode, newnode);
+
+      //update children's parent directory
+      for(INode i : newnode.getChildrenList()) {
+        i.parent = newnode;
+      }
+    }
+  }
 
   /**
    * Replaces the specified inode with the specified one.
@@ -701,22 +733,10 @@ class FSDirectory implements FSConstants, Closeable {
   void replaceNode(String path, INodeFile oldnode, INodeFile newnode)
       throws IOException {
     synchronized (rootDir) {
-      //
-      // Remove the node from the namespace 
-      //
-      if (!oldnode.removeNode()) {
-        NameNode.stateChangeLog.warn("DIR* FSDirectory.replaceNode: " +
-                                     "failed to remove " + path);
-        throw new IOException("FSDirectory.replaceNode: " +
-                              "failed to remove " + path);
-      } 
-      
-      /* Currently oldnode and newnode are assumed to contain the same
-       * blocks. Otherwise, blocks need to be removed from the blocksMap.
-       */
-      
-      rootDir.addINode(path, newnode, false); 
+      replaceINodeUnsynced(path, oldnode, newnode);
 
+      // Currently, oldnode and newnode are assumed to contain the same blocks.
+      // Otherwise, blocks need to be removed from the blocksMap.
       int index = 0;
       for (Block b : newnode.getBlocks()) {
         BlockInfo info = namesystem.blocksMap.addINode(b, newnode);
