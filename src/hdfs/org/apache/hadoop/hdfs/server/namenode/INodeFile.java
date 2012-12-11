@@ -116,19 +116,20 @@ public class INodeFile extends INode {
   }
 
   protected INodeFile(INodeFile f) {
-    this(f.getPermissionStatus(), f.getBlocks(), f.getBlockReplication(),
+    this(f.getPermissionStatus(), f.getBlocks(), f.getFileReplication(),
         f.getModificationTime(), f.getAccessTime(), f.getPreferredBlockSize());
   }
 
-  /**
-   * Get block replication for the file 
-   * @return block replication value
-   */
-  public short getBlockReplication() {
+  /** @return the replication factor of the file. */
+  public final short getFileReplication() {
     return HeaderFormat.getReplication(header);
   }
 
-  public void setReplication(short replication) {
+  public short getBlockReplication() {
+    return getFileReplication();
+  }
+
+  public void setFileReplication(short replication) {
     header = HeaderFormat.combineReplication(header, replication);
   }
 
@@ -223,7 +224,7 @@ public class INodeFile extends INode {
         isUnderConstruction()) {
       size += getPreferredBlockSize() - blocks[blocks.length-1].getNumBytes();
     }
-    return size * getBlockReplication();
+    return size * getFileReplication();
   }
   
   /**

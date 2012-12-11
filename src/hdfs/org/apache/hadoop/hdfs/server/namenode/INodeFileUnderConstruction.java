@@ -137,9 +137,10 @@ class INodeFileUnderConstruction extends INodeFile {
   // use the modification time as the access time
   //
   INodeFile convertToInodeFile() {
+    // TODO SNAPSHOT: may convert to INodeFileWithLink
     INodeFile obj = new INodeFile(getPermissionStatus(),
                                   getBlocks(),
-                                  getBlockReplication(),
+                                  getFileReplication(),
                                   getModificationTime(),
                                   getModificationTime(),
                                   getPreferredBlockSize());

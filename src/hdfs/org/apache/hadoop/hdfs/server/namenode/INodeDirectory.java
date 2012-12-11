@@ -33,7 +33,7 @@ import org.apache.hadoop.hdfs.DFSUtil;
  */
 public class INodeDirectory extends INode {
   /** Cast INode to INodeDirectory. */
-  public static INodeDirectory valueOf(INode inode, String path
+  public static INodeDirectory valueOf(INode inode, Object path
       ) throws FileNotFoundException {
     if (inode == null) {
       throw new FileNotFoundException("Directory does not exist: " + path);
@@ -50,7 +50,7 @@ public class INodeDirectory extends INode {
 
   private List<INode> children = null;
 
-  INodeDirectory(String name, PermissionStatus permissions) {
+  protected INodeDirectory(String name, PermissionStatus permissions) {
     super(name, permissions);
   }
 

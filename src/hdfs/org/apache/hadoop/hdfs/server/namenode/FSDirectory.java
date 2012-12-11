@@ -54,7 +54,7 @@ import org.apache.hadoop.hdfs.util.ByteArray;
  * and logged to disk.
  * 
  *************************************************/
-class FSDirectory implements FSConstants, Closeable {
+public class FSDirectory implements FSConstants, Closeable {
   private static INodeDirectoryWithQuota createRoot(FSNamesystem namesystem) {
     return new INodeDirectoryWithQuota(INodeDirectory.ROOT_NAME,
         namesystem.createFsOwnerPermissions(new FsPermission((short) 0755)));
@@ -249,10 +249,18 @@ class FSDirectory implements FSConstants, Closeable {
       // add destination snaplink
       added = addINode(dstPath, snapshot, -1L, false);
 
-      if (added && src.getClass() == INodeFile.class) {
-        // created a snapshot and the source is an INodeFile, replace the
-        // source.
-        replaceNode(srcPath, src, new INodeFileWithLink(src));
+      final INodeFileWithLink srcWithLink;
+      if (added) {
+        if (src instanceof INodeFileWithLink) {
+          srcWithLink = (INodeFileWithLink) src;
+        } else {
+          // source is an INodeFile, replace the source.
+          srcWithLink = new INodeFileWithLink(src);
+          replaceNode(srcPath, src, srcWithLink);
+        }
+
+        // insert the snapshot to src's linked list.
+        srcWithLink.insert(snapshot);
       }
     } 
     if (!added) {
@@ -283,7 +291,7 @@ class FSDirectory implements FSConstants, Closeable {
 
       // check quota limits and updated space consumed
       updateCount(inodesInPath, inodes.length - 1, 0,
-          fileNode.getPreferredBlockSize() * fileNode.getBlockReplication(),
+          fileNode.getPreferredBlockSize() * fileNode.getFileReplication(),
           true);
       
       // associate the new list of blocks with this file
@@ -352,7 +360,7 @@ class FSDirectory implements FSConstants, Closeable {
       final INodesInPath inodesInPath = rootDir.getExistingPathINodes(path);
       final INode[] inodes = inodesInPath.getINodes();
       updateCount(inodesInPath, inodes.length-1, 0,
-          -fileNode.getPreferredBlockSize()*fileNode.getBlockReplication(), true);
+          -fileNode.getPreferredBlockSize()*fileNode.getFileReplication(), true);
     }
 
     return true;
@@ -514,14 +522,14 @@ class FSDirectory implements FSConstants, Closeable {
       if (inode.isDirectory())
         return null;
       INodeFile fileNode = (INodeFile)inode;
-      oldReplication[0] = fileNode.getBlockReplication();
+      oldReplication[0] = fileNode.getFileReplication();
 
       // check disk quota
       long dsDelta = (replication - oldReplication[0]) *
            (fileNode.diskspaceConsumed()/oldReplication[0]);
       updateCount(inodesInPath, inodes.length-1, 0, dsDelta, true);
 
-      fileNode.setReplication(replication);
+      fileNode.setFileReplication(replication);
       fileBlocks = fileNode.getBlocks();
     }
     return fileBlocks;
@@ -812,7 +820,7 @@ class FSDirectory implements FSConstants, Closeable {
   /**
    * Get {@link INode} associated with the file / directory.
    */
-  INode getINode(String src) {
+  public INode getINode(String src) {
     synchronized (rootDir) {
       return rootDir.getNode(src);
     }
@@ -1403,7 +1411,7 @@ class FSDirectory implements FSConstants, Closeable {
     return new HdfsFileStatus(
         node.isDirectory() ? 0 : ((INodeFile)node).computeContentSummary().getLength(), 
         node.isDirectory(), 
-        node.isDirectory() ? 0 : ((INodeFile)node).getBlockReplication(), 
+        node.isDirectory() ? 0 : ((INodeFile)node).getFileReplication(), 
         node.isDirectory() ? 0 : ((INodeFile)node).getPreferredBlockSize(),
         node.getModificationTime(),
         node.getAccessTime(),

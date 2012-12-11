@@ -37,7 +37,7 @@ import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
  * This is a base INode class containing common fields for file and 
  * directory inodes.
  */
-abstract class INode implements Comparable<byte[]>, FSInodeInfo {
+public abstract class INode implements Comparable<byte[]>, FSInodeInfo {
   static final List<INode> EMPTY_LIST = Collections.unmodifiableList(new ArrayList<INode>());
 
   /** Wrapper of two counters for namespace consumed and diskspace consumed. */
@@ -166,7 +166,7 @@ abstract class INode implements Comparable<byte[]>, FSInodeInfo {
   }
 
   /** Get the {@link PermissionStatus} */
-  protected PermissionStatus getPermissionStatus() {
+  public PermissionStatus getPermissionStatus() {
     return new PermissionStatus(getUserName(),getGroupName(),getFsPermission());
   }
   private synchronized void updatePermissionStatus(
@@ -281,7 +281,7 @@ abstract class INode implements Comparable<byte[]>, FSInodeInfo {
   /**
    * Set local file name
    */
-  void setLocalName(String name) {
+  protected void setLocalName(String name) {
     this.name = DFSUtil.string2Bytes(name);
   }
 
@@ -322,7 +322,7 @@ abstract class INode implements Comparable<byte[]>, FSInodeInfo {
   /**
    * Set last modification time of inode.
    */
-  void setModificationTime(long modtime) {
+  public void setModificationTime(long modtime) {
     assert isDirectory();
     if (this.modificationTime <= modtime) {
       this.modificationTime = modtime;
