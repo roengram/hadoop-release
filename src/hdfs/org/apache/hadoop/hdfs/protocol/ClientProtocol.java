@@ -568,4 +568,12 @@ public interface ClientProtocol extends VersionedProtocol {
    */
   public void cancelDelegationToken(Token<DelegationTokenIdentifier> token)
       throws IOException;
+  
+  /**
+   * Create a snapshot
+   * @param snapshotName name of the snapshot created
+   * @param snapshotRoot the path that is being snapshotted
+   */
+  public void createSnapshot(String snapshotName, String snapshotRoot)
+      throws IOException;
 }

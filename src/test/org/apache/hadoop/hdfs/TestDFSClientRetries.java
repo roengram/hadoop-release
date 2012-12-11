@@ -330,6 +330,10 @@ public class TestDFSClientRetries extends TestCase {
     public void cancelDelegationToken(Token<DelegationTokenIdentifier> token)
         throws IOException {
     }
+
+    @Override
+    public void createSnapshot(String snapshotName, String snapshotRoot)
+        throws IOException {}
   }
   
   public void testNotYetReplicatedErrors() throws IOException

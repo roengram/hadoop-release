@@ -637,6 +637,12 @@ public class DistributedFileSystem extends FileSystem {
   public void setBalancerBandwidth(long bandwidth) throws IOException {
     dfs.setBalancerBandwidth(bandwidth);
   }
+  
+  @Override
+  public void createSnapshot(String snapshotName, String snapshotRoot)
+      throws IOException {
+    dfs.createSnapshot(snapshotName, snapshotRoot);
+  }
 
   /**
    * Is the HDFS healthy?

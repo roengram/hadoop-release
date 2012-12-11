@@ -1399,6 +1399,17 @@ public abstract class FileSystem extends Configured implements Closeable {
   public void setTimes(Path p, long mtime, long atime
       ) throws IOException {
   }
+  
+  /**
+   * Create a snapshot
+   * @param snapshotName The name of the snapshot
+   * @param snapshotRoot The directory where the snapshot will be taken
+   */
+  public void createSnapshot(String snapshotName, String snapshotRoot)
+      throws IOException {
+    throw new UnsupportedOperationException(getClass().getSimpleName()
+        + " doesn't support createSnapshot");
+  }
 
   private static FileSystem createFileSystem(URI uri, Configuration conf
       ) throws IOException {

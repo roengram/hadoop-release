@@ -1334,6 +1334,17 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   public boolean setSafeMode(SafeModeAction action) throws IOException {
     return namenode.setSafeMode(action);
   }
+   
+  /**
+   * Create one snapshot.
+   * 
+   * @see ClientProtocol#createSnapshot(String snapshotName, String
+   *      snapshotRoot)
+  */
+  public void createSnapshot(String snapshotName, String snapshotRoot)
+      throws IOException {
+    namenode.createSnapshot(snapshotName, snapshotRoot);
+  }
 
   /**
    * Save namespace image.

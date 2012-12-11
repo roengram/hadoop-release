@@ -22,8 +22,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.security.PrivilegedExceptionAction;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -1457,5 +1455,11 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
       LOG.error(StringUtils.stringifyException(e));
       System.exit(-1);
     }
+  }
+
+  @Override
+  public void createSnapshot(String snapshotName, String snapshotRoot)
+      throws IOException {
+    namesystem.createSnapshot(snapshotName, snapshotRoot);
   }
 }
