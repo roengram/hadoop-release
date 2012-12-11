@@ -20,14 +20,18 @@ package org.apache.hadoop.hdfs.server.namenode.snapshot;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.hadoop.hdfs.server.namenode.FSDirectory;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
 
 /** Manage snapshottable directories and their snapshots. */
-public class SnapshotManager {
+public class SnapshotManager implements SnapshotStats {
   private final FSNamesystem namesystem;
+  
+  private AtomicLong numSnapshottableDirs = new AtomicLong();
+  private AtomicLong numSnapshots = new AtomicLong();
 
   /** All snapshottable directories in the namesystem. */
   private final List<INodeDirectorySnapshottable> snapshottables
@@ -57,6 +61,7 @@ public class SnapshotManager {
       fsdir.replaceINodeDirectory(path, d, s);
       snapshottables.add(s);
     }
+    numSnapshottableDirs.getAndIncrement();
   }
 
   /** Create a snapshot of given path. */
@@ -70,5 +75,16 @@ public class SnapshotManager {
     final INodeDirectorySnapshotRoot root = d.addSnapshotRoot(snapshotName);
     
     //TODO: create the remaining subtree
+    numSnapshots.getAndIncrement();
+  }
+
+  @Override
+  public long getNumSnapshottableDirs() {
+    return numSnapshottableDirs.get();
+  }
+
+  @Override
+  public long getNumSnapshots() {
+    return numSnapshots.get();
   }
 }

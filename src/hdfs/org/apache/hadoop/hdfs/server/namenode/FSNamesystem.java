@@ -112,6 +112,7 @@ import org.apache.hadoop.ipc.Server;
 import org.apache.hadoop.metrics2.MetricsBuilder;
 import org.apache.hadoop.metrics2.MetricsSource;
 import org.apache.hadoop.metrics2.MetricsSystem;
+import org.apache.hadoop.metrics2.annotation.Metric;
 import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.metrics2.util.MBeans;
 import org.apache.hadoop.net.CachedDNSToSwitchMapping;
@@ -4401,6 +4402,20 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       return this.totalLoad;
     }
   }
+  
+  /**
+   * @return Number of snapshottable directories
+   */
+  public long getNumSnapshottableDirs() {
+    return this.snapshotManager.getNumSnapshottableDirs();
+  }
+  
+  /**
+   * @return The number of snapshots
+   */
+  public long getNumSnapshots() {
+    return this.snapshotManager.getNumSnapshots();
+  }
 
   int getNumberOfDatanodes(DatanodeReportType type) {
     return getDatanodeListForReport(type).size(); 
@@ -6223,7 +6238,12 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       .addGauge("BlockCapacity", "", getBlockCapacity())
       .addGauge("StaleDataNodes", 
           "Number of datanodes marked stale due to delayed heartbeat", 
-          this.getNumStaleNodes());
+          this.getNumStaleNodes())
+      .addGauge("SnapshottableDirectories",
+          "Number of snapshottable directories",
+          this.getNumSnapshottableDirs())
+      .addGauge("Snapshots", "The number of snapshots",
+          this.getNumSnapshots());
   }
 
   private void registerWith(MetricsSystem ms) {
@@ -6398,6 +6418,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    */
   public void disallowSnapshot(String snapshotRoot)
       throws SafeModeException, IOException {
-    // TODO: implement
+    // TODO: implement, also need to update metrics in corresponding
+    // SnapshotManager method 
   }
 }

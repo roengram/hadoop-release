@@ -89,10 +89,10 @@ public class FSEditLog {
   private static final byte OP_RENEW_DELEGATION_TOKEN = 19; //renew delegation token
   private static final byte OP_CANCEL_DELEGATION_TOKEN = 20; //cancel delegation token
   private static final byte OP_UPDATE_MASTER_KEY = 21; //update master key
-  private static final byte OP_CREATE_SNAPSHOT = 22; // create snapshot
-  private static final byte OP_DELETE_SNAPSHOT = 23; // delete snapshot
-  private static final byte OP_ALLOW_SNAPSHOT = 24;  // allow snapshot
-  private static final byte OP_DISALLOW_SNAPSHOT = 25; // disallow snapshot
+  private static final byte OP_CREATE_SNAPSHOT = 26; // create snapshot
+  private static final byte OP_DELETE_SNAPSHOT = 27; // delete snapshot
+  private static final byte OP_ALLOW_SNAPSHOT = 28;  // allow snapshot
+  private static final byte OP_DISALLOW_SNAPSHOT = 29; // disallow snapshot
 
 
   private static int sizeFlushBuffer = 512*1024;

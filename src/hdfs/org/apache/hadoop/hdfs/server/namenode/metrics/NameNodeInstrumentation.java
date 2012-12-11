@@ -67,6 +67,12 @@ public class NameNodeInstrumentation implements MetricsSource {
       registry.newGauge("fsImageLoadTime", "", 0);
   final MetricMutableCounterInt numFilesInGetListingOps =
       registry.newCounter("FilesInGetListingOps", "", 0);
+  final MetricMutableCounterInt allowSnapshotOps = registry.newCounter(
+      "AllowSnapshotOps", "Number of allowSnapshot operations", 0);
+  final MetricMutableCounterInt disallowSnapshotOps = registry.newCounter(
+      "DisallowSnapshotOps", "Number of disallowSnapshotOps operations", 0);
+  final MetricMutableCounterInt createSnapshotOps = registry.newCounter(
+      "CreateSnapshotOps", "Number of createSnapshot operations", 0);
 
   NameNodeInstrumentation(Configuration conf) {
     sessionId = conf.get("session.id");
@@ -150,6 +156,18 @@ public class NameNodeInstrumentation implements MetricsSource {
     numFileInfoOps.incr();
   }
 
+  public void incrAllowSnapshotOps() {
+    allowSnapshotOps.incr();
+  }
+
+  public void incrDisAllowSnapshotOps() {
+    disallowSnapshotOps.incr();
+  }
+
+  public void incrCreateSnapshotOps() {
+    createSnapshotOps.incr();
+  }
+  
   //@Override
   public final void addTransaction(long latency) {
     transactions.add(latency);
