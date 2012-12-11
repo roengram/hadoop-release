@@ -89,6 +89,8 @@ public class FSEditLog {
   private static final byte OP_RENEW_DELEGATION_TOKEN = 19; //renew delegation token
   private static final byte OP_CANCEL_DELEGATION_TOKEN = 20; //cancel delegation token
   private static final byte OP_UPDATE_MASTER_KEY = 21; //update master key
+  private static final byte OP_CREATE_SNAPSHOT = 22; // create snapshot
+  private static final byte OP_DELETE_SNAPSHOT = 23; // delete snapshot
 
   private static int sizeFlushBuffer = 512*1024;
   /** Preallocation length in bytes for writing edit log. */
@@ -1400,6 +1402,14 @@ public class FSEditLog {
 
   void logUpdateMasterKey(DelegationKey key) {
     logEdit(OP_UPDATE_MASTER_KEY, key);
+  }
+  
+  void logCreateSnapshot(String snapName, String snapRoot) {
+    logEdit(OP_CREATE_SNAPSHOT, new UTF8(snapName), new UTF8(snapRoot));
+  }
+
+  void logDeleteSnapshot(String snapName, String snapRoot) {
+    logEdit(OP_DELETE_SNAPSHOT, new UTF8(snapName), new UTF8(snapRoot));
   }
 
   static private UTF8 toLogReplication(short replication) {
