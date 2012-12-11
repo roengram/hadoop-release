@@ -28,12 +28,12 @@ import org.apache.hadoop.hdfs.util.LightWeightGSet;
  * block's metadata currently includes INode it belongs to and
  * the datanodes that store the block.
  */
-class BlocksMap {
+public class BlocksMap {
         
   /**
    * Internal class for block metadata.
    */
-  static class BlockInfo extends Block implements LightWeightGSet.LinkedElement {
+  public static class BlockInfo extends Block implements LightWeightGSet.LinkedElement {
     private INodeFile          inode;
 
     /** For implementing {@link LightWeightGSet.LinkedElement} interface */

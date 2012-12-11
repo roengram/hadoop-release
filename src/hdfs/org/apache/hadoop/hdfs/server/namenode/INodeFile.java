@@ -173,7 +173,7 @@ public class INodeFile extends INode {
   }
 
   @Override
-  int collectSubtreeBlocksAndClear(BlocksMapUpdateInfo info) {
+  protected int collectSubtreeBlocksAndClear(BlocksMapUpdateInfo info) {
     parent = null;
     if (blocks != null && info != null) {
       for (BlockInfo blk : blocks) {

@@ -240,7 +240,7 @@ public class FSDirectory implements FSConstants, Closeable {
       throws IOException, QuotaExceededException {
     waitForReady();
 
-    final INodeFile src = rootDir.getINodeFile(srcPath);
+    final INodeFile src = INodeFile.valueOf(rootDir.getNode(srcPath), srcPath);
     INodeFileSnapshot snapshot = new INodeFileSnapshot(src,
         src.computeContentSummary().getLength());
     boolean added = false;
