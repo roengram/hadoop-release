@@ -6380,5 +6380,24 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       throws SafeModeException, IOException {
     // TODO: implement
   }
+    
+  /**
+   * Allow snapshot on a directory.
+   * @param snapshotRoot the directory to be snapped
+   * @throws IOException
+   */
+  public void allowSnapshot(String snapshotRoot)
+      throws SafeModeException, IOException {
+    // TODO: implement
+  }
   
+  /**
+   * Disallow snapshot on a directory.
+   * @param snapshotRoot the directory to disallow snapshot
+   * @throws IOException
+   */
+  public void disallowSnapshot(String snapshotRoot)
+      throws SafeModeException, IOException {
+    // TODO: implement
+  }
 }

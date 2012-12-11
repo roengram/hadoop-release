@@ -1462,4 +1462,15 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
       throws IOException {
     namesystem.createSnapshot(snapshotName, snapshotRoot);
   }
+  
+  @Override
+  public void allowSnapshot(String snapshotRoot) throws IOException {
+    namesystem.allowSnapshot(snapshotRoot);
+  }
+
+  @Override
+  public void disallowSnapshot(String snapshot) throws IOException {
+    namesystem.disallowSnapshot(snapshot);
+  }
+
 }

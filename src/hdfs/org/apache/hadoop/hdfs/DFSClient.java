@@ -1345,6 +1345,24 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       throws IOException {
     namenode.createSnapshot(snapshotName, snapshotRoot);
   }
+  
+  /**
+   * Allow snapshot on a directory.
+   * 
+   * @see ClientProtocol#allowSnapshot(String)
+   */
+  public void allowSnapshot(String snapshotRoot) throws IOException {
+    namenode.allowSnapshot(snapshotRoot);
+  }
+  
+  /**
+   * Disallow snapshot on a directory.
+   * 
+   * @see ClientProtocol#disallowSnapshot(String)
+   */
+  public void disallowSnapshot(String snapshotRoot) throws IOException {
+    namenode.disallowSnapshot(snapshotRoot);
+  }
 
   /**
    * Save namespace image.
