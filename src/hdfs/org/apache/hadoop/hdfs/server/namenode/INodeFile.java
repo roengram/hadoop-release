@@ -78,7 +78,7 @@ public class INodeFile extends INode {
 
   protected long header = 0L;
 
-  protected BlockInfo blocks[] = null;
+  private BlockInfo blocks[] = null;
 
   INodeFile(PermissionStatus permissions,
             int nrBlocks, short replication, long modificationTime,
@@ -109,10 +109,6 @@ public class INodeFile extends INode {
    */
   protected void setPermission(FsPermission permission) {
     super.setPermission(permission.applyUMask(UMASK));
-  }
-
-  public boolean isDirectory() {
-    return false;
   }
 
   protected INodeFile(INodeFile f) {
@@ -146,7 +142,7 @@ public class INodeFile extends INode {
    * Get file blocks 
    * @return file blocks
    */
-  BlockInfo[] getBlocks() {
+  public BlockInfo[] getBlocks() {
     return this.blocks;
   }
 
@@ -155,14 +151,13 @@ public class INodeFile extends INode {
    */
   void addBlock(BlockInfo newblock) {
     if (this.blocks == null) {
-      this.blocks = new BlockInfo[1];
-      this.blocks[0] = newblock;
+      this.setBlocks(new BlockInfo[]{newblock});
     } else {
       int size = this.blocks.length;
       BlockInfo[] newlist = new BlockInfo[size + 1];
       System.arraycopy(this.blocks, 0, newlist, 0, size);
       newlist[size] = newblock;
-      this.blocks = newlist;
+      setBlocks(newlist);
     }
   }
 
@@ -171,6 +166,11 @@ public class INodeFile extends INode {
    */
   void setBlock(int idx, BlockInfo blk) {
     this.blocks[idx] = blk;
+  }
+  
+  /** Set the blocks. */
+  public void setBlocks(BlockInfo[] blocks) {
+    this.blocks = blocks;
   }
 
   @Override
@@ -182,7 +182,7 @@ public class INodeFile extends INode {
         blk.setINode(null);
       }
     }
-    blocks = null;
+    setBlocks(null);
     return 1;
   }
 

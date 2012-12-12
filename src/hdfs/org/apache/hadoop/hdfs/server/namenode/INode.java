@@ -216,7 +216,10 @@ public abstract class INode implements Comparable<byte[]>, FSInodeInfo {
   /**
    * Check whether it's a directory
    */
-  public abstract boolean isDirectory();
+  public boolean isDirectory() {
+    return false;
+  }
+  
   /**
    * Collect all the blocks in all children of this INode. Count and return the
    * number of files in the sub tree. Also clears references since this INode is

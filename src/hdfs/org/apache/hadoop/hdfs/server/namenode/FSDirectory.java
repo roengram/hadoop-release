@@ -41,6 +41,7 @@ import org.apache.hadoop.hdfs.server.common.HdfsConstants.StartupOption;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable;
 import org.apache.hadoop.hdfs.util.ByteArray;
 
 /*************************************************
@@ -54,8 +55,10 @@ import org.apache.hadoop.hdfs.util.ByteArray;
  *************************************************/
 public class FSDirectory implements FSConstants, Closeable {
   private static INodeDirectoryWithQuota createRoot(FSNamesystem namesystem) {
-    return new INodeDirectoryWithQuota(INodeDirectory.ROOT_NAME,
-        namesystem.createFsOwnerPermissions(new FsPermission((short) 0755)));
+    final INodeDirectoryWithQuota r = new INodeDirectoryWithQuota(
+        INodeDirectory.ROOT_NAME,
+        namesystem.createFsOwnerPermissions(new FsPermission((short)0755)));
+    return INodeDirectorySnapshottable.newInstance(r, 0);
   }
   
   final FSNamesystem namesystem;

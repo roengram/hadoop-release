@@ -153,6 +153,7 @@ public class INodeFileUnderConstruction extends INodeFile {
    * the last one on the list.
    */
   void removeBlock(Block oldblock) throws IOException {
+    final BlockInfo[] blocks = getBlocks();
     if (blocks == null) {
       throw new IOException("Trying to delete non-existant block " + oldblock);
     }
@@ -164,14 +165,15 @@ public class INodeFileUnderConstruction extends INodeFile {
     //copy to a new list
     BlockInfo[] newlist = new BlockInfo[size_1];
     System.arraycopy(blocks, 0, newlist, 0, size_1);
-    blocks = newlist;
+    setBlocks(newlist);
     
     // Remove the block locations for the last block.
     targets = null;
   }
 
-  synchronized void setLastBlock(BlockInfo newblock, DatanodeDescriptor[] newtargets
-      ) throws IOException {
+  synchronized void setLastBlock(BlockInfo newblock,
+      DatanodeDescriptor[] newtargets) throws IOException {
+    final BlockInfo[] blocks = getBlocks();
     if (blocks == null || blocks.length == 0) {
       throw new IOException("Trying to update non-existant block (newblock="
           + newblock + ")");
@@ -218,6 +220,7 @@ public class INodeFileUnderConstruction extends INodeFile {
       int j = (previous + i)%targets.length;
       if (targets[j].isAlive) {
         DatanodeDescriptor primary = targets[primaryNodeIndex = j]; 
+        final BlockInfo[] blocks = getBlocks();
         primary.addBlockToBeRecovered(blocks[blocks.length - 1], targets);
         NameNode.stateChangeLog.info("BLOCK* " + blocks[blocks.length - 1]
           + " recovery started, primary=" + primary);

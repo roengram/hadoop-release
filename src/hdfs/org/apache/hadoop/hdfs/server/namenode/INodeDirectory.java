@@ -75,10 +75,8 @@ public class INodeDirectory extends INode {
     this.children = other.children;
   }
   
-  /**
-   * Check whether it's a directory
-   */
-  public boolean isDirectory() {
+  /** @return true unconditionally. */
+  public final boolean isDirectory() {
     return true;
   }
 
