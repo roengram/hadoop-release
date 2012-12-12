@@ -6412,27 +6412,34 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     }
     getEditLog().logSync();
     
-    // audit log
+    // TODO: need to update metrics in corresponding SnapshotManager method 
+    
     if (auditLog.isInfoEnabled() && isExternalInvocation()) {
       logAuditEvent(UserGroupInformation.getCurrentUser(), Server.getRemoteIp(),
           "allowSnapshot", path, null, null);
     }
   }
   
-  /**
-   * Disallow snapshot on a directory.
-   * @param snapshotRoot the directory to disallow snapshot
-   * @throws IOException
-   */
-  public void disallowSnapshot(String snapshotRoot)
+  /** Disallow snapshot on a snapshottable directory */
+  public void disallowSnapshot(String path)
       throws SafeModeException, IOException {
-    // TODO: implement, also need to update metrics in corresponding
-    // SnapshotManager method 
+    synchronized (this) {
+      if (isInSafeMode()) {
+        throw new SafeModeException("Cannot disallow snapshot for " + path,
+            safeMode);
+      }
+      checkOwner(path);
     
-    // audit log
+      snapshotManager.resetSnapshottable(path);
+      getEditLog().logDisallowSnapshot(path);
+    }
+    getEditLog().logSync();
+    
+    // TODO: need to update metrics in corresponding SnapshotManager method 
+    
     if (auditLog.isInfoEnabled() && isExternalInvocation()) {
       logAuditEvent(UserGroupInformation.getCurrentUser(), Server.getRemoteIp(),
-          "disallowSnapshot", snapshotRoot, null, null);
+          "disallowSnapshot", path, null, null);
     }
   }
   

@@ -21,6 +21,7 @@ import java.io.FileNotFoundException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 import org.apache.hadoop.fs.permission.FsAction;
@@ -214,7 +215,7 @@ public class INodeDirectory extends INode {
         }
         // Resolve snapshot root
        curNode = ((INodeDirectorySnapshottable) parentDir)
-            .getSnapshotINode(components[count + 1]);
+            .getSnapshotRoot(components[count + 1]);
         if (index >= -1) {
           existing.snapshotRootIndex = existing.size;
         }
@@ -550,20 +551,15 @@ public class INodeDirectory extends INode {
    * @param subs The subtrees.
    */
   protected static void dumpTreeRecursively(PrintWriter out,
-      StringBuilder prefix, List<? extends INode> subs) {
-    prefix.append(DUMPTREE_EXCEPT_LAST_ITEM);
-    if (subs != null && subs.size() != 0) {
-      int i = 0;
-      for(; i < subs.size() - 1; i++) {
-        subs.get(i).dumpTreeRecursively(out, prefix);
+      StringBuilder prefix, Iterable<? extends INode> subs) {
+    if (subs != null) {
+      for (final Iterator<? extends INode> i = subs.iterator(); i.hasNext();) {
+        final INode inode = i.next();
+        prefix.append(i.hasNext() ? DUMPTREE_EXCEPT_LAST_ITEM
+            : DUMPTREE_LAST_ITEM);
+        inode.dumpTreeRecursively(out, prefix);
         prefix.setLength(prefix.length() - 2);
-        prefix.append(DUMPTREE_EXCEPT_LAST_ITEM);
       }
-
-      prefix.setLength(prefix.length() - 2);
-      prefix.append(DUMPTREE_LAST_ITEM);
-      subs.get(i).dumpTreeRecursively(out, prefix);
     }
-    prefix.setLength(prefix.length() - 2);
   }
 }
