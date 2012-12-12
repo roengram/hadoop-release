@@ -96,7 +96,7 @@ public class SnapshotManager implements SnapshotStats {
     }
     
     void run(final String name) throws IOException {
-      final INodeDirectorySnapshotRoot root = srcRoot.addSnapshotRoot(name);
+      final INodeDirectoryWithSnapshot root = srcRoot.addSnapshotRoot(name);
       processRecursively(srcRoot, root);
     }
 

@@ -55,8 +55,8 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithQuota {
   }
 
   /** A list of snapshots of this directory. */
-  private final List<INodeDirectorySnapshotRoot> snapshots
-      = new ArrayList<INodeDirectorySnapshotRoot>();
+  private final List<INodeDirectoryWithSnapshot> snapshots
+      = new ArrayList<INodeDirectoryWithSnapshot>();
   /** Number of snapshots is allowed. */
   private int snapshotQuota;
   
@@ -95,7 +95,7 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithQuota {
   }
 
   /** Add a snapshot root under this directory. */
-  INodeDirectorySnapshotRoot addSnapshotRoot(final String name
+  INodeDirectoryWithSnapshot addSnapshotRoot(final String name
       ) throws SnapshotException {
     //check snapshot quota
     if (snapshots.size() + 1 > snapshotQuota) {
@@ -104,7 +104,7 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithQuota {
           + snapshotQuota);
     }
 
-    final INodeDirectorySnapshotRoot r = new INodeDirectorySnapshotRoot(name, this);
+    final INodeDirectoryWithSnapshot r = new INodeDirectoryWithSnapshot(name, this);
     snapshots.add(r);
 
     //set modification time

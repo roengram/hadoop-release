@@ -29,6 +29,7 @@ import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectoryWithSnapshot;
 
 /**
  * Directory INode class.
@@ -52,7 +53,7 @@ public class INodeDirectory extends INode {
 
   private List<INode> children = null;
 
-  protected INodeDirectory(String name, PermissionStatus permissions) {
+  public INodeDirectory(String name, PermissionStatus permissions) {
     super(name, permissions);
   }
 
@@ -460,7 +461,7 @@ public class INodeDirectory extends INode {
      */
     private boolean isSnapshot;
     /**
-     * Index of {@link INodeDirectorySnapshotRoot} for snapshot path, else -1
+     * Index of {@link INodeDirectoryWithSnapshot} for snapshot path, else -1
      */
     private int snapshotRootIndex;
     
@@ -488,7 +489,7 @@ public class INodeDirectory extends INode {
     }
     
     /**
-     * @return index of the {@link INodeDirectorySnapshotRoot} in
+     * @return index of the {@link INodeDirectoryWithSnapshot} in
      *         {@link #inodes} for snapshot path, else -1.
      */
     int getSnapshotRootIndex() {
