@@ -235,49 +235,6 @@ public class FSDirectory implements FSConstants, Closeable {
     }
   }
 
-  /** Add an INodeFileSnapshot to the source file. */
-  INodeFileSnapshot addFileSnapshot(String srcPath, String dstPath)
-      throws IOException, QuotaExceededException {
-    waitForReady();
-
-    final INodeFile src = INodeFile.valueOf(rootDir.getNode(srcPath), srcPath);
-    INodeFileSnapshot snapshot = new INodeFileSnapshot(src,
-        src.computeContentSummary().getLength());
-    boolean added = false;
-    
-    synchronized (rootDir) {
-      // add destination snaplink
-      added = addINode(dstPath, snapshot, -1L, false);
-
-      final INodeFileWithLink srcWithLink;
-      if (added) {
-        if (src instanceof INodeFileWithLink) {
-          srcWithLink = (INodeFileWithLink) src;
-        } else {
-          // source is an INodeFile, replace the source.
-          srcWithLink = new INodeFileWithLink(src);
-          replaceNode(srcPath, src, srcWithLink);
-        }
-
-        // insert the snapshot to src's linked list.
-        srcWithLink.insert(snapshot);
-      }
-    } 
-    if (!added) {
-      NameNode.stateChangeLog
-          .info("DIR* FSDirectory.addFileSnapshot: failed to add " + dstPath);
-      return null;
-    }
-
-    if (NameNode.stateChangeLog.isDebugEnabled()) {
-      NameNode.stateChangeLog.debug("DIR* FSDirectory.addFileSnapshot: "
-          + dstPath + " is added to the file system");
-    }
-    return snapshot;
-  }
-   
-
-
   /**
    * Add a block to the file. Returns a reference to the added block.
    */

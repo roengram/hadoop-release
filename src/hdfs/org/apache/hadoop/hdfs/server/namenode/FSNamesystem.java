@@ -217,7 +217,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   // Stores the correct file name hierarchy
   //
   public FSDirectory dir;
-  private final SnapshotManager snapshotManager = new SnapshotManager(this, dir);
+  private final SnapshotManager snapshotManager;
 
   //
   // Mapping: Block -> { INode, datanodes, self ref } 
@@ -391,6 +391,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   FSNamesystem(NameNode nn, Configuration conf) throws IOException {
     try {
       initialize(nn, conf);
+      snapshotManager = new SnapshotManager(this, dir);
     } catch (IOException e) {
       LOG.error(getClass().getSimpleName() + " initialization failed.", e);
       close();
@@ -500,6 +501,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   FSNamesystem(FSImage fsImage, Configuration conf) throws IOException {
     setConfigurationParameters(conf);
     this.dir = new FSDirectory(fsImage, this, conf);
+    snapshotManager = new SnapshotManager(this, dir);
     dtSecretManager = createDelegationTokenSecretManager(conf);
   }
 
@@ -6396,14 +6398,19 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     return getCorruptFileBlocks();
   }
     
-  /**
-   * Allow snapshot on a directory.
-   * @param path the directory to be set as snapshottable
-   * @throws IOException
-   */
+  /** Allow snapshot on a directroy. */
   public void allowSnapshot(String path)
       throws SafeModeException, IOException {
-    // TODO: implement
+    synchronized (this) {
+      if (isInSafeMode()) {
+        throw new SafeModeException("Cannot allow snapshot for " + path, safeMode);
+      }
+      checkOwner(path);
+      // TODO: do not hardcode snapshot quota value
+      snapshotManager.setSnapshottable(path, 256);
+      getEditLog().logAllowSnapshot(path);
+    }
+    getEditLog().logSync();
     
     // audit log
     if (auditLog.isInfoEnabled() && isExternalInvocation()) {
@@ -6445,11 +6452,14 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       synchronized (dir.rootDir) {
         snapshotManager.createSnapshot(snapshotName, path);
       }
+      getEditLog().logCreateSnapshot(snapshotName, path);
     }
+    getEditLog().logSync();
     
     // audit log
     if (auditLog.isInfoEnabled() && isExternalInvocation()) {
-      Path snapshotRoot = new Path(path, ".snapshot/" + snapshotName);
+      Path snapshotRoot = new Path(path, HdfsConstants.DOT_SNAPSHOT_DIR + "/"
+          + snapshotName);
       logAuditEvent(UserGroupInformation.getCurrentUser(), Server.getRemoteIp(),
           "createSnapshot", path, snapshotRoot.toString(), null);
     }

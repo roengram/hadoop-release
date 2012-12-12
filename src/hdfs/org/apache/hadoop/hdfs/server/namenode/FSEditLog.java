@@ -1415,12 +1415,12 @@ public class FSEditLog {
     logEdit(OP_DELETE_SNAPSHOT, new UTF8(snapName), new UTF8(snapRoot));
   }
   
-  void logAllowSnapshot(String snapRoot) {
-    logEdit(OP_ALLOW_SNAPSHOT, new UTF8(snapRoot));
+  void logAllowSnapshot(String path) {
+    logEdit(OP_ALLOW_SNAPSHOT, new UTF8(path));
   }
   
-  void logDisallowSnapshot(String snapRoot) {
-    logEdit(OP_DISALLOW_SNAPSHOT, new UTF8(snapRoot));
+  void logDisallowSnapshot(String path) {
+    logEdit(OP_DISALLOW_SNAPSHOT, new UTF8(path));
   }
 
   static private UTF8 toLogReplication(short replication) {

@@ -118,6 +118,7 @@ public class INodeFile extends INode {
   protected INodeFile(INodeFile f) {
     this(f.getPermissionStatus(), f.getBlocks(), f.getFileReplication(),
         f.getModificationTime(), f.getAccessTime(), f.getPreferredBlockSize());
+    this.setLocalName(f.getLocalNameBytes());
   }
 
   /** @return the replication factor of the file. */

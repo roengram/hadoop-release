@@ -78,7 +78,7 @@ public class SnapshotManager implements SnapshotStats {
   }
   
   /**
-   * Create a snapshot of subtrees for recursively coping the directory
+   * Create a snapshot of subtrees by recursively copying the directory
    * structure from the source directory to the snapshot destination directory.
    * This creation algorithm requires O(N) running time and O(N) memory,
    * where N = # files + # directories + # symlinks. 
@@ -105,7 +105,7 @@ public class SnapshotManager implements SnapshotStats {
         final INodeDirectory dstDir) throws IOException {
       final List<INode> children = srcDir.getChildrenList();
       final List<INode> inodes = new ArrayList<INode>(children.size());
-      for(final INode c : children) {
+      for(final INode c : new ArrayList<INode>(children)) {
         final INode i;
         if (c == null) {
           i = null;
@@ -121,6 +121,7 @@ public class SnapshotManager implements SnapshotStats {
           throw new AssertionError("Unknow INode type: " + c.getClass()
               + ", inode = " + c);
         }
+        i.setParent(dstDir);
         inodes.add(i);
       }
       dstDir.setChildren(inodes);

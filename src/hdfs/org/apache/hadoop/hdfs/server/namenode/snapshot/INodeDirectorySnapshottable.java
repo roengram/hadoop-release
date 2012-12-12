@@ -19,6 +19,7 @@ package org.apache.hadoop.hdfs.server.namenode.snapshot;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.apache.hadoop.classification.InterfaceAudience;
@@ -57,6 +58,17 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithQuota {
       = new ArrayList<INodeDirectorySnapshotRoot>();
   /** Number of snapshots is allowed. */
   private int snapshotQuota;
+  
+  public INode getSnapshotINode(byte[] name) {
+    if (snapshots == null || snapshots.size() == 0) {
+      return null;
+    }
+    int low = Collections.binarySearch(snapshots, name);
+    if (low >= 0) {
+      return snapshots.get(low);
+    }
+    return null;
+  }
 
   private INodeDirectorySnapshottable(long nsQuota, long dsQuota,
       INodeDirectory dir, final int snapshotQuota) {

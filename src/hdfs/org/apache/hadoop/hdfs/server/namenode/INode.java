@@ -266,7 +266,7 @@ public abstract class INode implements Comparable<byte[]>, FSInodeInfo {
   /**
    * @return null if the local name is null; otherwise, return the local name.
    */
-  String getLocalName() {
+  public String getLocalName() {
     return name == null? null: DFSUtil.bytes2String(name);
   }
 
@@ -274,7 +274,7 @@ public abstract class INode implements Comparable<byte[]>, FSInodeInfo {
    * @return null if the local name is null;
    *         otherwise, return the local name byte array.
    */
-  byte[] getLocalNameBytes() {
+  public byte[] getLocalNameBytes() {
     return name;
   }
 
@@ -288,7 +288,7 @@ public abstract class INode implements Comparable<byte[]>, FSInodeInfo {
   /**
    * Set local file name
    */
-  void setLocalName(byte[] name) {
+  protected void setLocalName(byte[] name) {
     this.name = name;
   }
 
@@ -309,6 +309,11 @@ public abstract class INode implements Comparable<byte[]>, FSInodeInfo {
    */
   INodeDirectory getParent() {
     return this.parent;
+  }
+  
+  /** Set parent directory */
+  public void setParent(INodeDirectory parent) {
+    this.parent = parent;
   }
 
   /** 
