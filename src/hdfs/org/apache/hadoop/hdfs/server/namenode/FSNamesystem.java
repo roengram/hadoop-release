@@ -217,7 +217,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   // Stores the correct file name hierarchy
   //
   public FSDirectory dir;
-  private final SnapshotManager snapshotManager = new SnapshotManager(this);
+  private final SnapshotManager snapshotManager = new SnapshotManager(this, dir);
 
   //
   // Mapping: Block -> { INode, datanodes, self ref } 
@@ -4316,6 +4316,12 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     node.decBlocksScheduled();    
   }
 
+  public void addBlockCollection(INodeFile node) {
+    for (BlockInfo block : node.getBlocks()) {
+      this.blocksMap.addINode(block, node);
+    }
+  }
+  
   public long getMissingBlocksCount() {
     // not locking
     return Math.max(missingBlocksInPrevIter, missingBlocksInCurIter); 
@@ -6426,11 +6432,20 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   /**
    * Create a snapshot
    * @param snapshotName The name of the snapshot
-   * @param path The directory where the snapshot will be taken
+   * @param path The directory where the snapshot is taken
    */
   public void createSnapshot(String snapshotName, String path)
       throws SafeModeException, IOException {
-    // TODO: implement
+    synchronized (this) {
+      if (isInSafeMode()) {
+        throw new SafeModeException("Cannot create snapshot for " + path,
+            safeMode);
+      }
+      checkOwner(path);
+      synchronized (dir.rootDir) {
+        snapshotManager.createSnapshot(snapshotName, path);
+      }
+    }
     
     // audit log
     if (auditLog.isInfoEnabled() && isExternalInvocation()) {

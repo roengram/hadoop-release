@@ -392,7 +392,7 @@ public abstract class INode implements Comparable<byte[]>, FSInodeInfo {
     return path.split(Path.SEPARATOR);
   }
 
-  boolean removeNode() {
+  public boolean removeNode() {
     if (parent == null) {
       return false;
     } else {

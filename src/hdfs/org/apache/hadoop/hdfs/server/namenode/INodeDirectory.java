@@ -67,7 +67,7 @@ public class INodeDirectory extends INode {
    * 
    * @param other
    */
-  INodeDirectory(INodeDirectory other) {
+  public INodeDirectory(INodeDirectory other) {
     super(other);
     this.children = other.children;
   }
@@ -230,7 +230,7 @@ public class INodeDirectory extends INode {
    * @return  false if the child with this name already exists; 
    *          otherwise, return true
    */
-  boolean addChild(final INode node, boolean inheritPermission) {
+  public boolean addChild(final INode node, boolean inheritPermission) {
     if (inheritPermission) {
       FsPermission p = getFsPermission();
       //make sure the  permission has wx for the user
@@ -380,6 +380,11 @@ public class INodeDirectory extends INode {
    */
   public List<INode> getChildrenList() {
     return children==null ? EMPTY_LIST : children;
+  }
+  
+  /** Set the children list. */
+  public void setChildren(List<INode> children) {
+    this.children = children;
   }
 
   @Override

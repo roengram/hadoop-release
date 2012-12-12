@@ -25,7 +25,7 @@ import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 
 
-class INodeFileUnderConstruction extends INodeFile {
+public class INodeFileUnderConstruction extends INodeFile {
   /** Cast INode to INodeFileUnderConstruction. */
   public static INodeFileUnderConstruction valueOf(INode inode, String path
       ) throws FileNotFoundException {
