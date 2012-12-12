@@ -201,8 +201,6 @@ public class FSDirectory implements FSConstants, Closeable {
     return newNode;
   }
 
-  /**
-   */
   INode unprotectedAddFile( String path, 
                             PermissionStatus permissions,
                             Block[] blocks, 
@@ -561,13 +559,34 @@ public class FSDirectory implements FSConstants, Closeable {
    *          Blocks under the deleted directory
    * @return true on successful deletion; else false
    */
-  boolean delete(String src, BlocksMapUpdateInfo collectedBlocks) {
+  boolean delete(String src, BlocksMapUpdateInfo collectedBlocks)
+      throws IOException {
     if (NameNode.stateChangeLog.isDebugEnabled()) {
       NameNode.stateChangeLog.debug("DIR* FSDirectory.delete: " + src);
     }
     waitForReady();
     long now = FSNamesystem.now();
-    int filesRemoved = unprotectedDelete(src, collectedBlocks, now);
+    int filesRemoved = 0;
+    synchronized (rootDir) {
+      final INodesInPath inodesInPath = rootDir
+          .getExistingPathINodes(normalizePath(src));
+      final INode[] inodes = inodesInPath.getINodes();
+      if (checkPathINodes(inodes, src) == 0) {
+        filesRemoved = 0;
+      } else {
+        // Before removing the node, first check if the targetNode is for a
+        // snapshottable dir with snapshots, or its descendants have
+        // snapshottable dir with snapshots
+        INode targetNode = inodes[inodes.length-1];
+        INode snapshotNode = hasSnapshot(targetNode);
+        if (snapshotNode != null) {
+          throw new IOException("The direcotry " + targetNode.getFullPathName()
+              + " cannot be deleted since " + snapshotNode.getFullPathName()
+              + " is snapshottable and already has snapshots");
+        }
+        filesRemoved = unprotectedDelete(inodesInPath, collectedBlocks, now);
+      }
+    }
     if (filesRemoved <= 0) {
       return false;
     }
@@ -594,6 +613,23 @@ public class FSDirectory implements FSConstants, Closeable {
     return dirNotEmpty;
   }
   
+  private int checkPathINodes(INode[] inodes, String src) {
+    if (inodes == null || inodes.length == 0
+        || inodes[inodes.length - 1] == null) {
+      if (NameNode.stateChangeLog.isDebugEnabled()) {
+        NameNode.stateChangeLog.debug("DIR* FSDirectory.unprotectedDelete: "
+            + "failed to remove " + src + " because it does not exist");
+      }
+      return 0;
+    } else if (inodes.length == 1) { // src is the root
+      NameNode.stateChangeLog.warn("DIR* FSDirectory.unprotectedDelete: "
+          + "failed to remove " + src
+          + " because the root is not allowed to be deleted");
+      return 0;
+    }
+    return inodes.length;
+  }
+  
   /**
    * Delete a path from the name space Update the count at each ancestor
    * directory with quota
@@ -606,59 +642,69 @@ public class FSDirectory implements FSConstants, Closeable {
    */
   void unprotectedDelete(String src, long mTime) {
     BlocksMapUpdateInfo collectedBlocks = new BlocksMapUpdateInfo();
-    int filesRemoved = unprotectedDelete(src, collectedBlocks, mTime);
+    int filesRemoved = 0;
+
+    final INodesInPath inodesInPath = rootDir
+        .getExistingPathINodes(normalizePath(src));
+    final INode[] inodes = inodesInPath.getINodes();
+    if (checkPathINodes(inodes, src) == 0) {
+      filesRemoved = 0;
+    } else {
+      filesRemoved = unprotectedDelete(inodesInPath, collectedBlocks, mTime);
+    }
     if (filesRemoved > 0) {
       namesystem.removePathAndBlocks(src, collectedBlocks);
     }
   }
   
   /**
-   * Delete a path from the name space Update the count at each ancestor
-   * directory with quota
+   * Delete a path from the name space.
+   * Update the count at each ancestor directory with quota.
    * 
-   * @param src
-   *          a string representation of a path to an inode
-   * @param collectedBlocks
-   *          blocks collected from the deleted path
-   * @param mtime
-   *          the time the inode is removed
+   * @param inodesInPath the INodes resolved from the path
+   * @param collectedBlocks blocks collected from the deleted path
+   * @param mtime the time the inode is removed
    * @return the number of inodes deleted; 0 if no inodes are deleted.
    */
-  int unprotectedDelete(String src, BlocksMapUpdateInfo collectedBlocks,
-      long mtime) {
-    src = normalizePath(src);
-
-    synchronized (rootDir) {
-      INodesInPath inodesInPath = rootDir.getExistingPathINodes(src); 
-      INode[] inodes = inodesInPath.getINodes();
-      INode targetNode = inodes[inodes.length-1];
-
-      if (targetNode == null) { // non-existent src
-        NameNode.stateChangeLog.debug("DIR* FSDirectory.unprotectedDelete: "
-            +"failed to remove "+src+" because it does not exist");
-        return 0;
-      } 
-      if (inodes.length == 1) { // src is the root
-        NameNode.stateChangeLog.warn("DIR* FSDirectory.unprotectedDelete: " +
-            "failed to remove " + src +
-            " because the root is not allowed to be deleted");
-        return 0;
-      } 
-      
-      targetNode = removeLastINode(inodesInPath);
-      if (targetNode == null) {
-        return 0;
-      }
-      // set the parent's modification time
-      inodes[inodes.length - 2].setModificationTime(mtime);
-      int filesRemoved = targetNode
-          .collectSubtreeBlocksAndClear(collectedBlocks);
-      if (NameNode.stateChangeLog.isDebugEnabled()) {
-        NameNode.stateChangeLog.debug("DIR* FSDirectory.unprotectedDelete: "
-            + src + " is removed");
-      }
-      return filesRemoved;
+  int unprotectedDelete(INodesInPath inodesInPath,
+      BlocksMapUpdateInfo collectedBlocks, long mtime) {
+    INode targetNode = removeLastINode(inodesInPath);
+    if (targetNode == null) {
+      return 0;
     }
+    final INode[] inodes = inodesInPath.getINodes();
+    // set the parent's modification time
+    inodes[inodes.length - 2].setModificationTime(mtime);
+    int filesRemoved = targetNode.collectSubtreeBlocksAndClear(collectedBlocks);
+    if (NameNode.stateChangeLog.isDebugEnabled()) {
+      NameNode.stateChangeLog.debug("DIR* FSDirectory.unprotectedDelete: "
+          + targetNode.getFullPathName() + " is removed");
+    }
+    return filesRemoved;
+  }
+    
+  /**
+   * Check if the given INode (or one of its descendants) is snapshottable and
+   * already has snapshots.
+   * 
+   * @param target The given INode
+   * @return The INode which is snapshottable and already has snapshots.
+   */
+  private static INode hasSnapshot(INode target) {
+    if (target instanceof INodeDirectory) {
+      INodeDirectory targetDir = (INodeDirectory) target;
+      if (targetDir.isSnapshottable()
+          && ((INodeDirectorySnapshottable) targetDir).getNumSnapshots() > 0) {
+        return target;
+      }
+      for (INode child : targetDir.getChildrenList()) {
+        INode snapshotDir = hasSnapshot(child);
+        if (snapshotDir != null) {
+          return snapshotDir;
+        }
+      }
+    }
+    return null;
   }
   
   /**

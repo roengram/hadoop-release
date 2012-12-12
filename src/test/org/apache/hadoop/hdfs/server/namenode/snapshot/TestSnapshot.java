@@ -18,7 +18,10 @@
 package org.apache.hadoop.hdfs.server.namenode.snapshot;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Random;
@@ -48,6 +51,7 @@ public class TestSnapshot {
 
   private final Path dir = new Path("/TestSnapshot");
   private final Path sub1 = new Path(dir, "sub1");
+  private final Path subsub1 = new Path(sub1, "subsub1");
 
   protected Configuration conf;
   protected MiniDFSCluster cluster;
@@ -59,7 +63,7 @@ public class TestSnapshot {
    * records a snapshot root.
    */
   protected static ArrayList<Path> snapshotList = new ArrayList<Path>();
-
+  
   @Before
   public void setUp() throws Exception {
     conf = new Configuration();
@@ -182,6 +186,85 @@ public class TestSnapshot {
   public void testSnapshot() throws Exception {
     ArrayList<Modification[]> mList = prepareModifications(SNAPSHOTNUMBER);
     testSnapshot(sub1, mList);
+  }
+  
+  /**
+   * Creating snapshots for a directory that is not snapshottable must fail.
+   * 
+   * TODO: Listing/Deleting snapshots for a directory that is not snapshottable
+   * should also fail.
+   */
+  @Test
+  public void testSnapshottableDirectory() throws Exception {
+    Path file0 = new Path(sub1, "file0");
+    Path file1 = new Path(sub1, "file1");
+    DFSTestUtil.createFile(hdfs, file0, BLOCKSIZE, REPLICATION, seed);
+    DFSTestUtil.createFile(hdfs, file1, BLOCKSIZE, REPLICATION, seed);
+
+    try {
+      hdfs.createSnapshot("s1", sub1.toString());
+      fail("Did not throw IOException when creating snapshots for a non-snapshottable directory");
+    } catch (IOException e) {
+      assertTrue(e.getMessage().contains(
+          "Directory is not a snapshottable directory: " + dir.toString()));
+    }
+  }
+    
+  /**
+   * Deleting snapshottable directory with snapshots must fail.
+   */
+  @Test
+  public void testDeleteDirectoryWithSnapshot() throws Exception {
+    Path file0 = new Path(sub1, "file0");
+    Path file1 = new Path(sub1, "file1");
+    DFSTestUtil.createFile(hdfs, file0, BLOCKSIZE, REPLICATION, seed);
+    DFSTestUtil.createFile(hdfs, file1, BLOCKSIZE, REPLICATION, seed);
+
+    // Allow snapshot for sub1, and create snapshot for it
+    hdfs.allowSnapshot(sub1.toString());
+    hdfs.createSnapshot("s1", sub1.toString());
+
+    // Deleting a snapshottable dir with snapshots should fail
+    try {
+      hdfs.delete(sub1, true);
+      fail("Did not throw IOException when deleting snapshottable directory with snapshots");
+    } catch (IOException e) {
+      String error = "The direcotry " + sub1.toString()
+          + " cannot be deleted since " + sub1.toString()
+          + " is snapshottable and already has snapshots";
+      assertTrue(e.getMessage().contains(error));
+    }
+  }
+
+  /**
+   * Deleting directory with snapshottable descendant with snapshots must fail.
+   */
+  @Test
+  public void testDeleteDirectoryWithSnapshot2() throws Exception {
+    Path file0 = new Path(sub1, "file0");
+    Path file1 = new Path(sub1, "file1");
+    DFSTestUtil.createFile(hdfs, file0, BLOCKSIZE, REPLICATION, seed);
+    DFSTestUtil.createFile(hdfs, file1, BLOCKSIZE, REPLICATION, seed);
+    
+    Path subfile1 = new Path(subsub1, "file0");
+    Path subfile2 = new Path(subsub1, "file1");
+    DFSTestUtil.createFile(hdfs, subfile1, BLOCKSIZE, REPLICATION, seed);
+    DFSTestUtil.createFile(hdfs, subfile2, BLOCKSIZE, REPLICATION, seed);
+
+    // Allow snapshot for subsub1, and create snapshot for it
+    hdfs.allowSnapshot(subsub1.toString());
+    hdfs.createSnapshot("s1", subsub1.toString());
+
+    // Deleting dir while its descedant subsub1 having snapshots should fail
+    try {
+      hdfs.delete(dir, true);
+      fail("Did not throw IOException when deleting snapshottable directory with snapshots");
+    } catch (IOException e) {
+      String error = "The direcotry " + dir.toString()
+          + " cannot be deleted since " + subsub1.toString()
+          + " is snapshottable and already has snapshots";
+      assertTrue(e.getMessage().contains(error));
+    }
   }
 
   /**
