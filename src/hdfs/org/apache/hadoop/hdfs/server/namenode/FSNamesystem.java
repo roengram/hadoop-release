@@ -6392,23 +6392,19 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   }
     
   /**
-   * Create a snapshot
-   * @param snapshotName The name of the snapshot
-   * @param snapshotRoot The directory where the snapshot will be taken
-   */
-  public void createSnapshot(String snapshotName, String snapshotRoot)
-      throws SafeModeException, IOException {
-    // TODO: implement
-  }
-    
-  /**
    * Allow snapshot on a directory.
-   * @param snapshotRoot the directory to be snapped
+   * @param path the directory to be set as snapshottable
    * @throws IOException
    */
-  public void allowSnapshot(String snapshotRoot)
+  public void allowSnapshot(String path)
       throws SafeModeException, IOException {
     // TODO: implement
+    
+    // audit log
+    if (auditLog.isInfoEnabled() && isExternalInvocation()) {
+      logAuditEvent(UserGroupInformation.getCurrentUser(), Server.getRemoteIp(),
+          "allowSnapshot", path, null, null);
+    }
   }
   
   /**
@@ -6420,5 +6416,28 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       throws SafeModeException, IOException {
     // TODO: implement, also need to update metrics in corresponding
     // SnapshotManager method 
+    
+    // audit log
+    if (auditLog.isInfoEnabled() && isExternalInvocation()) {
+      logAuditEvent(UserGroupInformation.getCurrentUser(), Server.getRemoteIp(),
+          "disallowSnapshot", snapshotRoot, null, null);
+    }
+  }
+  
+  /**
+   * Create a snapshot
+   * @param snapshotName The name of the snapshot
+   * @param path The directory where the snapshot will be taken
+   */
+  public void createSnapshot(String snapshotName, String path)
+      throws SafeModeException, IOException {
+    // TODO: implement
+    
+    // audit log
+    if (auditLog.isInfoEnabled() && isExternalInvocation()) {
+      Path snapshotRoot = new Path(path, ".snapshot/" + snapshotName);
+      logAuditEvent(UserGroupInformation.getCurrentUser(), Server.getRemoteIp(),
+          "createSnapshot", path, snapshotRoot.toString(), null);
+    }
   }
 }
