@@ -74,9 +74,14 @@ public class INodeDirectory extends INode {
    * 
    * @param other
    */
-  public INodeDirectory(INodeDirectory other) {
+  public INodeDirectory(INodeDirectory other, boolean adopt) {
     super(other);
     this.children = other.children;
+    if (adopt && this.children != null) {
+      for (INode child : children) {
+        child.parent = this;
+      }
+    }
   }
   
   /** @return true unconditionally. */
