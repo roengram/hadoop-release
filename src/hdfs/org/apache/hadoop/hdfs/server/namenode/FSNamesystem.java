@@ -91,6 +91,7 @@ import org.apache.hadoop.hdfs.server.common.Storage.StorageDirType;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
 import org.apache.hadoop.hdfs.server.common.UpgradeStatusReport;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
+import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapINodeUpdateEntry;
 import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
 import org.apache.hadoop.hdfs.server.namenode.LeaseManager.Lease;
@@ -2233,27 +2234,57 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    * @param blocks
    *          An instance of {@link BlocksMapUpdateInfo} which contains a list
    *          of blocks that need to be removed from blocksMap
+   * @throws FileNotFoundException 
    */
-  private void removeBlocks(BlocksMapUpdateInfo blocks) {
-    int start = 0;
-    int end = 0;
-    List<Block> toDeleteList = blocks.getToDeleteList();
-    while (start < toDeleteList.size()) {
-      end = BLOCK_DELETION_INCREMENT + start;
-      end = end > toDeleteList.size() ? toDeleteList.size() : end;
+  private void removeBlocks(BlocksMapUpdateInfo blocks)
+      throws FileNotFoundException {
+    Iterator<Map.Entry<Block, BlocksMapINodeUpdateEntry>> iter = blocks
+        .iterator();
+    while (iter.hasNext()) {
       synchronized (this) {
-        for (int i = start; i < end; i++) {
-          Block b = toDeleteList.get(i);
-          blocksMap.removeINode(b);
-          corruptReplicas.removeFromCorruptReplicasMap(b);
-          // Remove the block from pendingReplications
-          if (pendingReplications != null) {
-            pendingReplications.remove(b);
-          }
-          addToInvalidates(b);
+        for (int numberToHandle = BLOCK_DELETION_INCREMENT; iter.hasNext()
+            && numberToHandle > 0; numberToHandle--) {
+          Map.Entry<Block, BlocksMapINodeUpdateEntry> entry = iter.next();
+          updateBlocksMap(entry);
         }
       }
-      start = end;
+    }
+  }
+  
+  /**
+   * Update the blocksMap for a given block.
+   * 
+   * @param entry
+   *          The update entry containing both the block and its new INode. The
+   *          block should be removed from the blocksMap if the INode is null,
+   *          otherwise the INode for the block will be updated in the
+   *          blocksMap.
+   * @throws FileNotFoundException 
+   */
+  private void updateBlocksMap(Map.Entry<Block, BlocksMapINodeUpdateEntry> entry)
+      throws FileNotFoundException {
+    Block block = entry.getKey();
+    BlocksMapINodeUpdateEntry value = entry.getValue();
+    if (value == null) {
+      blocksMap.removeINode(block);
+      corruptReplicas.removeFromCorruptReplicasMap(block);
+      // Remove the block from pendingReplications
+      if (pendingReplications != null) {
+        pendingReplications.remove(block);
+      }
+      addToInvalidates(block);
+    } else {
+      INode toDelete = value.getToDelete();
+      BlockInfo originalBlockInfo = blocksMap.getStoredBlock(block);
+      // The FSDirectory tree and the blocksMap share the same INode reference.
+      // Thus we use "==" to check if the INode for the block belongs to the
+      // current file (instead of the INode from a snapshot file).
+      if (originalBlockInfo != null
+          && toDelete == originalBlockInfo.getINode()) {
+        INode toReplace = value.getToReplace();
+        blocksMap.addINode(originalBlockInfo,
+            INodeFile.valueOf(toReplace, toReplace.getFullPathName()));
+      }
     }
   }
 
@@ -2261,8 +2292,10 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    * Remove leases and blocks related to a given path
    * @param src The given path
    * @param blocks Containing the list of blocks to be deleted from blocksMap
+   * @throws FileNotFoundException 
    */
-  void removePathAndBlocks(String src, BlocksMapUpdateInfo blocks) {
+  void removePathAndBlocks(String src, BlocksMapUpdateInfo blocks)
+      throws FileNotFoundException {
     leaseManager.removeLeaseWithPrefixPath(src);
     if (blocks == null) {
       return;

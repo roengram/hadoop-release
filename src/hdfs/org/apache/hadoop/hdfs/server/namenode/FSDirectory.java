@@ -663,10 +663,11 @@ public class FSDirectory implements FSConstants, Closeable {
    * 
    * @param mTime
    *          the time the inode is removed
-   * @throws SnapshotAccessControlException 
+   * @throws SnapshotAccessControlException
+   * @throws FileNotFoundException
    */
   void unprotectedDelete(String src, long mTime)
-      throws SnapshotAccessControlException {
+      throws SnapshotAccessControlException, FileNotFoundException {
     BlocksMapUpdateInfo collectedBlocks = new BlocksMapUpdateInfo();
     int filesRemoved = 0;
 

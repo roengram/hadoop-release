@@ -55,7 +55,7 @@ public class BlocksMap {
       this.inode = null;
     }
 
-    INodeFile getINode() {
+    public INodeFile getINode() {
       return inode;
     }
     

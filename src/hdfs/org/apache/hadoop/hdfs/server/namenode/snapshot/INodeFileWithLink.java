@@ -58,7 +58,8 @@ public class INodeFileWithLink extends INodeFile {
   @Override
   public short getBlockReplication() {
     short max = getFileReplication();
-    for(INodeFileWithLink i = next; i != this; i = i.getNext()) {
+    // i may be null since next will be set to null when the INode is deleted
+    for(INodeFileWithLink i = next; i != this && i != null; i = i.getNext()) {
       final short replication = i.getFileReplication();
       if (replication > max) {
         max = replication;
@@ -77,27 +78,37 @@ public class INodeFileWithLink extends INodeFile {
   @Override
   protected int collectSubtreeBlocksAndClear(BlocksMapUpdateInfo info) {
     if (next == this) {
-      //this is the only remaining inode.
+      // this is the only remaining inode.
       super.collectSubtreeBlocksAndClear(info);
     } else {
-      //There are other inode(s) using the blocks.
-      //Compute max file size excluding this and find the last inode. 
+      // There are other inode(s) using the blocks.
+      // Compute max file size excluding this and find the last inode. 
       long max = next.computeContentSummary().getLength();
+      short maxReplication = next.getFileReplication();
       INodeFileWithLink last = next;
       for(INodeFileWithLink i = next.getNext(); i != this; i = i.getNext()) {
         final long size = i.computeContentSummary().getLength();
         if (size > max) {
           max = size;
         }
+        final short rep = i.getFileReplication();
+        if (rep > maxReplication) {
+          maxReplication = rep;
+        }
         last = i;
       }
 
       collectBlocksBeyondMaxAndClear(max, info);
       
-      //remove this from the circular linked list.
+      // remove this from the circular linked list.
       last.next = this.next;
+      // Set the replication of the current INode to the max of all the other
+      // linked INodes, so that in case the current INode is retrieved from the
+      // blocksMap before it is removed or updated, the correct replication
+      // number can be retrieved.
+      this.setFileReplication(maxReplication);
       this.next = null;
-      //clear parent
+      // clear parent
       parent = null;
     }
     return 1;
@@ -113,9 +124,18 @@ public class INodeFileWithLink extends INodeFile {
         size += oldBlocks[n].getNumBytes();
       }
 
-      //starting from block n, the data is beyond max.
+      // Replace the INode for all the remaining blocks in blocksMap
+      BlocksMapINodeUpdateEntry entry = new BlocksMapINodeUpdateEntry(this,
+         next);
+      if (info != null) {
+        for (int i = 0; i < n; i++) {
+          info.addUpdateBlock(oldBlocks[i], entry);
+        }
+      }
+      
+      // starting from block n, the data is beyond max.
       if (n < oldBlocks.length) {
-        //resize the array.  
+        // resize the array.  
         final BlockInfo[] newBlocks;
         if (n == 0) {
           newBlocks = null;
@@ -127,7 +147,7 @@ public class INodeFileWithLink extends INodeFile {
           i.setBlocks(newBlocks);
         }
 
-        //collect the blocks beyond max.  
+        // collect the blocks beyond max.  
         if (info != null) {
           for(; n < oldBlocks.length; n++) {
             info.addDeleteBlock(oldBlocks[n]);

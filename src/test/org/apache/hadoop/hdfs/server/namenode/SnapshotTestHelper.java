@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hadoop.hdfs.server.namenode.snapshot;
+package org.apache.hadoop.hdfs.server.namenode;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -23,6 +23,8 @@ import static org.junit.Assert.assertTrue;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
+import org.apache.hadoop.hdfs.protocol.Block;
+import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 
 /**
  * Helper for writing snapshot related tests
@@ -73,5 +75,20 @@ public class SnapshotTestHelper {
     FileStatus[] currentFiles = hdfs.listStatus(snapshottedDir);
     FileStatus[] snapshotFiles = hdfs.listStatus(snapshotRoot);
     assertEquals(currentFiles.length, snapshotFiles.length);
+  }
+  
+  /**
+   * @return The INodeFile associated with the given block in the BlocksMap
+   */
+  public static INodeFile getINodeFromBlocksMap(FSNamesystem namesystem,
+      Block block) {
+    return namesystem.blocksMap.getINode(block);
+  }
+  
+  /**
+   * @return The BlockInfo associated with the given block in the BlocksMap
+   */
+  public static BlockInfo getStoredBlock(FSNamesystem namesystem, Block block) {
+    return namesystem.blocksMap.getStoredBlock(block);
   }
 }
