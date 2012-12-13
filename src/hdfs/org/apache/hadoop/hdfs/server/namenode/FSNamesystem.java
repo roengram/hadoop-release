@@ -6504,4 +6504,39 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
           "createSnapshot", path, snapshotRoot.toString(), null);
     }
   }
+  
+  /**
+   * Rename a snapshot
+   * @param path The directory path where the snapshot was taken
+   * @param snapshotOldName Old snapshot name
+   * @param snapshotNewName New snapshot name
+   * @throws SafeModeException
+   * @throws IOException 
+   */
+  public void renameSnapshot(String path, String snapshotOldName,
+      String snapshotNewName) throws SafeModeException, IOException {
+    synchronized (this) {
+      if (isInSafeMode()) {
+        throw new SafeModeException("Cannot rename snapshot for " + path,
+            safeMode);
+      }
+      checkOwner(path);
+      // TODO: check if the new name is valid. May also need this for
+      // creationSnapshot
+      
+      snapshotManager.renameSnapshot(path, snapshotOldName, snapshotNewName);
+      getEditLog().logRenameSnapshot(path, snapshotOldName, snapshotNewName);
+    }
+    getEditLog().logSync();
+    
+    if (auditLog.isInfoEnabled() && isExternalInvocation()) {
+      Path oldSnapshotRoot = new Path(path, HdfsConstants.DOT_SNAPSHOT_DIR
+          + "/" + snapshotOldName);
+      Path newSnapshotRoot = new Path(path, HdfsConstants.DOT_SNAPSHOT_DIR
+          + "/" + snapshotNewName);
+      logAuditEvent(UserGroupInformation.getCurrentUser(), Server.getRemoteIp(),
+          "renameSnapshot", oldSnapshotRoot.toString(),
+          newSnapshotRoot.toString(), null);
+    }
+  }
 }

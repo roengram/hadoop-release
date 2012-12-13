@@ -1465,6 +1465,13 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
   }
   
   @Override
+  public void renameSnapshot(String snapshotRoot, String snapshotOldName,
+      String snapshotNewName) throws IOException {
+    myMetrics.incrRenameSnapshotOps();
+    namesystem.renameSnapshot(snapshotRoot, snapshotOldName, snapshotNewName);
+  }
+  
+  @Override
   public void allowSnapshot(String snapshotRoot) throws IOException {
     myMetrics.incrAllowSnapshotOps();
     namesystem.allowSnapshot(snapshotRoot);

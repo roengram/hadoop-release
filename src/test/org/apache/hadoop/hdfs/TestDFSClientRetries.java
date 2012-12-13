@@ -340,6 +340,10 @@ public class TestDFSClientRetries extends TestCase {
 
     @Override
     public void disallowSnapshot(String snapshotRoot) throws IOException {}
+
+    @Override
+    public void renameSnapshot(String snapshotRoot, String snapshotOldName,
+        String snapshotNewName) throws IOException {}
   }
   
   public void testNotYetReplicatedErrors() throws IOException

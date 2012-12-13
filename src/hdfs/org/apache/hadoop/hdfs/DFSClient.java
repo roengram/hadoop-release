@@ -1404,7 +1404,22 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   */
   public void createSnapshot(String snapshotName, String snapshotRoot)
       throws IOException {
+    checkOpen();
     namenode.createSnapshot(snapshotName, snapshotRoot);
+  }
+  
+  /**
+   * Rename a snapshot.
+   * @param snapshotDir The directory path where the snapshot was taken
+   * @param snapshotOldName Old name of the snapshot
+   * @param snapshotNewName New name of the snapshot
+   * @throws IOException
+   * @see ClientProtocol#renameSnapshot(String, String, String)
+   */
+  public void renameSnapshot(String snapshotDir, String snapshotOldName,
+      String snapshotNewName) throws IOException {
+    checkOpen();
+    namenode.renameSnapshot(snapshotDir, snapshotOldName, snapshotNewName);
   }
   
   /**
