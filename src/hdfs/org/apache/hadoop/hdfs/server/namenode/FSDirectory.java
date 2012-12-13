@@ -23,7 +23,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.ContentSummary;
@@ -42,8 +41,10 @@ import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotAccessControlException;
 import org.apache.hadoop.hdfs.util.ByteArray;
+import org.apache.hadoop.hdfs.util.ReadOnlyList;
 
 /*************************************************
  * FSDirectory stores the filesystem directory state.
@@ -628,9 +629,11 @@ public class FSDirectory implements FSConstants, Closeable {
       return true;
     }
     synchronized(rootDir) {
-      INode targetNode = rootDir.getNode(src);
+      final INodesInPath inodesInPath = rootDir.getINodesInPath(src);
+      final INode targetNode = inodesInPath.getINode(0);
       assert targetNode != null : "should be taken care in isDir() above";
-      if (((INodeDirectory)targetNode).getChildrenList().size() != 0) {
+      final Snapshot s = inodesInPath.getPathSnapshot();
+      if (((INodeDirectory) targetNode).getChildrenList(s).size() != 0) {
         dirNotEmpty = false;
       }
     }
@@ -724,7 +727,7 @@ public class FSDirectory implements FSConstants, Closeable {
           && ((INodeDirectorySnapshottable) targetDir).getNumSnapshots() > 0) {
         return target;
       }
-      for (INode child : targetDir.getChildrenList()) {
+      for (INode child : targetDir.getChildrenList(null)) {
         INode snapshotDir = hasSnapshot(child);
         if (snapshotDir != null) {
           return snapshotDir;
@@ -760,7 +763,7 @@ public class FSDirectory implements FSConstants, Closeable {
       replaceINodeUnsynced(path, oldnode, newnode);
 
       //update children's parent directory
-      for(INode i : newnode.getChildrenList()) {
+      for(INode i : newnode.getChildrenList(null)) {
         i.parent = newnode;
       }
     }
@@ -796,7 +799,8 @@ public class FSDirectory implements FSConstants, Closeable {
     String srcs = normalizePath(src);
 
     synchronized (rootDir) {
-      INode targetNode = rootDir.getNode(srcs);
+      final INodesInPath inodesInPath = rootDir.getINodesInPath(srcs);
+      INode targetNode = inodesInPath.getINode(0);
       if (targetNode == null)
         return null;
       
@@ -804,8 +808,10 @@ public class FSDirectory implements FSConstants, Closeable {
         return new DirectoryListing(new HdfsFileStatus[]{createFileStatus(
             HdfsFileStatus.EMPTY_NAME, targetNode)}, 0);
       }
+      
       INodeDirectory dirInode = (INodeDirectory)targetNode; 
-      List<INode> contents = dirInode.getChildrenList();
+      final ReadOnlyList<INode> contents = dirInode
+          .getChildrenList(inodesInPath.getPathSnapshot());
       int startChild = dirInode.nextChild(startAfter);
       int totalNumChildren = contents.size();
       int numOfListing = Math.min(totalNumChildren-startChild, this.lsLimit);
@@ -1300,7 +1306,7 @@ public class FSDirectory implements FSConstants, Closeable {
      * INode. using 'parent' is not currently recommended. */
     nodesInPath.add(dir);
 
-    for (INode child : dir.getChildrenList()) {
+    for (INode child : dir.getChildrenList(null)) {
       if (child.isDirectory()) {
         updateCountForINodeWithQuota((INodeDirectory)child, 
                                      counts, nodesInPath);

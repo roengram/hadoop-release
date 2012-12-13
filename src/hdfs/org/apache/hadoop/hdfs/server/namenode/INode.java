@@ -35,6 +35,7 @@ import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
+import org.apache.hadoop.hdfs.util.ReadOnlyList;
 
 /**
  * We keep an in-memory representation of the file/block hierarchy.
@@ -42,7 +43,10 @@ import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
  * directory inodes.
  */
 public abstract class INode implements Comparable<byte[]>, FSInodeInfo {
-  static final List<INode> EMPTY_LIST = Collections.unmodifiableList(new ArrayList<INode>());
+  static final List<INode> EMPTY_LIST = Collections
+      .unmodifiableList(new ArrayList<INode>());
+  static final ReadOnlyList<INode> EMPTY_READ_ONLY_LIST = ReadOnlyList.Util
+      .asReadOnlyList(EMPTY_LIST);
 
   /** Wrapper of two counters for namespace consumed and diskspace consumed. */
   static class DirCounts {

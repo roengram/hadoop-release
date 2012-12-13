@@ -18,11 +18,17 @@
 package org.apache.hadoop.hdfs.server.namenode;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.Stack;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.fs.permission.*;
+import org.apache.hadoop.fs.permission.FsAction;
+import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.UserGroupInformation;
 
@@ -113,7 +119,8 @@ class PermissionChecker {
     }
 
     synchronized(root) {
-      INode[] inodes = root.getExistingPathINodes(path).getINodes();
+      final INodesInPath inodesInPath = root.getExistingPathINodes(path); 
+      final INode[] inodes = inodesInPath.getINodes();
       int ancestorIndex = inodes.length - 2;
       for(; ancestorIndex >= 0 && inodes[ancestorIndex] == null;
           ancestorIndex--);
@@ -129,7 +136,8 @@ class PermissionChecker {
         check(inodes[inodes.length - 1], access);
       }
       if (subAccess != null) {
-        checkSubAccess(inodes[inodes.length - 1], subAccess);
+        final Snapshot s = inodesInPath.getPathSnapshot();
+        checkSubAccess(inodes[inodes.length - 1], s, subAccess);
       }
       if (doCheckOwner) {
         checkOwner(inodes[inodes.length - 1]);
@@ -151,8 +159,8 @@ class PermissionChecker {
     }
   }
 
-  private void checkSubAccess(INode inode, FsAction access
-      ) throws AccessControlException {
+  private void checkSubAccess(INode inode, Snapshot snapshot, FsAction access)
+      throws AccessControlException {
     if (inode == null || !inode.isDirectory()) {
       return;
     }
@@ -162,7 +170,7 @@ class PermissionChecker {
       INodeDirectory d = directories.pop();
       check(d, access);
 
-      for(INode child : d.getChildrenList()) {
+      for(INode child : d.getChildrenList(snapshot)) {
         if (child.isDirectory()) {
           directories.push((INodeDirectory)child);
         }

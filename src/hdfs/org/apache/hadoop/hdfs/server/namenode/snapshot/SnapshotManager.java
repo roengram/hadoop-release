@@ -28,6 +28,7 @@ import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
 import org.apache.hadoop.hdfs.server.namenode.INodeFile;
 import org.apache.hadoop.hdfs.server.namenode.INodeFileUnderConstruction;
+import org.apache.hadoop.hdfs.util.ReadOnlyList;
 
 /** Manage snapshottable directories and their snapshots. */
 public class SnapshotManager implements SnapshotStats {
@@ -112,34 +113,36 @@ public class SnapshotManager implements SnapshotStats {
    * Create a snapshot of subtrees by recursively copying the directory
    * structure from the source directory to the snapshot destination directory.
    * This creation algorithm requires O(N) running time and O(N) memory,
-   * where N = # files + # directories + # symlinks. 
+   * where N = # files + # directories. 
   */
   class SnapshotCreation {
     /** Process snapshot creation recursively. */
     private void processRecursively(final INodeDirectory srcDir,
         final INodeDirectory dstDir) throws IOException {
-      final List<INode> children = srcDir.getChildrenList();
-      final List<INode> inodes = new ArrayList<INode>(children.size());
-      for(final INode c : new ArrayList<INode>(children)) {
-        final INode i;
-        if (c == null) {
-          i = null;
-        } else if (c instanceof INodeDirectory) {
-          //also handle INodeDirectoryWithQuota
-          i = processINodeDirectory((INodeDirectory)c);
-        } else if (c instanceof INodeFileUnderConstruction) {
-          //TODO: support INodeFileUnderConstruction
-          throw new IOException("Not yet supported.");
-        } else if (c instanceof INodeFile) {
-          i = processINodeFile(srcDir, (INodeFile)c);
-        } else {
-          throw new AssertionError("Unknow INode type: " + c.getClass()
-              + ", inode = " + c);
+      final ReadOnlyList<INode> children = srcDir.getChildrenList(null);
+      if (!children.isEmpty()) {
+        final List<INode> inodes = new ArrayList<INode>(children.size());
+        for(final INode c : new ArrayList<INode>(ReadOnlyList.Util.asList(children))) {
+          final INode i;
+          if (c == null) {
+            i = null;
+          } else if (c instanceof INodeDirectory) {
+            //also handle INodeDirectoryWithQuota
+            i = processINodeDirectory((INodeDirectory)c);
+          } else if (c instanceof INodeFileUnderConstruction) {
+            //TODO: support INodeFileUnderConstruction
+            throw new IOException("Not yet supported.");
+          } else if (c instanceof INodeFile) {
+            i = processINodeFile(srcDir, (INodeFile)c);
+          } else {
+            throw new AssertionError("Unknow INode type: " + c.getClass()
+                + ", inode = " + c);
+          }
+          i.setParent(dstDir);
+          inodes.add(i);
         }
-        i.setParent(dstDir);
-        inodes.add(i);
+        dstDir.setChildren(inodes);
       }
-      dstDir.setChildren(inodes);
     }
     
     /**

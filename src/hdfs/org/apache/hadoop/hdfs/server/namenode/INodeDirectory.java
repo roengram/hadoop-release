@@ -33,6 +33,7 @@ import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottab
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectoryWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotAccessControlException;
+import org.apache.hadoop.hdfs.util.ReadOnlyList;
 
 /**
  * Directory INode class.
@@ -119,34 +120,20 @@ public class INodeDirectory extends INode {
     }
   }
   
-  INode getChild(String name) {
-    return getChildINode(DFSUtil.string2Bytes(name));
+  private INode getChild(byte[] name, Snapshot snapshot) {
+    final ReadOnlyList<INode> c = getChildrenList(snapshot);
+    final int i = ReadOnlyList.Util.binarySearch(c, name);
+    return i < 0 ? null : c.get(i);
   }
 
-  private INode getChildINode(byte[] name) {
-    if (children == null) {
-      return null;
-    }
-    int low = Collections.binarySearch(children, name);
-    if (low >= 0) {
-      return children.get(low);
-    }
-    return null;
+  /** @return the {@link INodesInPath} containing only the last inode. */
+  INodesInPath getINodesInPath(String path) {
+    return getExistingPathINodes(getPathComponents(path), 1);
   }
 
-  /**
-   * @return the INode of the last component in components, or null if the last
-   */
-  private INode getNode(byte[][] components) {
-    INodesInPath inodesInPath = getExistingPathINodes(components, 1);
-    return inodesInPath.inodes[0];
-  }
-
-  /**
-   * This is the external interface
-   */
+  /** @return the last inode in the path. */
   INode getNode(String path) {
-    return getNode(getPathComponents(path));
+    return getINodesInPath(path).getINode(0);
   }
   
   /**
@@ -271,7 +258,8 @@ public class INodeDirectory extends INode {
         }
       } else {
         // normal case, and also for resolving file/dir under snapshot root
-        curNode = parentDir.getChildINode(components[count + 1]);
+        curNode = parentDir.getChild(components[count + 1],
+            existing.getPathSnapshot());
       }
       count += 1;
       index += 1;
@@ -457,12 +445,14 @@ public class INodeDirectory extends INode {
   }
 
   /**
-   * @return an empty list if the children list is null;
-   *         otherwise, return the children list.
-   *         The returned list should not be modified.
+   * @return the current children list if the specified snapshot is null;
+   *         otherwise, return the children list corresponding to the snapshot.
+   *         Note that the returned list is never null.
    */
-  public List<INode> getChildrenList() {
-    return children==null ? EMPTY_LIST : children;
+  public ReadOnlyList<INode> getChildrenList(final Snapshot snapshot) {
+    // TODO: use snapshot to select children list
+    return children == null ? EMPTY_READ_ONLY_LIST : ReadOnlyList.Util
+        .asReadOnlyList(children);
   }
   
   /** Set the children list. */
@@ -530,11 +520,19 @@ public class INodeDirectory extends INode {
     }
     
     /**
-     * @return the snapshot associated to the path.
-     * @see #snapshot
+     * For non-snapshot paths, return the latest snapshot found in the path.
+     * For snapshot paths, return null.
      */
-    public Snapshot getSnapshot() {
-      return snapshot;
+    public Snapshot getLatestSnapshot() {
+      return isSnapshot? null: snapshot;
+    }
+    
+    /**
+     * For snapshot paths, return the snapshot specified in the path. For
+     * non-snapshot paths, return null.
+     */
+    public Snapshot getPathSnapshot() {
+      return isSnapshot? snapshot: null;
     }
 
     private void setSnapshot(Snapshot s) {
@@ -559,6 +557,11 @@ public class INodeDirectory extends INode {
         inodes = newNodes;
       }
       return inodes;
+    }
+    
+    /** @return the i-th inode. */
+    INode getINode(int i) {
+      return inodes[i];
     }
     
     /**
@@ -607,7 +610,7 @@ public class INodeDirectory extends INode {
         for (int i = 1; i < inodes.length; i++) {
           b.append(", ").append(toString(inodes[i]));
         }
-        b.append("]");
+        b.append("], length=").append(inodes.length);
       }
       b.append("\n  numNonNull = ").append(numNonNull)
           .append("\n  capacity   = ").append(capacity)

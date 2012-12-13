@@ -60,6 +60,7 @@ import org.apache.hadoop.hdfs.server.common.UpgradeManager;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 import org.apache.hadoop.hdfs.server.namenode.FSEditLog.EditLogFileInputStream;
 import org.apache.hadoop.hdfs.util.AtomicFileOutputStream;
+import org.apache.hadoop.hdfs.util.ReadOnlyList;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.UTF8;
 import org.apache.hadoop.io.Writable;
@@ -1438,15 +1439,16 @@ public class FSImage extends Storage {
                                 INodeDirectory current,
                                 DataOutputStream out) throws IOException {
     int newPrefixLength = prefixLength;
-    if (current.getChildrenList().isEmpty())
+    final ReadOnlyList<INode> children = current.getChildrenList(null);
+    if (children.isEmpty())
       return;
-    for(INode child : current.getChildrenList()) {
+    for(INode child : children) {
       // print all children first
       parentPrefix.position(prefixLength);
       parentPrefix.put(PATH_SEPARATOR).put(child.getLocalNameBytes());
       saveINode2Image(parentPrefix, child, out);
     }
-    for(INode child : current.getChildrenList()) {
+    for(INode child : children) {
       if(!child.isDirectory())
         continue;
       parentPrefix.position(prefixLength);

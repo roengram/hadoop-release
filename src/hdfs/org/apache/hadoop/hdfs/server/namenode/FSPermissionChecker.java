@@ -27,6 +27,8 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.UserGroupInformation;
 
@@ -118,7 +120,8 @@ private final UserGroupInformation ugi;
     }
 
     synchronized(root) {
-      INode[] inodes = root.getExistingPathINodes(path).getINodes();
+      final INodesInPath inodesInPath = root.getExistingPathINodes(path);
+      final INode[] inodes = inodesInPath.getINodes();
       int ancestorIndex = inodes.length - 2;
       for(; ancestorIndex >= 0 && inodes[ancestorIndex] == null;
           ancestorIndex--);
@@ -134,7 +137,8 @@ private final UserGroupInformation ugi;
         check(inodes[inodes.length - 1], access);
       }
       if (subAccess != null) {
-        checkSubAccess(inodes[inodes.length - 1], subAccess);
+        final Snapshot s = inodesInPath.getPathSnapshot();
+        checkSubAccess(inodes[inodes.length - 1], s, subAccess);
       }
       if (doCheckOwner) {
         checkOwner(inodes[inodes.length - 1]);
@@ -156,7 +160,7 @@ private final UserGroupInformation ugi;
     }
   }
 
-  private void checkSubAccess(INode inode, FsAction access
+  private void checkSubAccess(INode inode, Snapshot snapshot, FsAction access
       ) throws AccessControlException {
     if (inode == null || !inode.isDirectory()) {
       return;
@@ -167,7 +171,7 @@ private final UserGroupInformation ugi;
       INodeDirectory d = directories.pop();
       check(d, access);
 
-      for(INode child : d.getChildrenList()) {
+      for(INode child : d.getChildrenList(snapshot)) {
         if (child.isDirectory()) {
           directories.push((INodeDirectory)child);
         }
