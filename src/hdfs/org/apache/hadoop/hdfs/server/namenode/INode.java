@@ -43,10 +43,8 @@ import org.apache.hadoop.hdfs.util.ReadOnlyList;
  * directory inodes.
  */
 public abstract class INode implements Comparable<byte[]>, FSInodeInfo {
-  static final List<INode> EMPTY_LIST = Collections
-      .unmodifiableList(new ArrayList<INode>());
-  static final ReadOnlyList<INode> EMPTY_READ_ONLY_LIST = ReadOnlyList.Util
-      .asReadOnlyList(EMPTY_LIST);
+  static final ReadOnlyList<INode> EMPTY_READ_ONLY_LIST
+      = ReadOnlyList.Util.emptyList();
 
   /** Wrapper of two counters for namespace consumed and diskspace consumed. */
   static class DirCounts {
