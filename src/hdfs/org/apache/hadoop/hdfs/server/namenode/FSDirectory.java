@@ -42,6 +42,7 @@ import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotAccessControlException;
 import org.apache.hadoop.hdfs.util.ByteArray;
 
 /*************************************************
@@ -323,9 +324,11 @@ public class FSDirectory implements FSConstants, Closeable {
   }
 
   /**
+   * @throws SnapshotAccessControlException 
    * @see #unprotectedRenameTo(String, String, long)
    */
-  boolean renameTo(String src, String dst) throws QuotaExceededException {
+  boolean renameTo(String src, String dst) throws QuotaExceededException,
+      SnapshotAccessControlException {
     if (NameNode.stateChangeLog.isDebugEnabled()) {
       NameNode.stateChangeLog.debug("DIR* FSDirectory.renameTo: "
                                   +src+" to "+dst);
@@ -338,17 +341,23 @@ public class FSDirectory implements FSConstants, Closeable {
     return true;
   }
 
-  /** Change a path name
+  /**
+   * Change a path name
    * 
-   * @param src source path
-   * @param dst destination path
+   * @param src
+   *          source path
+   * @param dst
+   *          destination path
    * @return true if rename succeeds; false otherwise
-   * @throws QuotaExceededException if the operation violates any quota limit
+   * @throws QuotaExceededException
+   *           if the operation violates any quota limit
+   * @throws SnapshotAccessControlException
+   *           if the source directory is in a snapshot
    */
   boolean unprotectedRenameTo(String src, String dst, long timestamp) 
-  throws QuotaExceededException {
+  throws QuotaExceededException, SnapshotAccessControlException {
     synchronized (rootDir) {
-      INodesInPath srcInodesInPath = rootDir.getExistingPathINodes(src);
+      INodesInPath srcInodesInPath = rootDir.getMutableINodesInPath(src);
       INode[] srcInodes = srcInodesInPath.getINodes();
 
       // check the validation of the source
@@ -383,6 +392,10 @@ public class FSDirectory implements FSConstants, Closeable {
       byte[][] dstComponents = INode.getPathComponents(dst);
       INodesInPath dstInodesInPath = rootDir.getExistingPathINodes(
           dstComponents, dstComponents.length);
+      if (dstInodesInPath.isSnapshot()) {
+        throw new SnapshotAccessControlException(
+            "Modification on RO snapshot is disallowed");
+      }
       INode[] dstInodes = dstInodesInPath.getINodes();
       if (dstInodes[dstInodes.length-1] != null) {
         NameNode.stateChangeLog.warn("DIR* FSDirectory.unprotectedRenameTo: "
@@ -461,16 +474,14 @@ public class FSDirectory implements FSConstants, Closeable {
     return fileBlocks;
   }
 
-  Block[] unprotectedSetReplication( String src, 
-                                     short replication,
-                                     int[] oldReplication
-                                     ) throws IOException {
+  Block[] unprotectedSetReplication(String src, short replication,
+      int[] oldReplication) throws IOException {
     if (oldReplication == null)
       oldReplication = new int[1];
     oldReplication[0] = -1;
     Block[] fileBlocks = null;
     synchronized(rootDir) {
-      INodesInPath inodesInPath = rootDir.getExistingPathINodes(src); 
+      INodesInPath inodesInPath = rootDir.getMutableINodesInPath(src); 
       INode[] inodes = inodesInPath.getINodes();
       INode inode = inodes[inodes.length - 1];
       if (inode == null)
@@ -515,18 +526,30 @@ public class FSDirectory implements FSConstants, Closeable {
     }
   }
 
+  boolean existsMutable(String src) throws SnapshotAccessControlException {
+    src = normalizePath(src);
+    synchronized(rootDir) {
+      INode inode = rootDir.getMutableNode(src);
+      if (inode == null) {
+        return false;
+      }
+      return !inode.isFile() || ((INodeFile) inode).getBlocks() != null;
+    }
+  }
+  
   void setPermission(String src, FsPermission permission
       ) throws IOException {
     unprotectedSetPermission(src, permission);
     fsImage.getEditLog().logSetPermissions(src, permission);
   }
 
-  void unprotectedSetPermission(String src, FsPermission permissions) throws FileNotFoundException {
-    synchronized(rootDir) {
-        INode inode = rootDir.getNode(src);
-        if(inode == null)
-            throw new FileNotFoundException("File does not exist: " + src);
-        inode.setPermission(permissions);
+  void unprotectedSetPermission(String src, FsPermission permissions)
+      throws FileNotFoundException, SnapshotAccessControlException {
+    synchronized (rootDir) {
+      INode inode = rootDir.getMutableNode(src);
+      if (inode == null)
+        throw new FileNotFoundException("File does not exist: " + src);
+      inode.setPermission(permissions);
     }
   }
 
@@ -536,9 +559,10 @@ public class FSDirectory implements FSConstants, Closeable {
     fsImage.getEditLog().logSetOwner(src, username, groupname);
   }
 
-  void unprotectedSetOwner(String src, String username, String groupname) throws FileNotFoundException {
+  void unprotectedSetOwner(String src, String username, String groupname)
+      throws FileNotFoundException, SnapshotAccessControlException {
     synchronized(rootDir) {
-      INode inode = rootDir.getNode(src);
+      INode inode = rootDir.getMutableNode(src);
       if(inode == null)
           throw new FileNotFoundException("File does not exist: " + src);
       if (username != null) {
@@ -569,7 +593,7 @@ public class FSDirectory implements FSConstants, Closeable {
     int filesRemoved = 0;
     synchronized (rootDir) {
       final INodesInPath inodesInPath = rootDir
-          .getExistingPathINodes(normalizePath(src));
+          .getMutableINodesInPath(normalizePath(src));
       final INode[] inodes = inodesInPath.getINodes();
       if (checkPathINodes(inodes, src) == 0) {
         filesRemoved = 0;
@@ -639,13 +663,15 @@ public class FSDirectory implements FSConstants, Closeable {
    * 
    * @param mTime
    *          the time the inode is removed
+   * @throws SnapshotAccessControlException 
    */
-  void unprotectedDelete(String src, long mTime) {
+  void unprotectedDelete(String src, long mTime)
+      throws SnapshotAccessControlException {
     BlocksMapUpdateInfo collectedBlocks = new BlocksMapUpdateInfo();
     int filesRemoved = 0;
 
     final INodesInPath inodesInPath = rootDir
-        .getExistingPathINodes(normalizePath(src));
+        .getMutableINodesInPath(normalizePath(src));
     final INode[] inodes = inodesInPath.getINodes();
     if (checkPathINodes(inodes, src) == 0) {
       filesRemoved = 0;
@@ -830,19 +856,43 @@ public class FSDirectory implements FSConstants, Closeable {
     }
   }
   
+  /**
+   * Get {@link INode} associated with the file / directory.
+   * @throws SnapshotAccessControlException if path is in RO snapshot
+   */
+  public INode getMutableINode(String src)
+      throws SnapshotAccessControlException {
+    synchronized (rootDir) {
+      return rootDir.getMutableNode(src);
+    }
+  }
+
+  
   /** 
    * Check whether the filepath could be created
+   * @throws SnapshotAccessControlException 
    */
-  boolean isValidToCreate(String src) {
+  boolean isValidToCreate(String src) throws SnapshotAccessControlException {
     String srcs = normalizePath(src);
     synchronized (rootDir) {
-      if (srcs.startsWith("/") && 
-          !srcs.endsWith("/") && 
-          rootDir.getNode(srcs) == null) {
+      if (srcs.startsWith("/") && !srcs.endsWith("/")
+          && rootDir.getMutableNode(srcs) == null) {
         return true;
       } else {
         return false;
       }
+    }
+  }
+  
+  /**
+   * Check whether the path specifies a directory
+   * @throws SnapshotAccessControlException if path is in RO snapshot
+   */
+  boolean isDirMutable(String src) throws SnapshotAccessControlException {
+    src = normalizePath(src);
+    synchronized (rootDir) {
+      INode node = rootDir.getMutableNode(src);
+      return node != null && node.isDirectory();
     }
   }
 
@@ -964,10 +1014,11 @@ public class FSDirectory implements FSConstants, Closeable {
    * @throws FileNotFoundException if an ancestor or itself is a file
    * @throws QuotaExceededException if directory creation violates 
    *                                any quota limit
+   * @throws SnapshotAccessControlException if path is in RO snapshot
    */
   boolean mkdirs(String src, PermissionStatus permissions,
-      boolean inheritPermission, long now)
-      throws FileNotFoundException, QuotaExceededException {
+      boolean inheritPermission, long now) throws FileNotFoundException,
+      QuotaExceededException, SnapshotAccessControlException {
     src = normalizePath(src);
     String[] names = INode.getPathNames(src);
     byte[][] components = INode.getPathComponents(names);
@@ -975,6 +1026,10 @@ public class FSDirectory implements FSConstants, Closeable {
     synchronized(rootDir) {
       INodesInPath inodesInPath = rootDir.getExistingPathINodes(components,
           components.length);
+      if (inodesInPath.isSnapshot()) {
+        throw new SnapshotAccessControlException(
+            "Modification on RO snapshot is disallowed");
+      }
       INode[] inodes = inodesInPath.getINodes();
       // find the index of the first null in inodes[]
       StringBuilder pathbuilder = new StringBuilder();
@@ -1008,8 +1063,6 @@ public class FSDirectory implements FSConstants, Closeable {
     return true;
   }
 
-  /**
-   */
   INode unprotectedMkdir(String src, PermissionStatus permissions,
                           long timestamp) throws QuotaExceededException {
     byte[][] components = INode.getPathComponents(src);
@@ -1293,10 +1346,12 @@ public class FSDirectory implements FSConstants, Closeable {
    * @throws FileNotFoundException if the path does not exist or is a file
    * @throws QuotaExceededException if the directory tree size is 
    *                                greater than the given quota
+   * @throws SnapshotAccessControlException if the path is in RO snapshot
    * @throws PathIsNotDirectoryException if the path is not a directory
    */
   INodeDirectory unprotectedSetQuota(String src, long nsQuota, long dsQuota)
-      throws FileNotFoundException, QuotaExceededException {
+      throws FileNotFoundException, QuotaExceededException,
+      SnapshotAccessControlException {
     // sanity check
     if ((nsQuota < 0 && nsQuota != FSConstants.QUOTA_DONT_SET && 
          nsQuota < FSConstants.QUOTA_RESET) || 
@@ -1308,8 +1363,7 @@ public class FSDirectory implements FSConstants, Closeable {
     }
     
     String srcs = normalizePath(src);
-    final INodesInPath inodesInPath = rootDir.getExistingPathINodes(src);
-    INode[] inodes = inodesInPath.getINodes();
+    final INode[] inodes = rootDir.getMutableINodesInPath(srcs).getINodes();
     
     INodeDirectory dirNode = INodeDirectory.valueOf(inodes[inodes.length - 1], srcs);
     if (dirNode.isRoot() && nsQuota == FSConstants.QUOTA_RESET) {
@@ -1350,10 +1404,12 @@ public class FSDirectory implements FSConstants, Closeable {
   /**
    * See {@link ClientProtocol#setQuota(String, long, long)} for the 
    * contract.
+   * @throws SnapshotAccessControlException if path is in RO snapshot
    * @see #unprotectedSetQuota(String, long, long)
    */
   void setQuota(String src, long nsQuota, long dsQuota)
-      throws FileNotFoundException, QuotaExceededException {
+      throws FileNotFoundException, QuotaExceededException,
+      SnapshotAccessControlException {
     synchronized (rootDir) {    
       INodeDirectory dir = unprotectedSetQuota(src, nsQuota, dsQuota);
       if (dir != null) {

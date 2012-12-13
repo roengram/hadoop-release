@@ -1225,7 +1225,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     if (isPermissionEnabled) {
       checkPathAccess(src, FsAction.WRITE);
     }
-    INodeFile inode = INodeFile.valueOf(dir.getINode(src), src);
+    INodeFile inode = INodeFile.valueOf(dir.getMutableINode(src), src);
     if (inode != null) {
       dir.setTimes(src, inode, mtime, atime, true);
       if (auditLog.isInfoEnabled() && isExternalInvocation()) {
@@ -1396,7 +1396,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     }
 
     // Verify that the destination does not exist as a directory already.
-    boolean pathExists = dir.exists(src);
+    boolean pathExists = dir.existsMutable(src);
     if (pathExists && dir.isDir(src)) {
       throw new IOException("Cannot create "+ src + "; already exists as a directory");
     }
@@ -2308,7 +2308,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     if (isPermissionEnabled) {
       checkTraverse(src);
     }
-    if (dir.isDir(src)) {
+    if (dir.isDirMutable(src)) {
       // all the users of mkdirs() are used to expect 'true' even if
       // a new directory is not created.
       return true;

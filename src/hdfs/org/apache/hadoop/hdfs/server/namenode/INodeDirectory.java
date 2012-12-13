@@ -31,6 +31,7 @@ import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectoryWithSnapshot;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotAccessControlException;
 
 /**
  * Directory INode class.
@@ -145,6 +146,40 @@ public class INodeDirectory extends INode {
    */
   INode getNode(String path) {
     return getNode(getPathComponents(path));
+  }
+  
+  /**
+   * @return the INode of the last component in src, or null if the last
+   * component does not exist.
+   * @throws SnapshotAccessControlException if path is in RO snapshot
+   */
+  INode getMutableNode(String src) throws SnapshotAccessControlException {
+    INode[] inodes = getMutableINodesInPath(src).getINodes();
+    return inodes[inodes.length - 1];
+  }
+
+  /**
+   * @return the INodesInPath of the components in src
+   * @throws SnapshotAccessControlException if path is in RO snapshot
+   */
+  INodesInPath getMutableINodesInPath(String src)
+      throws SnapshotAccessControlException {
+    return getMutableINodesInPath(INode.getPathComponents(src));
+  }
+
+  /**
+   * @return the INodesInPath of the components in src
+   * @throws SnapshotAccessControlException if path is in RO snapshot
+   */
+  INodesInPath getMutableINodesInPath(byte[][] components)
+      throws SnapshotAccessControlException {
+    INodesInPath inodesInPath = getExistingPathINodes(components,
+        components.length);
+    if (inodesInPath.isSnapshot()) {
+      throw new SnapshotAccessControlException(
+          "Modification on RO snapshot is disallowed");
+    }
+    return inodesInPath;
   }
 
   /**
