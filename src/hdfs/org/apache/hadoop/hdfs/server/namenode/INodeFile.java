@@ -244,6 +244,26 @@ public class INodeFile extends INode {
   }
 
   /**
+   * append array of blocks to this.blocks
+   */
+  void appendBlocks(INodeFile [] inodes, int totalAddedBlocks) {
+    int size = this.blocks.length;
+    
+    BlockInfo[] newlist = new BlockInfo[size + totalAddedBlocks];
+    System.arraycopy(this.blocks, 0, newlist, 0, size);
+    
+    for(INodeFile in: inodes) {
+      System.arraycopy(in.blocks, 0, newlist, size, in.blocks.length);
+      size += in.blocks.length;
+    }
+    
+    for(BlockInfo bi: this.blocks) {
+      bi.setINode(this);
+    }
+    this.blocks = newlist;
+  }
+  
+  /**
    * add a block to the block list
    */
   void addBlock(BlockInfo newblock) {
@@ -344,6 +364,7 @@ public class INodeFile extends INode {
       }
     }
   }
+<<<<<<< HEAD
 
   private void computeContentSummary4Current(final Content.Counts counts) {
     if (this instanceof FileWithSnapshot
@@ -365,6 +386,17 @@ public class INodeFile extends INode {
       final FileDiff d = ((FileWithSnapshot)this).getDiffs().getDiff(snapshot);
       if (d != null) {
         return d.getFileSize();
+=======
+  
+  long diskspaceConsumed(Block[] blkArr) {
+    long size = 0;
+    if(blkArr == null) 
+      return 0;
+    
+    for (Block blk : blkArr) {
+      if (blk != null) {
+        size += blk.getNumBytes();
+>>>>>>> c5bb818... HDFS-4256 Backport concatenation of files into a single file to branch-1 (sanjay Radia)
       }
     }
 
