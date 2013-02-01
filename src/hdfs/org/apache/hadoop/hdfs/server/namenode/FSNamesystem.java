@@ -97,6 +97,7 @@ import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
 import org.apache.hadoop.hdfs.server.namenode.LeaseManager.Lease;
 import org.apache.hadoop.hdfs.server.namenode.UnderReplicatedBlocks.BlockIterator;
 import org.apache.hadoop.hdfs.server.namenode.metrics.FSNamesystemMBean;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotManager;
 import org.apache.hadoop.hdfs.server.protocol.BalancerBandwidthCommand;
 import org.apache.hadoop.hdfs.server.protocol.BlocksWithLocations;
@@ -392,7 +393,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   FSNamesystem(NameNode nn, Configuration conf) throws IOException {
     try {
       initialize(nn, conf);
-      snapshotManager = new SnapshotManager(this, dir);
+      snapshotManager = new SnapshotManager(dir);
     } catch (IOException e) {
       LOG.error(getClass().getSimpleName() + " initialization failed.", e);
       close();
@@ -502,7 +503,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   FSNamesystem(FSImage fsImage, Configuration conf) throws IOException {
     setConfigurationParameters(conf);
     this.dir = new FSDirectory(fsImage, this, conf);
-    snapshotManager = new SnapshotManager(this, dir);
+    snapshotManager = new SnapshotManager(dir);
     dtSecretManager = createDelegationTokenSecretManager(conf);
   }
 
@@ -1126,9 +1127,10 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     if(i == null || i.isDirectory()) {
       return null;
     }
-    INodeFile inode = (INodeFile)i;
+    final INodesInPath iip = dir.getMutableINodesInPath(src);
+    final INodeFile inode = INodeFile.valueOf(iip.getLastINode(), src);
     if (doAccessTime && isAccessTimeSupported()) {
-      dir.setTimes(src, inode, -1, now(), false);
+      dir.setTimes(src, inode, -1, now(), false, iip.getLatestSnapshot());
     }
     Block[] blocks = inode.getBlocks();
     if (blocks == null) {
@@ -1226,9 +1228,10 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     if (isPermissionEnabled) {
       checkPathAccess(src, FsAction.WRITE);
     }
-    INodeFile inode = INodeFile.valueOf(dir.getMutableINode(src), src);
+    final INodesInPath iip = dir.getMutableINodesInPath(src);
+    final INodeFile inode = INodeFile.valueOf(iip.getLastINode(), src);
     if (inode != null) {
-      dir.setTimes(src, inode, mtime, atime, true);
+      dir.setTimes(src, inode, mtime, atime, true, iip.getLatestSnapshot());
       if (auditLog.isInfoEnabled() && isExternalInvocation()) {
         final HdfsFileStatus stat = dir.getFileInfo(src);
         logAuditEvent(UserGroupInformation.getCurrentUser(),
@@ -1416,7 +1419,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     }
 
     try {
-      INode myFile = dir.getINode(src);
+      final INodesInPath iip = dir.getINodesInPath(src);
+      final INode myFile = iip.getINode(0);
       recoverLeaseInternal(myFile, src, holder, clientMachine, false);
 
       try {
@@ -1462,7 +1466,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
                                         holder,
                                         clientMachine,
                                         clientNode);
-        dir.replaceNode(src, node, cons);
+        dir.unprotectedReplaceINodeFile(src, node, cons,
+            iip.getLatestSnapshot());
         leaseManager.addLease(cons.clientName, src);
 
       } else {
@@ -1744,19 +1749,17 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
         throw new SafeModeException("Cannot add block to " + src, safeMode);
       }
       
-      final INodesInPath inodesInPath = dir.rootDir.getExistingPathINodes(src);
-      final INode[] inodes = inodesInPath.getINodes();
-      int inodesLen = inodes.length;
-      checkLease(src, clientName, inodes[inodesLen-1]);
+      final INodesInPath iip = dir.rootDir.getExistingPathINodes(src);
       INodeFileUnderConstruction pendingFile = (INodeFileUnderConstruction) 
-                                               inodes[inodesLen - 1];
+          iip.getLastINode();
+      checkLease(src, clientName, pendingFile);
                                                            
       if (!checkFileProgress(pendingFile, false)) {
         throw new NotReplicatedYetException("Not replicated yet:" + src);
       }
 
       // allocate new block record block locations in INode.
-      newBlock = allocateBlock(src, inodesInPath);
+      newBlock = allocateBlock(src, iip);
       pendingFile.setTargets(targets);
       
       for (DatanodeDescriptor dn : targets) {
@@ -1860,6 +1863,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     if (isInSafeMode())
       throw new SafeModeException("Cannot complete " + src, safeMode);
 
+    final INodesInPath iip = dir.getINodesInPath(src);
     INodeFileUnderConstruction pendingFile  = checkLease(src, holder);
     Block[] fileBlocks =  dir.getFileBlocks(src);
 
@@ -1875,7 +1879,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       return CompleteFileStatus.STILL_WAITING;
     }
 
-    finalizeINodeFileUnderConstruction(src, pendingFile);
+    finalizeINodeFileUnderConstruction(src, pendingFile,
+        iip.getLatestSnapshot());
 
     NameNode.stateChangeLog.info("DIR* completeFile: " + src
                                   + " is closed by " + holder);
@@ -2439,7 +2444,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
 
     LOG.info("Recovering lease=" + lease + ", src=" + src);
 
-    INodeFile iFile = INodeFile.valueOf(dir.getINode(src), src);
+    final INodesInPath iip = dir.getINodesInPath(src);
+    INodeFile iFile = INodeFile.valueOf(iip.getINode(0), src);
     if (iFile == null) {
       final String message = "DIR* internalReleaseCreate: "
         + "attempt to release a create lock on "
@@ -2463,7 +2469,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     if (pendingFile.getTargets() == null ||
         pendingFile.getTargets().length == 0) {
       if (pendingFile.getBlocks().length == 0) {
-        finalizeINodeFileUnderConstruction(src, pendingFile);
+        finalizeINodeFileUnderConstruction(src, pendingFile,
+            iip.getLatestSnapshot());
         NameNode.stateChangeLog.warn("BLOCK*"
           + " internalReleaseLease: No blocks found, lease removed for " +  src);
         return;
@@ -2497,15 +2504,17 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
 
 
   private void finalizeINodeFileUnderConstruction(String src,
-      INodeFileUnderConstruction pendingFile) throws IOException {
+      INodeFileUnderConstruction pendingFile, Snapshot latestSnapshot)
+      throws IOException {
     NameNode.stateChangeLog.info("Removing lease on  " + src + 
                                  " from client " + pendingFile.clientName);
     leaseManager.removeLease(pendingFile.clientName, src);
 
     // The file is no longer pending.
     // Create permanent INode, update blockmap
-    INodeFile newFile = pendingFile.convertToInodeFile();
-    dir.replaceNode(src, pendingFile, newFile);
+    INodeFile newFile = pendingFile.convertToInodeFile(System
+        .currentTimeMillis());
+    dir.unprotectedReplaceINodeFile(src, pendingFile, newFile, latestSnapshot);
 
     // close file and persist block allocations for this file
     dir.closeFile(src, newFile);
@@ -2596,8 +2605,9 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       return;
     }
     
-    //remove lease, close file
-    finalizeINodeFileUnderConstruction(src, pendingFile);
+      // remove lease, close file
+      finalizeINodeFileUnderConstruction(src, pendingFile,
+          Snapshot.findLatestSnapshot(pendingFile));
     } // end of synchronized section
 
     getEditLog().logSync();
@@ -6439,8 +6449,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
         throw new SafeModeException("Cannot allow snapshot for " + path, safeMode);
       }
       checkOwner(path);
-      // TODO: do not hardcode snapshot quota value
-      snapshotManager.setSnapshottable(path, 256);
+      
+      snapshotManager.setSnapshottable(path);
       getEditLog().logAllowSnapshot(path);
     }
     getEditLog().logSync();

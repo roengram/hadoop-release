@@ -59,6 +59,7 @@ import org.apache.hadoop.hdfs.server.common.StorageInfo;
 import org.apache.hadoop.hdfs.server.common.UpgradeManager;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 import org.apache.hadoop.hdfs.server.namenode.FSEditLog.EditLogFileInputStream;
+import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
 import org.apache.hadoop.hdfs.util.AtomicFileOutputStream;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
 import org.apache.hadoop.io.IOUtils;
@@ -966,10 +967,10 @@ public class FSImage extends Storage {
         if (path.length() == 0) { // it is the root
           // update the root's attributes
           if (nsQuota != -1 || dsQuota != -1) {
-            fsDir.rootDir.setQuota(nsQuota, dsQuota);
+            fsDir.rootDir.setQuota(nsQuota, dsQuota, null);
           }
-          fsDir.rootDir.setModificationTime(modificationTime);
-          fsDir.rootDir.setPermissionStatus(permissions);
+          fsDir.rootDir.setModificationTime(modificationTime, null);
+          fsDir.rootDir.setPermissionStatus(permissions, null);
           continue;
         }
         // check if the new inode belongs to the same parent
@@ -997,7 +998,7 @@ public class FSImage extends Storage {
     return needToSave;
   }
   
-  INodeDirectory addToParent(String src, INodeDirectory parentINode,
+  private INodeDirectory addToParent(String src, INodeDirectory parentINode,
       PermissionStatus permissions, Block[] blocks, short replication,
       long modificationTime, long atime, long nsQuota, long dsQuota,
       long preferredBlockSize) {
@@ -1488,8 +1489,10 @@ public class FSImage extends Storage {
 
       // verify that file exists in namespace
       String path = cons.getLocalName();
-      INodeFile oldnode = INodeFile.valueOf(fsDir.getINode(path), path);
-      fsDir.replaceNode(path, oldnode, cons);
+      final INodesInPath iip = fsDir.getINodesInPath(path);
+      INodeFile oldnode = INodeFile.valueOf(iip.getINode(0), path);
+      fsDir.unprotectedReplaceINodeFile(path, oldnode, cons,
+          iip.getLatestSnapshot());
       fs.leaseManager.addLease(cons.clientName, path); 
     }
   }

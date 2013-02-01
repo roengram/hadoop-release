@@ -48,7 +48,7 @@ import org.junit.Test;
  * ensure snapshots remain unchanges.
  */
 public class TestSnapshot {
-  protected static final long seed = 0;
+  private static final long seed = System.currentTimeMillis();
   protected static final short REPLICATION = 3;
   protected static final long BLOCKSIZE = 1024;
   /** The number of times snapshots are created for a snapshottable directory  */
@@ -58,10 +58,10 @@ public class TestSnapshot {
   
   protected Configuration conf;
   protected MiniDFSCluster cluster;
-  protected FSNamesystem fsn;
+  protected static FSNamesystem fsn;
   protected DistributedFileSystem hdfs;
 
-  private static Random random = new Random(System.currentTimeMillis());
+  private static Random random = new Random(seed);
   
   /**
    * The list recording all previous snapshots. Each element in the array
@@ -117,7 +117,7 @@ public class TestSnapshot {
     TestDirectoryTree.Node[] nodes = new TestDirectoryTree.Node[2];
     // Each time we will create a snapshot for the top level dir
     Path root = SnapshotTestHelper.createSnapshot(hdfs,
-        dirTree.topNode.nodePath, this.genSnapshotName());
+        dirTree.topNode.nodePath, genSnapshotName());
     snapshotList.add(root);
     nodes[0] = dirTree.topNode; 
     SnapshotTestHelper.checkSnapshotCreation(hdfs, root, nodes[0].nodePath);
@@ -129,7 +129,7 @@ public class TestSnapshot {
     excludedList.add(nodes[0]);
     nodes[1] = dirTree.getRandomDirNode(random, excludedList);
     root = SnapshotTestHelper.createSnapshot(hdfs, nodes[1].nodePath,
-        this.genSnapshotName());
+        genSnapshotName());
     snapshotList.add(root);
     SnapshotTestHelper.checkSnapshotCreation(hdfs, root, nodes[1].nodePath);
     return nodes;
@@ -165,6 +165,8 @@ public class TestSnapshot {
       // make changes to the current directory
       modifyCurrentDirAndCheckSnapshots(mods);
     }
+    System.out.println("XXX done:");
+    SnapshotTestHelper.dumpTreeRecursively(fsn.getFSDirectory().getINode("/"));
   }
   
   /**
@@ -201,7 +203,7 @@ public class TestSnapshot {
     for (TestDirectoryTree.Node node : nodes) {
       // If the node does not have files in it, create files
       if (node.fileList == null) {
-        node.initFileList(BLOCKSIZE, REPLICATION, seed, 5);
+        node.initFileList(node.nodePath.getName(), BLOCKSIZE, REPLICATION, seed, 5);
       }
       
       //
@@ -276,10 +278,10 @@ public class TestSnapshot {
    * Generate a random snapshot name.
    * @return The snapshot name
    */
-  private String genSnapshotName() {
-    return "s" + Math.abs(random.nextLong());
+  static String genSnapshotName() {
+    return String.format("s-%X", random.nextInt());
   }
-  
+
   /**
    * Base class to present changes applied to current file/dir. A modification
    * can be file creation, deletion, or other modifications such as appending on
@@ -305,6 +307,11 @@ public class TestSnapshot {
     abstract void modify() throws Exception;
 
     abstract void checkSnapshots() throws Exception;
+    
+    @Override
+    public String toString() {
+      return type + " " + file;
+    }
   }
 
   /**
@@ -443,11 +450,10 @@ public class TestSnapshot {
         Path snapshotFile = SnapshotTestHelper.getSnapshotFile(fs,
             snapshotRoot, file);
         if (snapshotFile != null) {
-          boolean currentSnapshotFileExist = fs.exists(snapshotFile);
-          boolean originalSnapshotFileExist = 
-              fileStatusMap.get(snapshotFile) != null;
-          assertEquals(currentSnapshotFileExist, originalSnapshotFileExist);
-          if (currentSnapshotFileExist) {
+          boolean computed = fs.exists(snapshotFile);
+          boolean expected = fileStatusMap.get(snapshotFile) != null;
+          assertEquals(expected, computed);
+          if (computed) {
             FileStatus currentSnapshotStatus = fs.getFileStatus(snapshotFile);
             FileStatus originalStatus = fileStatusMap.get(snapshotFile);
             // We compare the string because it contains all the information,
@@ -552,7 +558,7 @@ public class TestSnapshot {
         TestDirectoryTree.Node newChild = new TestDirectoryTree.Node(
             changedPath, node.level + 1, node, node.fs);
         // create file under the new non-snapshottable directory
-        newChild.initFileList(BLOCKSIZE, REPLICATION, seed, 2);
+        newChild.initFileList(node.nodePath.getName(), BLOCKSIZE, REPLICATION, seed, 2);
         node.nonSnapshotChildren.add(newChild);
       } else {
         // deletion

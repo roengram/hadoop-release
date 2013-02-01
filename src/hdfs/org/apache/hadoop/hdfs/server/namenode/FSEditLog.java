@@ -802,7 +802,7 @@ public class FSEditLog {
                                       clientName, 
                                       clientMachine, 
                                       null);
-            fsDir.replaceNode(path, node, cons);
+            fsDir.unprotectedReplaceINodeFile(path, node, cons, null);
             fsNamesys.leaseManager.addLease(cons.clientName, path);
           }
           break;

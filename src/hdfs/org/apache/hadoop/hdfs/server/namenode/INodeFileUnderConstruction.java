@@ -67,9 +67,8 @@ public class INodeFileUnderConstruction extends INodeFile {
                              String clientName,
                              String clientMachine,
                              DatanodeDescriptor clientNode) {
-    super(perm, blocks, blockReplication, modificationTime, modificationTime,
-          preferredBlockSize);
-    setLocalName(name);
+    super(name, perm, modificationTime, modificationTime, blocks,
+        blockReplication, preferredBlockSize);
     this.clientName = clientName;
     this.clientMachine = clientMachine;
     this.clientNode = clientNode;
@@ -136,16 +135,11 @@ public class INodeFileUnderConstruction extends INodeFile {
   // converts a INodeFileUnderConstruction into a INodeFile
   // use the modification time as the access time
   //
-  INodeFile convertToInodeFile() {
+  INodeFile convertToInodeFile(long mtime) {
     // TODO SNAPSHOT: may convert to INodeFileWithLink
-    INodeFile obj = new INodeFile(getPermissionStatus(),
-                                  getBlocks(),
-                                  getFileReplication(),
-                                  getModificationTime(),
-                                  getModificationTime(),
-                                  getPreferredBlockSize());
-    return obj;
-    
+    return new INodeFile(getLocalNameBytes(), getPermissionStatus(), mtime,
+        getModificationTime(), getBlocks(), getFileReplication(),
+        getPreferredBlockSize());
   }
 
   /**

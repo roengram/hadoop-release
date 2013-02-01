@@ -28,7 +28,6 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
-import org.apache.hadoop.hdfs.server.namenode.INodeDirectoryWithQuota;
 
 /**
  * Directories where taking snapshots is allowed.
@@ -37,19 +36,9 @@ import org.apache.hadoop.hdfs.server.namenode.INodeDirectoryWithQuota;
  * by the namesystem and FSDirectory locks.
  */
 @InterfaceAudience.Private
-public class INodeDirectorySnapshottable extends INodeDirectoryWithQuota {
-  static public INodeDirectorySnapshottable newInstance(
-      final INodeDirectory dir, final int snapshotQuota) {
-    long nsq = -1L;
-    long dsq = -1L;
-
-    if (dir instanceof INodeDirectoryWithQuota) {
-      final INodeDirectoryWithQuota q = (INodeDirectoryWithQuota)dir;
-      nsq = q.getNsQuota();
-      dsq = q.getDsQuota();
-    }
-    return new INodeDirectorySnapshottable(nsq, dsq, dir, snapshotQuota);
-  }
+public class INodeDirectorySnapshottable extends INodeDirectoryWithSnapshot {
+  /** Limit the number of snapshot per snapshottable directory. */
+  static final int SNAPSHOT_LIMIT = 1 << 16;
 
   /** Cast INode to INodeDirectorySnapshottable. */
   static public INodeDirectorySnapshottable valueOf(
@@ -62,17 +51,12 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithQuota {
     return (INodeDirectorySnapshottable)dir;
   }
 
-  /** Snapshots of this directory in ascending order of snapshot id. */
-  private final List<Snapshot> snapshots = new ArrayList<Snapshot>();
-  /** Snapshots of this directory in ascending order of snapshot names. */
-  private final List<Snapshot> snapshotsByNames = new ArrayList<Snapshot>();
-  
   /**
-   * @return {@link #snapshots}. Used only by test.
-   */
-  List<Snapshot> getSnapshots() {
-    return snapshots;
-  }
+    * Snapshots of this directory in ascending order of snapshot names.
+    * Note that snapshots in ascending order of snapshot id are stored in
+    * {@link INodeDirectoryWithSnapshot}.diffs (a private field).
+    */
+  private final List<Snapshot> snapshotsByNames = new ArrayList<Snapshot>();
 
   /**
    * @return {@link #snapshotsByNames}. Used only by test.
@@ -82,16 +66,15 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithQuota {
   }
 
   /** Number of snapshots allowed. */
-  private int snapshotQuota;
+  private int snapshotQuota = SNAPSHOT_LIMIT;
 
-  private INodeDirectorySnapshottable(long nsQuota, long dsQuota,
-      INodeDirectory dir, final int snapshotQuota) {
-    super(nsQuota, dsQuota, dir);
-    setSnapshotQuota(snapshotQuota);
+  public INodeDirectorySnapshottable(INodeDirectory dir) {
+    super(dir, true, null);
   }
   
+  /** @return the number of existing snapshots. */
   public int getNumSnapshots() {
-    return snapshots.size();
+    return getSnapshotsByNames().size();
   }
   
   private int searchSnapshot(byte[] snapshotName) {
@@ -135,7 +118,7 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithQuota {
       }
       // remove the one with old name from snapshotsByNames
       Snapshot snapshot = snapshotsByNames.remove(indexOfOld);
-      INodeDirectoryWithSnapshot ssRoot = snapshot.getRoot();
+      final INodeDirectory ssRoot = snapshot.getRoot();
       ssRoot.setLocalName(newName);
       indexOfNew = -indexOfNew - 1;
       if (indexOfNew <= indexOfOld) {
@@ -144,12 +127,6 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithQuota {
         snapshotsByNames.add(indexOfNew - 1, snapshot);
       }
     }
-  }
-
-  /** @return the last snapshot. */
-  public Snapshot getLastSnapshot() {
-    final int n = snapshots.size();
-    return n == 0? null: snapshots.get(n - 1);
   }
 
   public int getSnapshotQuota() {
@@ -172,9 +149,10 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithQuota {
   /** Add a snapshot. */
   Snapshot addSnapshot(int id, String name) throws SnapshotException {
     //check snapshot quota
-    if (snapshots.size() + 1 > snapshotQuota) {
+    final int n = getNumSnapshots();
+    if (n + 1 > snapshotQuota) {
       throw new SnapshotException("Failed to add snapshot: there are already "
-          + snapshots.size() + " snapshot(s) and the snapshot quota is "
+          + n + " snapshot(s) and the snapshot quota is "
           + snapshotQuota);
     }
     final Snapshot s = new Snapshot(id, name, this);
@@ -185,47 +163,95 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithQuota {
           + "snapshot with the same name \"" + name + "\".");
     }
 
-    snapshots.add(s);
+    addSnapshotDiff(s, this, true);
     snapshotsByNames.add(-i - 1, s);
 
     //set modification time
     final long timestamp = System.currentTimeMillis();
-    s.getRoot().setModificationTime(timestamp);
-    setModificationTime(timestamp);
+    s.getRoot().updateModificationTime(timestamp, null);
+    updateModificationTime(timestamp, null);
     return s;
   }
-  
-  @Override
-  public void dumpTreeRecursively(PrintWriter out, StringBuilder prefix) {
-    super.dumpTreeRecursively(out, prefix);
 
-    out.print(prefix);
-    out.print(snapshots.size());
-    out.print(snapshots.size() <= 1 ? " snapshot of " : " snapshots of ");
-    out.println(getLocalName());
-
-    dumpTreeRecursively(out, prefix, new Iterable<INodeDirectoryWithSnapshot>() {
-      @Override
-      public Iterator<INodeDirectoryWithSnapshot> iterator() {
-        return new Iterator<INodeDirectoryWithSnapshot>() {
-          final Iterator<Snapshot> i = snapshots.iterator();
-
-          @Override
-          public boolean hasNext() {
-            return i.hasNext();
-          }
-
-          @Override
-          public INodeDirectoryWithSnapshot next() {
-            return i.next().getRoot();
-          }
-
-          @Override
-          public void remove() {
-            throw new UnsupportedOperationException();
-          }
-        };
+  /**
+   * Replace itself with {@link INodeDirectoryWithSnapshot} or
+   * {@link INodeDirectory} depending on the latest snapshot.
+   */
+  void replaceSelf(final Snapshot latest) {
+    if (latest == null) {
+      if (getLastSnapshot() != null) {
+        throw new IllegalStateException(
+            "latest == null but getLastSnapshot() != null, this=" + this);
       }
-    });
+      replaceSelf4INodeDirectory();
+    } else {
+      replaceSelf4INodeDirectoryWithSnapshot(latest).recordModification(latest);
+    }
+  }
+
+  @Override
+  public void dumpTreeRecursively(PrintWriter out, StringBuilder prefix,
+      Snapshot snapshot) {
+    super.dumpTreeRecursively(out, prefix, snapshot);
+
+    try {
+      if (snapshot == null) {
+        out.println();
+        out.print(prefix);
+        int n = 0;
+        for (SnapshotDiff diff : getSnapshotDiffs()) {
+          if (diff.isSnapshotRoot()) {
+            n++;
+          }
+        }
+        out.print(n);
+        out.print(n <= 1 ? " snapshot of " : " snapshots of ");
+        final String name = getLocalName();
+        out.println(name.isEmpty() ? "/" : name);
+
+        dumpTreeRecursively(out, prefix,
+            new Iterable<Pair<? extends INode, Snapshot>>() {
+              @Override
+              public Iterator<Pair<? extends INode, Snapshot>> iterator() {
+                return new Iterator<Pair<? extends INode, Snapshot>>() {
+                  final Iterator<SnapshotDiff> i = getSnapshotDiffs()
+                      .iterator();
+                  private SnapshotDiff next = findNext();
+
+                  private SnapshotDiff findNext() {
+                    for (; i.hasNext();) {
+                      final SnapshotDiff diff = i.next();
+                      if (diff.isSnapshotRoot()) {
+                        return diff;
+                      }
+                    }
+                    return null;
+                  }
+
+                  @Override
+                  public boolean hasNext() {
+                    return next != null;
+                  }
+
+                  @Override
+                  public Pair<INodeDirectory, Snapshot> next() {
+                    final Snapshot s = next.snapshot;
+                    final Pair<INodeDirectory, Snapshot> pair = 
+                        new Pair<INodeDirectory, Snapshot>(s.getRoot(), s);
+                    next = findNext();
+                    return pair;
+                  }
+
+                  @Override
+                  public void remove() {
+                    throw new UnsupportedOperationException();
+                  }
+                };
+              }
+            });
+      }
+    } catch (Exception e) {
+      throw new RuntimeException("this=" + this, e);
+    }
   }
 }

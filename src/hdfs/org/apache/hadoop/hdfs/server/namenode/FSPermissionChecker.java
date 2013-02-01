@@ -104,7 +104,6 @@ private final UserGroupInformation ugi;
    * @param subAccess If path is a directory,
    * it is the access required of the path and all the sub-directories.
    * If path is not a directory, there is no effect.
-   * @return a PermissionChecker object which caches data for later use.
    * @throws AccessControlException
    */
   void checkPermission(String path, INodeDirectory root, boolean doCheckOwner,
@@ -121,42 +120,44 @@ private final UserGroupInformation ugi;
 
     synchronized(root) {
       final INodesInPath inodesInPath = root.getExistingPathINodes(path);
+      final Snapshot snapshot = inodesInPath.getPathSnapshot();
       final INode[] inodes = inodesInPath.getINodes();
       int ancestorIndex = inodes.length - 2;
       for(; ancestorIndex >= 0 && inodes[ancestorIndex] == null;
           ancestorIndex--);
-      checkTraverse(inodes, ancestorIndex);
+      checkTraverse(inodes, ancestorIndex, snapshot);
 
       if (ancestorAccess != null && inodes.length > 1) {
-        check(inodes, ancestorIndex, ancestorAccess);
+        check(inodes, ancestorIndex, snapshot, ancestorAccess);
       }
       if (parentAccess != null && inodes.length > 1) {
-        check(inodes, inodes.length - 2, parentAccess);
+        check(inodes, inodes.length - 2, snapshot, parentAccess);
       }
       if (access != null) {
-        check(inodes[inodes.length - 1], access);
+        check(inodes[inodes.length - 1], snapshot, access);
       }
       if (subAccess != null) {
         final Snapshot s = inodesInPath.getPathSnapshot();
         checkSubAccess(inodes[inodes.length - 1], s, subAccess);
       }
       if (doCheckOwner) {
-        checkOwner(inodes[inodes.length - 1]);
+        checkOwner(inodes[inodes.length - 1], snapshot);
       }
     }
   }
 
-  private void checkOwner(INode inode) throws AccessControlException {
-    if (inode != null && user.equals(inode.getUserName())) {
+  private void checkOwner(INode inode, Snapshot snapshot)
+      throws AccessControlException {
+    if (inode != null && user.equals(inode.getUserName(snapshot))) {
       return;
     }
     throw new AccessControlException("Permission denied");
   }
 
-  private void checkTraverse(INode[] inodes, int last
-      ) throws AccessControlException {
+  private void checkTraverse(INode[] inodes, int last, Snapshot snapshot)
+      throws AccessControlException {
     for(int j = 0; j <= last; j++) {
-      check(inodes[j], FsAction.EXECUTE);
+      check(inodes[j], snapshot, FsAction.EXECUTE);
     }
   }
 
@@ -169,7 +170,7 @@ private final UserGroupInformation ugi;
     Stack<INodeDirectory> directories = new Stack<INodeDirectory>();
     for(directories.push((INodeDirectory)inode); !directories.isEmpty(); ) {
       INodeDirectory d = directories.pop();
-      check(d, access);
+      check(d, snapshot, access);
 
       for(INode child : d.getChildrenList(snapshot)) {
         if (child.isDirectory()) {
@@ -179,22 +180,22 @@ private final UserGroupInformation ugi;
     }
   }
 
-  private void check(INode[] inodes, int i, FsAction access
+  private void check(INode[] inodes, int i, Snapshot snapshot, FsAction access
       ) throws AccessControlException {
-    check(i >= 0? inodes[i]: null, access);
+    check(i >= 0? inodes[i]: null, snapshot, access);
   }
 
-  private void check(INode inode, FsAction access
+  private void check(INode inode, Snapshot snapshot, FsAction access
       ) throws AccessControlException {
     if (inode == null) {
       return;
     }
-    FsPermission mode = inode.getFsPermission();
+    FsPermission mode = inode.getFsPermission(snapshot);
 
-    if (user.equals(inode.getUserName())) { //user class
+    if (user.equals(inode.getUserName(snapshot))) { //user class
       if (mode.getUserAction().implies(access)) { return; }
     }
-    else if (groups.contains(inode.getGroupName())) { //group class
+    else if (groups.contains(inode.getGroupName(snapshot))) { //group class
       if (mode.getGroupAction().implies(access)) { return; }
     }
     else { //other class

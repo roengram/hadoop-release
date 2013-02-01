@@ -25,6 +25,9 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeFileSnapshot;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeFileWithLink;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 
 public class INodeFile extends INode {
   /** Cast INode to INodeFile. */
@@ -90,7 +93,13 @@ public class INodeFile extends INode {
   protected INodeFile(PermissionStatus permissions, BlockInfo[] blklist,
                       short replication, long modificationTime,
                       long atime, long preferredBlockSize) {
-    super(permissions, modificationTime, atime);
+    this(null, permissions, modificationTime, atime, blklist, replication,
+        preferredBlockSize);
+  }
+  
+  INodeFile(byte[] name, PermissionStatus permissions, long mtime, long atime,
+      BlockInfo[] blklist, short replication, long preferredBlockSize) {
+    super(name, permissions, null, mtime, atime);
     header = HeaderFormat.combineReplication(header, replication);
     header = HeaderFormat.combinePreferredBlockSize(header, preferredBlockSize);
     this.blocks = blklist;
@@ -107,14 +116,19 @@ public class INodeFile extends INode {
    * Since this is a file,
    * the {@link FsAction#EXECUTE} action, if any, is ignored.
    */
-  protected void setPermission(FsPermission permission) {
-    super.setPermission(permission.applyUMask(UMASK));
+  void setPermission(FsPermission permission, Snapshot latest) {
+    super.setPermission(permission.applyUMask(UMASK), latest);
   }
 
-  protected INodeFile(INodeFile f) {
-    this(f.getPermissionStatus(), f.getBlocks(), f.getFileReplication(),
-        f.getModificationTime(), f.getAccessTime(), f.getPreferredBlockSize());
-    this.setLocalName(f.getLocalNameBytes());
+  protected INodeFile(INodeFile that) {
+    super(that);
+    this.header = that.header;
+    this.blocks = that.blocks;
+  }
+
+  @Override
+  public Pair<INodeFileWithLink, INodeFileSnapshot> createSnapshotCopy() {
+    return parent.replaceINodeFile(this).createSnapshotCopy();
   }
 
   /** @return the replication factor of the file. */
@@ -126,7 +140,15 @@ public class INodeFile extends INode {
     return getFileReplication();
   }
 
-  public void setFileReplication(short replication) {
+  protected void setFileReplication(short replication, Snapshot latest) {
+    if (latest != null) {
+      final Pair<? extends INode, ? extends INode> p = recordModification(latest);
+      if (p != null) {
+        ((INodeFile) p.left).setFileReplication(replication, null);
+        return;
+      }
+    }
+
     header = HeaderFormat.combineReplication(header, replication);
   }
 
@@ -197,8 +219,6 @@ public class INodeFile extends INode {
     summary[3] += diskspaceConsumed();
     return summary;
   }
-
-  
 
   @Override
   DirCounts spaceConsumedInTree(DirCounts counts) {
