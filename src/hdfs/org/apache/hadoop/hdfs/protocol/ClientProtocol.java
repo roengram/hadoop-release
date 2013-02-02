@@ -526,8 +526,10 @@ public interface ClientProtocol extends VersionedProtocol {
    * The file must be currently open for writing.
    * @param src The string representation of the path
    * @param client The string representation of the client
+   * @param lastBlockLength The length of the last block (under construction) to
+   *        be reported to NameNode
    */
-  public void fsync(String src, String client) throws IOException;
+  public void fsync(String src, String client, long lastBlockLength) throws IOException;
 
   /**
    * Sets the modification and access time of the file to the specified time.

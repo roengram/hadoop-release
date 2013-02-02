@@ -3028,6 +3028,11 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       private boolean isHeartbeatPacket() {
         return seqno == HEART_BEAT_SEQNO;
       }
+      
+      // get the packet's last byte's offset in the block
+      long getLastByteOffsetBlock() {
+        return offsetInBlock + dataPos - dataStart;
+      }
     }
   
     //
@@ -3270,6 +3275,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
                                     one.seqno + " but received " + seqno);
             }
             lastPacketInBlock = one.lastPacketInBlock;
+            block.setNumBytes(one.getLastByteOffsetBlock());
 
             synchronized (ackQueue) {
               assert ack.getSeqno() == lastAckedSeqno + 1;
@@ -3945,19 +3951,29 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         currentPacket = null;
       }
     }
+    
+    /**
+     * Sync buffered data to DataNodes and do not update the length in NN.
+     */
+    public void sync() throws IOException {
+      sync(false);
+    }
 
     /**
      * All data is written out to datanodes. It is not guaranteed 
      * that data has been flushed to persistent store on the 
      * datanode. Block allocations are persisted on namenode.
+     * 
+     * @param updateLength Whether or not to update the length in NameNode.
      */
-    public void sync() throws IOException {
+    public void sync(boolean updateLength) throws IOException {
       checkOpen();
       if (closed) {
         throw new IOException("DFSOutputStream is closed");
       }
       try {
         long toWaitFor;
+        long lastBlockLength = -1L;
         synchronized (this) {
           /* Record current blockOffset. This might be changed inside
            * flushBuffer() where a partial checksum chunk might be flushed.
@@ -4002,10 +4018,15 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         synchronized (this) {
           willPersist = persistBlocks && !closed;
           persistBlocks = false;
+          if (updateLength) {
+            if (streamer != null && block != null) {
+              lastBlockLength = block.getNumBytes();
+            }
+          }
         }
-        if (willPersist) {
+        if (willPersist || updateLength) {
           try {
-            namenode.fsync(src, clientName);
+            namenode.fsync(src, clientName, lastBlockLength);
           } catch (IOException ioe) {
             DFSClient.LOG.warn("Unable to persist blocks in hflush for " + src, ioe);
             // If we got an error here, it might be because some other thread called

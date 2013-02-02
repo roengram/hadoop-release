@@ -2399,9 +2399,11 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   /** Persist all metadata about this file.
    * @param src The string representation of the path
    * @param clientName The string representation of the client
+   * @param lastBlockLength The length of the last block under contruction
    * @throws IOException if path does not exist
    */
-  void fsync(String src, String clientName) throws IOException {
+  void fsync(String src, String clientName, long lastBlockLength)
+      throws IOException {
 
     NameNode.stateChangeLog.info("BLOCK* fsync: "
                                   + src + " for " + clientName);
@@ -2410,6 +2412,9 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
         throw new SafeModeException("Cannot fsync " + src, safeMode);
       }
       INodeFileUnderConstruction pendingFile  = checkLease(src, clientName);
+      if (lastBlockLength > 0) {
+        pendingFile.updateLengthOfLastBlock(lastBlockLength);
+      }
       dir.persistBlocks(src, pendingFile);
     }
     getEditLog().logSync();

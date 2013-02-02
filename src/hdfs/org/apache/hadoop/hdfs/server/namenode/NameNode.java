@@ -1009,9 +1009,10 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
     namesystem.setQuota(path, namespaceQuota, diskspaceQuota);
   }
   
-  /** {@inheritDoc} */
-  public void fsync(String src, String clientName) throws IOException {
-    namesystem.fsync(src, clientName);
+  @Override
+  public void fsync(String src, String clientName, long lastBlockLength)
+      throws IOException {
+    namesystem.fsync(src, clientName, lastBlockLength);
   }
 
   /** @inheritDoc */

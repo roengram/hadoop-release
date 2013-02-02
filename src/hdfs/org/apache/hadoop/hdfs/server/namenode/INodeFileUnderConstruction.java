@@ -234,4 +234,21 @@ public class INodeFileUnderConstruction extends INodeFile {
     }
     return expired;
   }
+  
+  /**
+   * Update the length for the last block
+   * 
+   * @param lastBlockLength
+   *          The length of the last block reported from client
+   * @throws IOException
+   */
+  void updateLengthOfLastBlock(long lastBlockLength) throws IOException {
+    final BlockInfo[] blocks = getBlocks();
+    assert blocks != null : "Blocks for path " + this.getFullPathName()
+        + " is null when updating its last block length";
+    BlockInfo lastBlock = blocks[blocks.length - 1];
+    assert (lastBlock != null) : "The last block for path "
+        + this.getFullPathName() + " is null when updating its length";
+    lastBlock.setNumBytes(lastBlockLength);
+  }
 }

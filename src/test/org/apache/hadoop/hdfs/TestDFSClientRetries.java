@@ -311,7 +311,7 @@ public class TestDFSClientRetries extends TestCase {
 
     public void setQuota(String path, long namespaceQuota, long diskspaceQuota) throws IOException {}
 
-    public void fsync(String src, String client) throws IOException {}
+    public void fsync(String src, String client, long lastBlockLenght) throws IOException {}
 
     public void setTimes(String src, long mtime, long atime) throws IOException {}
 
