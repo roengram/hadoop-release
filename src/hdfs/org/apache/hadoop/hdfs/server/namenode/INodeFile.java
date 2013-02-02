@@ -116,8 +116,9 @@ public class INodeFile extends INode {
    * Since this is a file,
    * the {@link FsAction#EXECUTE} action, if any, is ignored.
    */
-  void setPermission(FsPermission permission, Snapshot latest) {
-    super.setPermission(permission.applyUMask(UMASK), latest);
+  @Override
+  INode setPermission(FsPermission permission, Snapshot latest) {
+    return super.setPermission(permission.applyUMask(UMASK), latest);
   }
 
   protected INodeFile(INodeFile that) {
