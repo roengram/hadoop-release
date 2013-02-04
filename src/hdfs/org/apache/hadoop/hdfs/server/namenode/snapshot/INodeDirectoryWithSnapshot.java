@@ -56,7 +56,7 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
    *   1.1. create i in current: add it to c-list                        (c, 0)
    *   1.1.1. create i in current and then create: impossible
    *   1.1.2. create i in current and then delete: remove it from c-list (0, 0)
-   *   1.1.3. create i in current and then modify: replace it in c-list  (c, 0)
+   *   1.1.3. create i in current and then modify: replace it in c-list  (c', 0)
    *
    *   1.2. delete i from current: impossible
    *
@@ -73,7 +73,7 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
    *   2.3. modify i in current: put it in both c-list and d-list        (c, d)
    *   2.3.1. modify i in current and then create: impossible
    *   2.3.2. modify i in current and then delete: remove it from c-list (0, d)
-   *   2.3.3. modify i in current and then modify: replace it in c-list  (c, d)
+   *   2.3.3. modify i in current and then modify: replace it in c-list (c', d)
    * </pre>
    */
   static class Diff {
@@ -326,8 +326,8 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
      * Note that after this function the postDiff will be deleted.
      * 
      * @param the posterior diff to combine
-     * @param collectedBlocks Used in case 2.3, 3.1, and 3.3 to collect 
-     *                        information for blocksMap update
+     * @param deletedINodeProcesser Used in case 2.1, 2.3, 3.1, and 3.3
+     *                              to process the deleted inodes.
      */
     void combinePostDiff(Diff postDiff, Processor deletedINodeProcesser) {
       final List<INode> postCreated = postDiff.created != null?
@@ -481,10 +481,12 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
 
         private List<INode> initChildren() {
           if (children == null) {
-            final ReadOnlyList<INode> posterior = posteriorDiff != null?
-                posteriorDiff.getChildrenList()
-                : INodeDirectoryWithSnapshot.this.getChildrenList(null);
-            children = diff.apply2Current(ReadOnlyList.Util.asList(posterior));
+            final Diff combined = new Diff();
+            for(SnapshotDiff d = SnapshotDiff.this; d != null; d = d.posteriorDiff) {
+              combined.combinePostDiff(d.diff, null);
+            }
+            children = combined.apply2Current(ReadOnlyList.Util.asList(
+                INodeDirectoryWithSnapshot.this.getChildrenList(null)));
           }
           return children;
         }

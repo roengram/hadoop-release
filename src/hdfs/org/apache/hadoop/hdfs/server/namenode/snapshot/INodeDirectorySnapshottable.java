@@ -238,64 +238,60 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithSnapshot {
       Snapshot snapshot) {
     super.dumpTreeRecursively(out, prefix, snapshot);
 
-    try {
-      if (snapshot == null) {
-        out.println();
-        out.print(prefix);
-        int n = 0;
-        for (SnapshotDiff diff : getSnapshotDiffs()) {
-          if (diff.isSnapshotRoot()) {
-            n++;
-          }
+    if (snapshot == null) {
+      out.println();
+      out.print(prefix);
+      int n = 0;
+      for (SnapshotDiff diff : getSnapshotDiffs()) {
+        if (diff.isSnapshotRoot()) {
+          n++;
         }
-        out.print(n);
-        out.print(n <= 1 ? " snapshot of " : " snapshots of ");
-        final String name = getLocalName();
-        out.println(name.isEmpty() ? "/" : name);
-
-        dumpTreeRecursively(out, prefix,
-            new Iterable<Pair<? extends INode, Snapshot>>() {
-              @Override
-              public Iterator<Pair<? extends INode, Snapshot>> iterator() {
-                return new Iterator<Pair<? extends INode, Snapshot>>() {
-                  final Iterator<SnapshotDiff> i = getSnapshotDiffs()
-                      .iterator();
-                  private SnapshotDiff next = findNext();
-
-                  private SnapshotDiff findNext() {
-                    for (; i.hasNext();) {
-                      final SnapshotDiff diff = i.next();
-                      if (diff.isSnapshotRoot()) {
-                        return diff;
-                      }
-                    }
-                    return null;
-                  }
-
-                  @Override
-                  public boolean hasNext() {
-                    return next != null;
-                  }
-
-                  @Override
-                  public Pair<INodeDirectory, Snapshot> next() {
-                    final Snapshot s = next.snapshot;
-                    final Pair<INodeDirectory, Snapshot> pair = 
-                        new Pair<INodeDirectory, Snapshot>(s.getRoot(), s);
-                    next = findNext();
-                    return pair;
-                  }
-
-                  @Override
-                  public void remove() {
-                    throw new UnsupportedOperationException();
-                  }
-                };
-              }
-            });
       }
-    } catch (Exception e) {
-      throw new RuntimeException("this=" + this, e);
+      out.print(n);
+      out.print(n <= 1 ? " snapshot of " : " snapshots of ");
+      final String name = getLocalName();
+      out.println(name.isEmpty() ? "/" : name);
+
+      dumpTreeRecursively(out, prefix,
+          new Iterable<Pair<? extends INode, Snapshot>>() {
+            @Override
+            public Iterator<Pair<? extends INode, Snapshot>> iterator() {
+              return new Iterator<Pair<? extends INode, Snapshot>>() {
+                final Iterator<SnapshotDiff> i = getSnapshotDiffs()
+                    .iterator();
+                private SnapshotDiff next = findNext();
+
+                private SnapshotDiff findNext() {
+                  for (; i.hasNext();) {
+                    final SnapshotDiff diff = i.next();
+                    if (diff.isSnapshotRoot()) {
+                      return diff;
+                    }
+                  }
+                  return null;
+                }
+
+                @Override
+                public boolean hasNext() {
+                  return next != null;
+                }
+
+                @Override
+                public Pair<INodeDirectory, Snapshot> next() {
+                  final Snapshot s = next.snapshot;
+                  final Pair<INodeDirectory, Snapshot> pair = 
+                      new Pair<INodeDirectory, Snapshot>(s.getRoot(), s);
+                  next = findNext();
+                  return pair;
+                }
+
+                @Override
+                public void remove() {
+                  throw new UnsupportedOperationException();
+                }
+              };
+            }
+          });
     }
   }
 }
