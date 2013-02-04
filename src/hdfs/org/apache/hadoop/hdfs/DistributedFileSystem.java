@@ -659,9 +659,9 @@ public class DistributedFileSystem extends FileSystem {
   }
   
   @Override
-  public void createSnapshot(String snapshotName, String path)
+  public void createSnapshot(Path path, String snapshotName) 
       throws IOException {
-    dfs.createSnapshot(snapshotName, path);
+    dfs.createSnapshot(getPathName(path), snapshotName);
   }
   
   /**
@@ -671,9 +671,9 @@ public class DistributedFileSystem extends FileSystem {
    * @param snapshotNewName New name of the snapshot
    * @throws IOException
    */
-  public void renameSnapshot(String path, String snapshotOldName,
+  public void renameSnapshot(Path path, String snapshotOldName,
       String snapshotNewName) throws IOException {
-    dfs.renameSnapshot(path, snapshotOldName, snapshotNewName);
+    dfs.renameSnapshot(getPathName(path), snapshotOldName, snapshotNewName);
   }
 
   /**
@@ -716,5 +716,11 @@ public class DistributedFileSystem extends FileSystem {
     } finally {
       IOUtils.cleanup(LOG, fs);
     }
+  }
+  
+  @Override
+  public void deleteSnapshot(Path snapshotDir, String snapshotName)
+      throws IOException {
+    dfs.deleteSnapshot(getPathName(snapshotDir), snapshotName);
   }
 }

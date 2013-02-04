@@ -3929,7 +3929,6 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     // Is the block being reported the last block of an underconstruction file?
     boolean blockUnderConstruction = false;
     if (fileINode.isUnderConstruction()) {
-      INodeFileUnderConstruction cons = (INodeFileUnderConstruction) fileINode;
       Block last = fileINode.getLastBlock();
       if (last == null) {
         // This should never happen, but better to handle it properly than to throw
@@ -6488,33 +6487,68 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   
   /**
    * Create a snapshot
+   * @param snapshotRoot The directory path where the snapshot is taken
    * @param snapshotName The name of the snapshot
-   * @param path The directory where the snapshot is taken
    */
-  public void createSnapshot(String snapshotName, String path)
+  public void createSnapshot(String snapshotRoot, String snapshotName)
       throws SafeModeException, IOException {
     synchronized (this) {
       if (isInSafeMode()) {
-        throw new SafeModeException("Cannot create snapshot for " + path,
-            safeMode);
+        throw new SafeModeException("Cannot create snapshot for "
+            + snapshotRoot, safeMode);
       }
-      checkOwner(path);
+      checkOwner(snapshotRoot);
       synchronized (dir.rootDir) {
-        snapshotManager.createSnapshot(snapshotName, path);
+        snapshotManager.createSnapshot(snapshotRoot, snapshotName);
       }
-      getEditLog().logCreateSnapshot(snapshotName, path);
+      getEditLog().logCreateSnapshot(snapshotRoot, snapshotName);
     }
     getEditLog().logSync();
     
     // audit log
     if (auditLog.isInfoEnabled() && isExternalInvocation()) {
-      Path snapshotRoot = new Path(path, HdfsConstants.DOT_SNAPSHOT_DIR + "/"
-          + snapshotName);
+      Path rootPath = new Path(snapshotRoot, HdfsConstants.DOT_SNAPSHOT_DIR
+          + Path.SEPARATOR + snapshotName);
       logAuditEvent(UserGroupInformation.getCurrentUser(), Server.getRemoteIp(),
-          "createSnapshot", path, snapshotRoot.toString(), null);
+          "createSnapshot", snapshotRoot, rootPath.toString(), null);
     }
   }
   
+  /**
+   * Delete a snapshot of a snapshottable directory
+   * @param snapshotRoot The snapshottable directory
+   * @param snapshotName The name of the to-be-deleted snapshot
+   * @throws SafeModeException
+   * @throws IOException
+   */
+  public void deleteSnapshot(String snapshotRoot, String snapshotName)
+      throws SafeModeException, IOException {
+    synchronized (this) {
+      if (isInSafeMode()) {
+        throw new SafeModeException(
+            "Cannot delete snapshot for " + snapshotRoot, safeMode);
+      }
+      checkOwner(snapshotRoot);
+
+      BlocksMapUpdateInfo collectedBlocks = new BlocksMapUpdateInfo();
+      synchronized (dir) {
+        snapshotManager.deleteSnapshot(snapshotRoot, snapshotName,
+            collectedBlocks);
+      }
+      this.removeBlocks(collectedBlocks);
+      collectedBlocks.clear();
+      getEditLog().logDeleteSnapshot(snapshotRoot, snapshotName);
+    }
+    getEditLog().logSync();
+    
+    if (auditLog.isInfoEnabled() && isExternalInvocation()) {
+      Path rootPath = new Path(snapshotRoot, HdfsConstants.DOT_SNAPSHOT_DIR
+          + Path.SEPARATOR + snapshotName);
+      logAuditEvent(UserGroupInformation.getCurrentUser(), Server.getRemoteIp(),
+          "deleteSnapshot", rootPath.toString(), null, null);
+    }
+  }
+
   /**
    * Rename a snapshot
    * @param path The directory path where the snapshot was taken

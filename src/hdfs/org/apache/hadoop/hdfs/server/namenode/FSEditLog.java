@@ -1408,8 +1408,8 @@ public class FSEditLog {
     logEdit(OP_UPDATE_MASTER_KEY, key);
   }
   
-  void logCreateSnapshot(String snapName, String snapRoot) {
-    logEdit(OP_CREATE_SNAPSHOT, new UTF8(snapName), new UTF8(snapRoot));
+  void logCreateSnapshot(String snapRoot, String snapName) {
+    logEdit(OP_CREATE_SNAPSHOT, new UTF8(snapRoot), new UTF8(snapName));
   }
   
   void logRenameSnapshot(String path, String snapOldName, String snapNewName) {
@@ -1417,8 +1417,8 @@ public class FSEditLog {
         new UTF8(snapNewName));
   }
 
-  void logDeleteSnapshot(String snapName, String snapRoot) {
-    logEdit(OP_DELETE_SNAPSHOT, new UTF8(snapName), new UTF8(snapRoot));
+  void logDeleteSnapshot(String snapRoot, String snapName) {
+    logEdit(OP_DELETE_SNAPSHOT, new UTF8(snapRoot), new UTF8(snapName));
   }
   
   void logAllowSnapshot(String path) {

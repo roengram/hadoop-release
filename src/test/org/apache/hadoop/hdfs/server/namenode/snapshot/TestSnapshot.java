@@ -196,7 +196,7 @@ public class TestSnapshot {
     FileStatus oldStatus = hdfs.getFileStatus(sub);
 
     hdfs.allowSnapshot(dir.toString());
-    hdfs.createSnapshot("s1", dir.toString());
+    hdfs.createSnapshot(dir, "s1");
     hdfs.setTimes(sub, 100L, 100L);
 
     Path snapshotPath = SnapshotTestHelper.getSnapshotPath(dir, "s1", "sub");
@@ -221,7 +221,7 @@ public class TestSnapshot {
     DFSTestUtil.createFile(hdfs, file1, BLOCKSIZE, REPLICATION, seed);
 
     try {
-      hdfs.createSnapshot("s1", dir.toString());
+      hdfs.createSnapshot(dir, "s1");
       fail("Did not throw IOException when creating snapshots for a non-snapshottable directory");
     } catch (IOException e) {
       assertTrue(e.getMessage().contains(

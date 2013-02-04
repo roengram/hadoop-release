@@ -1106,14 +1106,14 @@ public class FsShell extends Configured implements Tool {
   
   /**
    * Create a snapshot 
-   * @param argv {"createSnapshot", snapshotName, snapshotRoot}
+   * @param argv {"createSnapshot", snapshotRoot, snapshotName}
    */
   private int createSnapshot(String[] argv, Configuration conf)
       throws IOException {
     if (argv.length != 3) {
       throw new IOException("args number not 2:" + argv.length);
     }
-    Path snapshotRoot = new Path(argv[2]);
+    Path snapshotRoot = new Path(argv[1]);
     FileSystem fs = snapshotRoot.getFileSystem(conf);
     if (!fs.getFileStatus(snapshotRoot).isDir()) {
       throw new FileNotFoundException("Is not a directory: "
@@ -1121,7 +1121,7 @@ public class FsShell extends Configured implements Tool {
     }
     int exitCode = 0;
     try {
-      fs.createSnapshot(argv[1], argv[2]); 
+      fs.createSnapshot(snapshotRoot, argv[2]); 
     } catch (RemoteException e) {
       // This is a error returned by hadoop server. Print
       // out the first line of the error mesage.
@@ -1137,6 +1137,43 @@ public class FsShell extends Configured implements Tool {
       // IO exception encountered locally.
       exitCode = -1;
       System.err.println("createSnapshot: " + e.getLocalizedMessage());
+    }
+    return exitCode;
+  }
+  
+  /**
+   * Delete a snapshot 
+   * @param argv {"deleteSnapshot", snapshotRoot, snapshotName}
+   */
+  private int deleteSnapshot(String[] argv, Configuration conf)
+      throws IOException {
+    if (argv.length != 3) {
+      throw new IOException("args number not 2:" + argv.length);
+    }
+    Path snapshotRoot = new Path(argv[1]);
+    FileSystem fs = snapshotRoot.getFileSystem(conf);
+    if (!fs.getFileStatus(snapshotRoot).isDir()) {
+      throw new FileNotFoundException("Is not a directory: "
+          + snapshotRoot.toString());
+    }
+    int exitCode = 0;
+    try {
+      fs.deleteSnapshot(snapshotRoot, argv[2]); 
+    } catch (RemoteException e) {
+      // This is a error returned by hadoop server. Print
+      // out the first line of the error mesage.
+      exitCode = -1;
+      try {
+        String[] content;
+        content = e.getLocalizedMessage().split("\n");
+        System.err.println("deleteSnapshot: " + content[0]);
+      } catch (Exception ex) {
+        System.err.println("deleteSnapshot: " + ex.getLocalizedMessage());
+      }
+    } catch (IOException e) {
+      // IO exception encountered locally.
+      exitCode = -1;
+      System.err.println("deleteSnapshot: " + e.getLocalizedMessage());
     }
     return exitCode;
   }
@@ -1330,7 +1367,8 @@ public class FsShell extends Configured implements Tool {
       "[" + FsShellPermissions.CHOWN_USAGE + "]\n\t" +
       "[" + FsShellPermissions.CHGRP_USAGE + "]\n\t" +      
       "[" + Count.USAGE + "]\n\t" +      
-      "[-createSnapshot <snapshotName> <snapshotRoot>]\n\t" +
+      "[-createSnapshot <snapshotRoot> <snapshotName>]\n\t" +
+      "[-deleteSnapshot <snapshotRoot> <snapshotName>]\n\t" +
       "[-help [cmd]]\n";
 
     String conf ="-conf <configuration file>:  Specify an application configuration file.";
@@ -1476,9 +1514,13 @@ public class FsShell extends Configured implements Tool {
     String chgrp = FsShellPermissions.CHGRP_USAGE + "\n" +
       "\t\tThis is equivalent to -chown ... :GROUP ...\n";
     
-    String createSnapshot = "-createSnapshot <snapshotName> <snapshotRoot>: " +
+    String createSnapshot = "-createSnapshot <snapshotRoot> <snapshotName>: " +
     		"Take a snapshot with name <snapshotName> for a directory <snapshotRoot>. " +
     		"The directory <snapshotRoot> should be a snapshottable directory.\n";
+    
+    String deleteSnapshot = "-deleteSnapshot <snapshotRoot> <snapshotName>: " +
+        "Delete a snapshot with name <snapshotName> from a directory <snapshotRoot>. " +
+        "The directory <snapshotRoot> should be a snapshottable directory.\n";
     
     String help = "-help [cmd]: \tDisplays help for given command or all commands if none\n" +
       "\t\tis specified.\n";
@@ -1547,6 +1589,8 @@ public class FsShell extends Configured implements Tool {
       System.out.println(Count.DESCRIPTION);
     } else if ("createSnapshot".equalsIgnoreCase(cmd)) {
       System.out.println(createSnapshot);
+    } else if ("deleteSnapshot".equalsIgnoreCase(cmd)) {
+      System.out.println(deleteSnapshot);
     } else if ("help".equals(cmd)) {
       System.out.println(help);
     } else {
@@ -1580,6 +1624,7 @@ public class FsShell extends Configured implements Tool {
       System.out.println(chgrp);
       System.out.println(Count.DESCRIPTION);
       System.out.println(createSnapshot);
+      System.out.println(deleteSnapshot);
       System.out.println(help);
     }        
 
@@ -1719,7 +1764,10 @@ public class FsShell extends Configured implements Tool {
       System.err.println("Usage: java FsShell [" + TAIL_USAGE + "]");
     } else if ("createSnapshot".equalsIgnoreCase(cmd)) {
       System.err.println("Usage: java FsShell" + " [" + cmd
-          + " <snapshotName> <snapshotRoot>]");
+          + " <snapshotRoot> <snapshotName>]");
+    } else if ("deleteSnapshot".equalsIgnoreCase(cmd)) {
+      System.err.println("Usage: java FsShell" + " [" + cmd
+          + " <snapshotRoot> <snapshotName>]");
     } else {
       System.err.println("Usage: java FsShell");
       System.err.println("           [-ls <path>]");
@@ -1750,7 +1798,8 @@ public class FsShell extends Configured implements Tool {
       System.err.println("           [" + FsShellPermissions.CHMOD_USAGE + "]");      
       System.err.println("           [" + FsShellPermissions.CHOWN_USAGE + "]");
       System.err.println("           [" + FsShellPermissions.CHGRP_USAGE + "]");
-      System.err.println("           [-createSnapshot <snapshotName> <snapshotRoot>]");
+      System.err.println("           [-createSnapshot <snapshotRoot> <snapshotName>]");
+      System.err.println("           [-deleteSnapshot <snapshotRoot> <snapshotName>]");
       System.err.println("           [-help [cmd]]");
       System.err.println();
       ToolRunner.printGenericCommandUsage(System.err);
@@ -1792,6 +1841,11 @@ public class FsShell extends Configured implements Tool {
         return exitCode;
       }
     } else if ("createSnapshot".equalsIgnoreCase(cmd)) {
+      if (argv.length < 3) {
+        printUsage(cmd);
+        return exitCode;
+      }
+    } else if ("deleteSnapshot".equalsIgnoreCase(cmd)) {
       if (argv.length < 3) {
         printUsage(cmd);
         return exitCode;
@@ -1901,6 +1955,8 @@ public class FsShell extends Configured implements Tool {
         }
       } else if ("createSnapshot".equalsIgnoreCase(cmd)) {
         exitCode = createSnapshot(argv, getConf());
+      } else if ("deleteSnapshot".equalsIgnoreCase(cmd)) {
+        exitCode = deleteSnapshot(argv, getConf());
       } else if ("-help".equals(cmd)) {
         if (i < argv.length) {
           printHelp(argv[i]);

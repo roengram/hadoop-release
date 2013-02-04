@@ -71,7 +71,7 @@ public class SnapshotTestHelper {
       Path snapshottedDir, String snapshotName) throws Exception {
     assertTrue(hdfs.exists(snapshottedDir));
     hdfs.allowSnapshot(snapshottedDir.toString());
-    hdfs.createSnapshot(snapshotName, snapshottedDir.toString());
+    hdfs.createSnapshot(snapshottedDir, snapshotName);
     return SnapshotTestHelper.getSnapshotRoot(snapshottedDir, snapshotName);
   }
 

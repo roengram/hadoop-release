@@ -21,6 +21,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+import java.io.IOException;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -127,7 +130,7 @@ public class TestSnapshotBlocksMap {
         snapshotFile0.toString());
     BlockInfo[] ssBlocks = ssINode0.getBlocks();
     // The snapshot of file1 should contain 1 block
-    assertEquals(ssBlocks.length, 1);
+    assertEquals(1, ssBlocks.length);
     
     // Delete file0
     hdfs.delete(file0, true);
@@ -144,7 +147,26 @@ public class TestSnapshotBlocksMap {
     INodeFile ssINode1 = INodeFile.valueOf(
         dir.getINode(snapshot1File0.toString()), snapshot1File0.toString());
     assertTrue(bcAfterDeletion == ssINode0 || bcAfterDeletion == ssINode1);
-    assertEquals(bcAfterDeletion.getBlocks().length, 1);
+    assertEquals(1, bcAfterDeletion.getBlocks().length);
+    
+    // Delete snapshot s1
+    hdfs.deleteSnapshot(sub1, "s1");
+    // Make sure the first block of file0 is still in blocksMap
+    BlockInfo blockInfoAfterSnapshotDeletion = SnapshotTestHelper
+        .getStoredBlock(fsn, blocks[0]);
+    assertNotNull(blockInfoAfterSnapshotDeletion);
+    INodeFile fileAfterSnapshotDeletion = blockInfoAfterSnapshotDeletion
+        .getINode();
+    assertTrue(fileAfterSnapshotDeletion == ssINode0);
+    assertEquals(1, fileAfterSnapshotDeletion.getBlocks().length);
+    try {
+      ssINode1 = INodeFile.valueOf(
+        dir.getINode(snapshot1File0.toString()), snapshot1File0.toString());
+      fail("Expect FileNotFoundException when identifying the INode in a deleted Snapshot");
+    } catch (IOException e) {
+      assertTrue(e.getMessage().contains(
+          "File does not exist: " + snapshot1File0.toString()));
+    }
   }
   
 }

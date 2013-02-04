@@ -182,7 +182,7 @@ public class TestSnapshotPathINodes {
     // Create a snapshot for the dir, and check the inodes for the path
     // pointing to a snapshot file
     hdfs.allowSnapshot(sub1.toString());
-    hdfs.createSnapshot("s1", sub1.toString());
+    hdfs.createSnapshot(sub1, "s1");
     // The path when accessing the snapshot file of file1 is
     // /TestSnapshot/sub1/.snapshot/s1/file1
     String snapshotPath = sub1.toString() + "/.snapshot/s1/file1";
@@ -249,7 +249,7 @@ public class TestSnapshotPathINodes {
     // Create a snapshot for the dir, and check the inodes for the path
     // pointing to a snapshot file
     hdfs.allowSnapshot(sub1.toString());
-    hdfs.createSnapshot("s2", sub1.toString());
+    hdfs.createSnapshot(sub1, "s2");
     
     // Delete the original file /TestSnapshot/sub1/file1
     hdfs.delete(file1, false);
@@ -308,7 +308,7 @@ public class TestSnapshotPathINodes {
     // Create a snapshot for the dir, and check the inodes for the path
     // pointing to a snapshot file
     hdfs.allowSnapshot(sub1.toString());
-    hdfs.createSnapshot("s4", sub1.toString());
+    hdfs.createSnapshot(sub1, "s4");
     
     // Add a new file /TestSnapshot/sub1/file3
     final Path file3 = new Path(sub1, "file3");
@@ -384,7 +384,7 @@ public class TestSnapshotPathINodes {
     // Create a snapshot for the dir, and check the inodes for the path
     // pointing to a snapshot file
     hdfs.allowSnapshot(sub1.toString());
-    hdfs.createSnapshot("s3", sub1.toString());
+    hdfs.createSnapshot(sub1, "s3");
     
     // Modify file1
     hdfs.setTimes(file1, System.currentTimeMillis(), System.currentTimeMillis());

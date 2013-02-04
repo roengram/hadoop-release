@@ -109,7 +109,7 @@ public class TestSnapshotRename {
     SnapshotTestHelper.createSnapshot(hdfs, sub1, "s3");
     
     // Rename s3 to s22
-    hdfs.renameSnapshot(sub1.toString(), "s3", "s22");
+    hdfs.renameSnapshot(sub1, "s3", "s22");
     // Check the snapshots list
     INodeDirectorySnapshottable srcRoot = INodeDirectorySnapshottable.valueOf(
         fsdir.getINode(sub1.toString()), sub1.toString());
@@ -117,12 +117,12 @@ public class TestSnapshotRename {
         new String[] { "s1", "s2", "s22" });
     
     // Rename s1 to s4
-    hdfs.renameSnapshot(sub1.toString(), "s1", "s4");
+    hdfs.renameSnapshot(sub1, "s1", "s4");
     checkSnapshotList(srcRoot, new String[] { "s2", "s22", "s4" },
         new String[] { "s4", "s2", "s22" });
     
     // Rename s22 to s0
-    hdfs.renameSnapshot(sub1.toString(), "s22", "s0");
+    hdfs.renameSnapshot(sub1, "s22", "s0");
     checkSnapshotList(srcRoot, new String[] { "s0", "s2", "s4" },
         new String[] { "s4", "s2", "s0" });
   }
@@ -140,7 +140,7 @@ public class TestSnapshotRename {
     FileStatus statusBeforeRename = hdfs.getFileStatus(ssPath);
     
     // Rename the snapshot
-    hdfs.renameSnapshot(sub1.toString(), "s1", "s2");
+    hdfs.renameSnapshot(sub1, "s1", "s2");
     // <sub1>/.snapshot/s1/file1 should no longer exist
     assertFalse(hdfs.exists(ssPath));
     snapshotRoot = SnapshotTestHelper.getSnapshotRoot(sub1, "s2");
@@ -174,7 +174,7 @@ public class TestSnapshotRename {
     SnapshotTestHelper.createSnapshot(hdfs, sub1, "s1");
     
     try {
-      hdfs.renameSnapshot(sub1.toString(), "wrongName", "s2");
+      hdfs.renameSnapshot(sub1, "wrongName", "s2");
       fail("Did not throw exception when given a non-existing old snapshot name");
     } catch (RemoteException e) {
       String error = "The snapshot wrongName does not exist for directory "
@@ -194,7 +194,7 @@ public class TestSnapshotRename {
     SnapshotTestHelper.createSnapshot(hdfs, sub1, "s2");
     
     try {
-      hdfs.renameSnapshot(sub1.toString(), "s1", "s2");
+      hdfs.renameSnapshot(sub1, "s1", "s2");
       fail("Did not throw exception when new snapshot name already exists");
     } catch (RemoteException e) {
       String error = "The snapshot s2 already exists for directory "

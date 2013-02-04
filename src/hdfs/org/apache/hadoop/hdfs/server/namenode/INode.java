@@ -307,8 +307,8 @@ public abstract class INode implements Comparable<byte[]>, FSInodeInfo {
    *         for maintaining snapshots. The current inode is then the new inode. 
    */
   INode recordModification(final Snapshot latest) {
-    if(isDirectory()) {
-     throw new IllegalStateException("this is an INodeDirectory, this=" + this);
+    if (isDirectory()) {
+      throw new IllegalStateException("this is an INodeDirectory, this=" + this);
     }
     return parent.saveChild2Snapshot(this, latest);
   }

@@ -26,6 +26,7 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectoryWithQuota;
+import org.apache.hadoop.hdfs.server.namenode.INodeFile;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
 
 /**
@@ -37,7 +38,8 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
   /**
    * The difference between the current state and a previous snapshot
    * of an INodeDirectory.
-   *
+   * 
+   * <pre>
    * Two lists are maintained in the algorithm:
    * - c-list for newly created inodes
    * - d-list for the deleted inodes
@@ -72,6 +74,7 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
    *   2.3.1. modify i in current and then create: impossible
    *   2.3.2. modify i in current and then delete: remove it from c-list (0, d)
    *   2.3.3. modify i in current and then modify: replace it in c-list  (c, d)
+   * </pre>
    */
   static class Diff {
     /**
@@ -558,6 +561,46 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
       List<SnapshotDiff> diffs) {
     super(that, adopt, that.getNsQuota(), that.getDsQuota());
     this.diffs = diffs != null? diffs: new ArrayList<SnapshotDiff>();
+  }
+  
+  /**
+   * Delete the snapshot with the given name. The synchronization of the diff
+   * list will be done outside.
+   * 
+   * If the diff to remove is not the first one in the diff list, we need to 
+   * combine the diff with its previous one:
+   * 
+   * @param snapshot The snapshot to be deleted
+   * @param collectedBlocks Used to collect information for blocksMap update
+   * @return The SnapshotDiff containing the deleted snapshot. 
+   *         Null if the snapshot with the given name does not exist. 
+   */
+  SnapshotDiff deleteSnapshotDiff(Snapshot snapshot,
+      final BlocksMapUpdateInfo collectedBlocks) {
+    int snapshotIndex = Collections.binarySearch(diffs, snapshot);
+    if (snapshotIndex == -1) {
+      return null;
+    } else {
+      SnapshotDiff diffToRemove = null;
+      diffToRemove = diffs.remove(snapshotIndex);
+      if (snapshotIndex > 0) {
+        // combine the to-be-removed diff with its previous diff
+        SnapshotDiff previousDiff = diffs.get(snapshotIndex - 1);
+        previousDiff.diff.combinePostDiff(diffToRemove.diff, new Processor() {
+          /** Collect blocks for deleted files. */
+          @Override
+          public void process(INode inode) {
+            if (inode != null && inode instanceof INodeFile) {
+              ((INodeFile) inode).collectSubtreeBlocksAndClear(collectedBlocks);
+            }
+          }
+        });
+          
+        previousDiff.posteriorDiff = diffToRemove.posteriorDiff;
+        diffToRemove.posteriorDiff = null;
+      }
+      return diffToRemove;
+    }
   }
 
   /** Add a {@link SnapshotDiff} for the given snapshot and directory. */

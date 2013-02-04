@@ -573,11 +573,20 @@ public interface ClientProtocol extends VersionedProtocol {
   
   /**
    * Create a snapshot
-   * @param snapshotName name of the snapshot created
    * @param snapshotRoot the path that is being snapshotted
+   * @param snapshotName name of the snapshot created
    * @throws IOException
    */
-  public void createSnapshot(String snapshotName, String snapshotRoot)
+  public void createSnapshot(String snapshotRoot, String snapshotName)
+      throws IOException;
+
+  /**
+   * Delete a specific snapshot of a snapshottable directory
+   * @param snapshotRoot  The snapshottable directory
+   * @param snapshotName Name of the snapshot for the snapshottable directory
+   * @throws IOException
+   */
+  public void deleteSnapshot(String snapshotRoot, String snapshotName)
       throws IOException;
   
   /**

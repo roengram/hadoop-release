@@ -332,7 +332,11 @@ public class TestDFSClientRetries extends TestCase {
     }
 
     @Override
-    public void createSnapshot(String snapshotName, String snapshotRoot)
+    public void createSnapshot(String snapshotRoot, String snapshotName)
+        throws IOException {}
+    
+    @Override
+    public void deleteSnapshot(String snapshotRoot, String snapshotName)
         throws IOException {}
 
     @Override

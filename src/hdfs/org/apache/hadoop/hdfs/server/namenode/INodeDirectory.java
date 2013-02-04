@@ -452,6 +452,15 @@ public class INodeDirectory extends INode {
       return dir.addChild(node, inheritPermission, latest);
     }
 
+    if (children == null) {
+      children = new ArrayList<INode>(DEFAULT_FILES_PER_DIRECTORY);
+    }
+    final int low = searchChildren(node.getLocalNameBytes());
+    if(low >= 0)
+      return false;
+    node.parent = this;
+    children.add(-low - 1, node);
+    
     if (inheritPermission) {
       FsPermission p = getFsPermission();
       //make sure the  permission has wx for the user
@@ -461,15 +470,7 @@ public class INodeDirectory extends INode {
       }
       node.setPermission(p, latest);
     }
-
-    if (children == null) {
-      children = new ArrayList<INode>(DEFAULT_FILES_PER_DIRECTORY);
-    }
-    final int low = searchChildren(node.getLocalNameBytes());
-    if(low >= 0)
-      return false;
-    node.parent = this;
-    children.add(-low - 1, node);
+    
     // update modification time of the parent directory
     updateModificationTime(node.getModificationTime(), latest);
     if (node.getGroupName() == null) {

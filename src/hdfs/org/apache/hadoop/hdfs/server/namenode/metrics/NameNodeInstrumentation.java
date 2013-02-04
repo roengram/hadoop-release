@@ -73,6 +73,8 @@ public class NameNodeInstrumentation implements MetricsSource {
       "DisallowSnapshotOps", "Number of disallowSnapshotOps operations", 0);
   final MetricMutableCounterInt createSnapshotOps = registry.newCounter(
       "CreateSnapshotOps", "Number of createSnapshot operations", 0);
+  final MetricMutableCounterInt deleteSnapshotOps = registry.newCounter(
+      "DeleteSnapshotOps", "Number of deleteSnapshotOps operations", 0);
   final MetricMutableCounterInt renameSnapshotOps = registry.newCounter(
       "RenameSnapshotOps", "Number of renameSnapshot operations", 0);
 
@@ -168,6 +170,10 @@ public class NameNodeInstrumentation implements MetricsSource {
 
   public void incrCreateSnapshotOps() {
     createSnapshotOps.incr();
+  }
+  
+  public void incrDeleteSnapshotOps() {
+    deleteSnapshotOps.incr();
   }
   
   public void incrRenameSnapshotOps() {
