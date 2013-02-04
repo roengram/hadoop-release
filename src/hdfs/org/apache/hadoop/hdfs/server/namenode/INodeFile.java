@@ -126,6 +126,12 @@ public class INodeFile extends INode {
   }
 
   @Override
+  INodeFile recordModification(final Snapshot latest) {
+    //TODO: change it to use diff list
+    return (INodeFile)super.recordModification(latest);
+  }
+
+  @Override
   public Pair<? extends INodeFile, ? extends INodeFile> createSnapshotCopy() {
     return parent.replaceINodeFile(this).createSnapshotCopy();
   }
@@ -141,11 +147,8 @@ public class INodeFile extends INode {
 
   public void setFileReplication(short replication, Snapshot latest) {
     if (latest != null) {
-      final Pair<? extends INode, ? extends INode> p = recordModification(latest);
-      if (p != null) {
-        ((INodeFile) p.left).setFileReplication(replication, null);
-        return;
-      }
+      recordModification(latest).setFileReplication(replication, null);
+      return;
     }
 
     header = HeaderFormat.combineReplication(header, replication);

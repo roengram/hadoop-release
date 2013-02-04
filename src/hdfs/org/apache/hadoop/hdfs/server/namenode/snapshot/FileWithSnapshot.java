@@ -44,16 +44,28 @@ public interface FileWithSnapshot {
   
   /** Utility methods for the classes which implement the interface. */
   static class Util {
+    
+    /** @return The previous node in the circular linked list */
+    static FileWithSnapshot getPrevious(FileWithSnapshot file) {
+      FileWithSnapshot previous = file.getNext();
+      while (previous.getNext() != file) {
+        previous = previous.getNext();
+      }
+      return previous;
+    }
 
     /** Replace the old file with the new file in the circular linked list. */
     static void replace(FileWithSnapshot oldFile, FileWithSnapshot newFile) {
-      //set next element
-      FileWithSnapshot i = oldFile.getNext();
-      newFile.setNext(i);
-      oldFile.setNext(null);
-      //find previous element and update it
-      for(; i.getNext() != oldFile; i = i.getNext());
-      i.setNext(newFile);
+      final FileWithSnapshot oldNext = oldFile.getNext();
+      if (oldNext == null) {
+        newFile.setNext(null);
+      } else {
+        if (oldNext != oldFile) {
+          newFile.setNext(oldNext);
+          getPrevious(oldFile).setNext(newFile);
+        }
+        oldFile.setNext(null);
+      }
     }
 
     /**

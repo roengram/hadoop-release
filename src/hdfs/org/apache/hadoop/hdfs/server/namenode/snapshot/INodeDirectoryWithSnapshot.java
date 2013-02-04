@@ -180,7 +180,8 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
      * Modify an inode in current state.
      * @return a triple for undo.
      */
-    Triple<Integer, INode, Integer> modify(final INode oldinode, final INode newinode) {
+    Triple<Integer, INode, Integer> modify(final INode oldinode,
+        final INode newinode) {
       if (!oldinode.equals(newinode)) {
         throw new AssertionError("The names do not match: oldinode="
             + oldinode + ", newinode=" + newinode);
@@ -189,8 +190,11 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
       INode previous = null;
       Integer d = null;
       if (c >= 0) {
-        // Case 1.1.3: inode is already in c-list,
+        // Case 1.1.3 and 2.3.3: inode is already in c-list,
         previous = created.set(c, newinode);
+        
+        //TODO: fix a bug that previous != oldinode.  Set it to oldinode for now
+        previous = oldinode;
       } else {
         d = search(deleted, oldinode);
         if (d < 0) {
@@ -288,6 +292,77 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
     List<INode> apply2Current(final List<INode> current) {
       return apply2Previous(current, deleted, created);
     }
+    
+    /**
+     * Combine the posterior diff with this diff. This function needs to called
+     * before the posterior diff is to be deleted. In general we have:
+     * 
+     * <pre>
+     * 1. For (c, 0) in the posterior diff, check the inode in this diff:
+     * 1.1 (c', 0) in this diff: impossible
+     * 1.2 (0, d') in this diff: put in created --> (c, d')
+     * 1.3 (c', d') in this diff: impossible
+     * 1.4 (0, 0) in this diff: put in created --> (c, 0)
+     * This is the same logic with {@link #create(INode)}.
+     * 
+     * 2. For (0, d) in the posterior diff,
+     * 2.1 (c', 0) in this diff: remove from old created --> (0, 0)
+     * 2.2 (0, d') in this diff: impossible
+     * 2.3 (c', d') in this diff: remove from old created --> (0, d')
+     * 2.4 (0, 0) in this diff: put in deleted --> (0, d)
+     * This is the same logic with {@link #delete(INode)}.
+     * 
+     * 3. For (c, d) in the posterior diff,
+     * 3.1 (c', 0) in this diff: replace old created --> (c, 0)
+     * 3.2 (0, d') in this diff: impossible
+     * 3.3 (c', d') in this diff: replace old created --> (c, d')
+     * 3.4 (0, 0) in this diff: put in created and deleted --> (c, d)
+     * This is the same logic with {@link #modify(INode, INode)}.
+     * </pre>
+     * 
+     * Note that after this function the postDiff will be deleted.
+     * 
+     * @param the posterior diff to combine
+     * @param collectedBlocks Used in case 2.3, 3.1, and 3.3 to collect 
+     *                        information for blocksMap update
+     */
+    void combinePostDiff(Diff postDiff, Processor deletedINodeProcesser) {
+      final List<INode> postCreated = postDiff.created != null?
+          postDiff.created: Collections.<INode>emptyList();
+      final List<INode> postDeleted = postDiff.deleted != null?
+          postDiff.deleted: Collections.<INode>emptyList();
+      final Iterator<INode> createdIterator = postCreated.iterator();
+      final Iterator<INode> deletedIterator = postDeleted.iterator();
+
+      INode c = createdIterator.hasNext()? createdIterator.next(): null;
+      INode d = deletedIterator.hasNext()? deletedIterator.next(): null;
+
+      for(; c != null || d != null; ) {
+        final int cmp = c == null? 1
+            : d == null? -1
+            : c.compareTo(d.getLocalNameBytes());
+        if (cmp < 0) {
+          // case 1: only in c-list
+          create(c);
+          c = createdIterator.hasNext()? createdIterator.next(): null;
+        } else if (cmp > 0) {
+          // case 2: only in d-list
+          Triple<Integer, INode, Integer> triple = delete(d);
+          if (deletedINodeProcesser != null) {
+            deletedINodeProcesser.process(triple.middle);
+          }
+          d = deletedIterator.hasNext()? deletedIterator.next(): null;
+        } else {
+          // case 3: in both c-list and d-list 
+          final Triple<Integer, INode, Integer> triple = modify(d, c);
+          if (deletedINodeProcesser != null) {
+            deletedINodeProcesser.process(triple.middle);
+          }
+          c = createdIterator.hasNext()? createdIterator.next(): null;
+          d = deletedIterator.hasNext()? deletedIterator.next(): null;
+        }
+      }
+    }
 
     /** Convert the inode list to a compact string. */
     static String toString(List<INode> inodes) {
@@ -366,18 +441,14 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
     }
 
     /** Copy the INode state to the snapshot if it is not done already. */
-    private Pair<INodeDirectory, INodeDirectory> checkAndInitINode(
-        INodeDirectory snapshotCopy) {
-      if (snapshotINode != null) {
-        // already initialized.
-        return null;
+    private void checkAndInitINode(INodeDirectory snapshotCopy) {
+      if (snapshotINode == null) {
+        if (snapshotCopy == null) {
+          snapshotCopy = new INodeDirectory(INodeDirectoryWithSnapshot.this,
+              false);
+        }
+        snapshotINode = snapshotCopy;
       }
-      final INodeDirectoryWithSnapshot dir = INodeDirectoryWithSnapshot.this;
-      if (snapshotCopy == null) {
-        snapshotCopy = new INodeDirectory(dir, false);
-      }
-      snapshotINode = snapshotCopy;
-      return new Pair<INodeDirectory, INodeDirectory>(dir, snapshotCopy);
     }
 
     /** @return the snapshot object of this diff. */
@@ -460,6 +531,12 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
           + (posteriorDiff == null? null: posteriorDiff.snapshot)
           + ") childrenSize=" + childrenSize + ", " + diff;
     }
+  }
+  
+  /** An interface for passing a method to process inodes. */
+  static interface Processor {
+    /** Process the given inode. */
+    void process(INode inode);
   }
   
   /** Create an {@link INodeDirectoryWithSnapshot} with the given snapshot.*/
@@ -560,33 +637,46 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
   }
 
   @Override
-  public Pair<INodeDirectory, INodeDirectory> recordModification(Snapshot latest) {
-    return save2Snapshot(latest, null);
+  public INodeDirectoryWithSnapshot recordModification(Snapshot latest) {
+    saveSelf2Snapshot(latest, null);
+    return this;
   }
 
   /** Save the snapshot copy to the latest snapshot. */
-  public Pair<INodeDirectory, INodeDirectory> save2Snapshot(Snapshot latest,
-      INodeDirectory snapshotCopy) {
-    return latest == null? null
-        : checkAndAddLatestSnapshotDiff(latest).checkAndInitINode(snapshotCopy);
+  public void saveSelf2Snapshot(Snapshot latest, INodeDirectory snapshotCopy) {
+    if (latest != null) {
+      checkAndAddLatestSnapshotDiff(latest).checkAndInitINode(snapshotCopy);
+    }
   }
 
   @Override
-  public Pair<? extends INode, ? extends INode> saveChild2Snapshot(
-      INode child, Snapshot latest) {
+  public INode saveChild2Snapshot(INode child, Snapshot latest) {
     if (child.isDirectory()) {
       throw new IllegalStateException("child is a directory, child=" + child);
+    }
+    if (latest == null) {
+      return child;
     }
 
     final SnapshotDiff diff = checkAndAddLatestSnapshotDiff(latest);
     if (diff.getChild(child.getLocalNameBytes(), false) != null) {
       // it was already saved in the latest snapshot earlier.  
-      return null;
+      return child;
     }
 
     final Pair<? extends INode, ? extends INode> p = child.createSnapshotCopy();
-    diff.diff.modify(p.right, p.left);
-    return p;
+    if (p.left != p.right) {
+      final Triple<Integer, INode, Integer> triple = diff.diff.modify(p.right,
+          p.left);
+      if (triple.middle != null && p.left instanceof FileWithSnapshot) {
+        // also should remove oldinode from the circular list
+        FileWithSnapshot newNodeWithLink = (FileWithSnapshot) p.left;
+        FileWithSnapshot oldNodeWithLink = (FileWithSnapshot) p.right;
+        newNodeWithLink.setNext(oldNodeWithLink.getNext());
+        oldNodeWithLink.setNext(null);
+      }
+    }
+    return p.left;
   }
 
   @Override

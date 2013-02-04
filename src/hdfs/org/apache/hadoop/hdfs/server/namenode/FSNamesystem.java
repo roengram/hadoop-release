@@ -1459,7 +1459,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
         INodeFile node = (INodeFile) myFile;
         Snapshot latestSnapshot = iip.getLatestSnapshot();
         if (latestSnapshot != null) {
-          node = (INodeFile) node.recordModification(latestSnapshot).left;
+          node = node.recordModification(latestSnapshot);
         }
         final INodeFileUnderConstruction cons = node.toUnderConstruction(
             holder, clientMachine, clientNode);
