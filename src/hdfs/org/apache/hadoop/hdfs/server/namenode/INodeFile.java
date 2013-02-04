@@ -25,8 +25,6 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
-import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeFileSnapshot;
-import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeFileWithLink;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 
 public class INodeFile extends INode {
@@ -128,7 +126,7 @@ public class INodeFile extends INode {
   }
 
   @Override
-  public Pair<INodeFileWithLink, INodeFileSnapshot> createSnapshotCopy() {
+  public Pair<? extends INodeFile, ? extends INodeFile> createSnapshotCopy() {
     return parent.replaceINodeFile(this).createSnapshotCopy();
   }
 
@@ -141,7 +139,7 @@ public class INodeFile extends INode {
     return getFileReplication();
   }
 
-  protected void setFileReplication(short replication, Snapshot latest) {
+  public void setFileReplication(short replication, Snapshot latest) {
     if (latest != null) {
       final Pair<? extends INode, ? extends INode> p = recordModification(latest);
       if (p != null) {
@@ -151,6 +149,19 @@ public class INodeFile extends INode {
     }
 
     header = HeaderFormat.combineReplication(header, replication);
+  }
+
+  /** Convert this file to an {@link INodeFileUnderConstruction}. */
+  public INodeFileUnderConstruction toUnderConstruction(
+      String clientName,
+      String clientMachine,
+      DatanodeDescriptor clientNode) {
+    if (this instanceof INodeFileUnderConstruction) {
+      throw new IllegalStateException(
+          "file is already an INodeFileUnderConstruction");
+    }
+    return new INodeFileUnderConstruction(this,
+        clientName, clientMachine, clientNode); 
   }
 
   /**
@@ -209,16 +220,26 @@ public class INodeFile extends INode {
     return 1;
   }
 
-  /** {@inheritDoc} */
+  @Override
   long[] computeContentSummary(long[] summary) {
-    long bytes = 0;
-    for(Block blk : blocks) {
-      bytes += blk.getNumBytes();
-    }
-    summary[0] += bytes;
+    summary[0] += computeFileSize();
     summary[1]++;
     summary[3] += diskspaceConsumed();
     return summary;
+  }
+  
+  /** 
+   * Compute file size.
+   */
+  public long computeFileSize() {
+    if (blocks == null || blocks.length == 0) {
+      return 0;
+    }
+    long bytes = 0;
+    for(int i = 0; i < blocks.length; i++) {
+      bytes += blocks[i].getNumBytes();
+    }
+    return bytes;
   }
 
   @Override

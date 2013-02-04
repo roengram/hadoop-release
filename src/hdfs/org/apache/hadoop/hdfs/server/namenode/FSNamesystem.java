@@ -1127,9 +1127,10 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     if(i == null || i.isDirectory()) {
       return null;
     }
-    final INodesInPath iip = dir.getMutableINodesInPath(src);
+    final INodesInPath iip = dir.getINodesInPath(src);
     final INodeFile inode = INodeFile.valueOf(iip.getLastINode(), src);
-    if (doAccessTime && isAccessTimeSupported()) {
+    if (!iip.isSnapshot() // snapshots are readonly, so don't update atime.
+        && doAccessTime && isAccessTimeSupported()) {
       dir.setTimes(src, inode, -1, now(), false, iip.getLatestSnapshot());
     }
     Block[] blocks = inode.getBlocks();
@@ -1137,7 +1138,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       return null;
     }
     if (blocks.length == 0) {
-      return inode.createLocatedBlocks(new ArrayList<LocatedBlock>(blocks.length));
+      return inode.createLocatedBlocks(new ArrayList<LocatedBlock>(
+          blocks.length));
     }
     List<LocatedBlock> results;
     results = new ArrayList<LocatedBlock>(blocks.length);
@@ -1455,19 +1457,13 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
         // Recreate in-memory lease record.
         //
         INodeFile node = (INodeFile) myFile;
-        // TODO SNAPSHOT: INodeFileUnderConstruction with link
-        INodeFileUnderConstruction cons = new INodeFileUnderConstruction(
-                                        node.getLocalNameBytes(),
-                                        node.getFileReplication(),
-                                        node.getModificationTime(),
-                                        node.getPreferredBlockSize(),
-                                        node.getBlocks(),
-                                        node.getPermissionStatus(),
-                                        holder,
-                                        clientMachine,
-                                        clientNode);
-        dir.unprotectedReplaceINodeFile(src, node, cons,
-            iip.getLatestSnapshot());
+        Snapshot latestSnapshot = iip.getLatestSnapshot();
+        if (latestSnapshot != null) {
+          node = (INodeFile) node.recordModification(latestSnapshot).left;
+        }
+        final INodeFileUnderConstruction cons = node.toUnderConstruction(
+            holder, clientMachine, clientNode);
+        dir.unprotectedReplaceINodeFile(src, node, cons, latestSnapshot);
         leaseManager.addLease(cons.clientName, src);
 
       } else {
@@ -2517,8 +2513,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
 
     // The file is no longer pending.
     // Create permanent INode, update blockmap
-    INodeFile newFile = pendingFile.convertToInodeFile(System
-        .currentTimeMillis());
+    INodeFile newFile = pendingFile.toINodeFile(now());
     dir.unprotectedReplaceINodeFile(src, pendingFile, newFile, latestSnapshot);
 
     // close file and persist block allocations for this file
