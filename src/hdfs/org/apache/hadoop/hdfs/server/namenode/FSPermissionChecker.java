@@ -119,7 +119,7 @@ private final UserGroupInformation ugi;
     }
 
     synchronized(root) {
-      final INodesInPath inodesInPath = root.getExistingPathINodes(path);
+      final INodesInPath inodesInPath = root.getINodesInPath(path);
       final Snapshot snapshot = inodesInPath.getPathSnapshot();
       final INode[] inodes = inodesInPath.getINodes();
       int ancestorIndex = inodes.length - 2;

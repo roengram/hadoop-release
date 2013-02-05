@@ -1130,7 +1130,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     if(i == null || i.isDirectory()) {
       return null;
     }
-    final INodesInPath iip = dir.getINodesInPath(src);
+    final INodesInPath iip = dir.getLastINodeInPath(src);
     final INodeFile inode = INodeFile.valueOf(iip.getLastINode(), src);
     if (!iip.isSnapshot() // snapshots are readonly, so don't update atime.
         && doAccessTime && isAccessTimeSupported()) {
@@ -1233,7 +1233,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     if (isPermissionEnabled) {
       checkPathAccess(src, FsAction.WRITE);
     }
-    final INodesInPath iip = dir.getMutableINodesInPath(src);
+    final INodesInPath iip = dir.getINodesInPath4Write(src);
     final INodeFile inode = INodeFile.valueOf(iip.getLastINode(), src);
     if (inode != null) {
       dir.setTimes(src, inode, mtime, atime, true, iip.getLatestSnapshot());
@@ -1405,13 +1405,14 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     }
 
     // Verify that the destination does not exist as a directory already.
-    boolean pathExists = dir.existsMutable(src);
-    if (pathExists && dir.isDir(src)) {
+    final INodesInPath iip = dir.getINodesInPath4Write(src);
+    final INode myFile = iip.getLastINode();
+    if (myFile != null && myFile.isDirectory()) {
       throw new IOException("Cannot create "+ src + "; already exists as a directory");
     }
 
     if (isPermissionEnabled) {
-      if (append || (overwrite && pathExists)) {
+      if (append || (overwrite && myFile != null)) {
         checkPathAccess(src, FsAction.WRITE);
       }
       else {
@@ -1424,8 +1425,6 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     }
 
     try {
-      final INodesInPath iip = dir.getINodesInPath(src);
-      final INode myFile = iip.getINode(0);
       recoverLeaseInternal(myFile, src, holder, clientMachine, false);
 
       try {
@@ -1748,7 +1747,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
         throw new SafeModeException("Cannot add block to " + src, safeMode);
       }
       
-      final INodesInPath iip = dir.rootDir.getExistingPathINodes(src);
+      final INodesInPath iip = dir.getINodesInPath4Write(src);
       INodeFileUnderConstruction pendingFile = (INodeFileUnderConstruction) 
           iip.getLastINode();
       checkLease(src, clientName, pendingFile);
@@ -1862,7 +1861,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     if (isInSafeMode())
       throw new SafeModeException("Cannot complete " + src, safeMode);
 
-    final INodesInPath iip = dir.getINodesInPath(src);
+    final INodesInPath iip = dir.getLastINodeInPath(src);
     INodeFileUnderConstruction pendingFile  = checkLease(src, holder);
     Block[] fileBlocks =  dir.getFileBlocks(src);
 
@@ -2448,7 +2447,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
 
     LOG.info("Recovering lease=" + lease + ", src=" + src);
 
-    final INodesInPath iip = dir.getINodesInPath(src);
+    final INodesInPath iip = dir.getLastINodeInPath(src);
     INodeFile iFile = INodeFile.valueOf(iip.getINode(0), src);
     if (iFile == null) {
       final String message = "DIR* internalReleaseCreate: "

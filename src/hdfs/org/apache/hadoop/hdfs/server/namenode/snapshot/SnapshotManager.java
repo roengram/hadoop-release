@@ -26,7 +26,6 @@ import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.protocol.SnapshottableDirectoryStatus;
 import org.apache.hadoop.hdfs.server.namenode.FSDirectory;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
-import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
@@ -66,7 +65,7 @@ public class SnapshotManager implements SnapshotStats {
    * If the path is already a snapshottable directory, update the quota.
    */
   public void setSnapshottable(final String path) throws IOException {
-    final INodesInPath iip = fsdir.getINodesInPath(path);
+    final INodesInPath iip = fsdir.getLastINodeInPath(path);
     final INodeDirectory d = INodeDirectory.valueOf(iip.getINode(0), path);
     if (d.isSnapshottable()) {
       // The directory is already a snapshottable directory.
@@ -88,7 +87,7 @@ public class SnapshotManager implements SnapshotStats {
    */
   public void resetSnapshottable(final String path
       ) throws IOException {
-    final INodesInPath iip = fsdir.getINodesInPath(path);
+    final INodesInPath iip = fsdir.getLastINodeInPath(path);
     final INodeDirectorySnapshottable s = INodeDirectorySnapshottable.valueOf(
         iip.getINode(0), path);
     if (s.getNumSnapshots() > 0) {
@@ -117,7 +116,7 @@ public class SnapshotManager implements SnapshotStats {
   public void createSnapshot(final String snapshotName, final String path)
       throws IOException {
     // Find the source root directory path where the snapshot is taken.
-    final INodesInPath i = fsdir.getMutableINodesInPath(path);
+    final INodesInPath i = fsdir.getINodesInPath4Write(path);
     final INodeDirectorySnapshottable srcRoot
          = INodeDirectorySnapshottable.valueOf(i.getLastINode(), path);
     srcRoot.addSnapshot(snapshotID, snapshotName);
@@ -145,8 +144,9 @@ public class SnapshotManager implements SnapshotStats {
       final String newSnapshotName) throws IOException {
     // Find the source root directory path where the snapshot was taken.
     // All the check for path has been included in the valueOf method.
-    final INodeDirectorySnapshottable srcRoot
-        = INodeDirectorySnapshottable.valueOf(fsdir.getINode(path), path);
+    INodesInPath inodesInPath = fsdir.getINodesInPath4Write(path.toString());
+    final INodeDirectorySnapshottable srcRoot = INodeDirectorySnapshottable
+        .valueOf(inodesInPath.getLastINode(), path);
     // Note that renameSnapshot and createSnapshot are synchronized externally
     // through FSNamesystem's write lock
     srcRoot.renameSnapshot(path, oldSnapshotName, newSnapshotName);
@@ -162,7 +162,7 @@ public class SnapshotManager implements SnapshotStats {
   public void deleteSnapshot(final String path, final String snapshotName,
       BlocksMapUpdateInfo collectedBlocks) throws IOException {
     // parse the path, and check if the path is a snapshot path
-    INodesInPath inodesInPath = fsdir.getMutableINodesInPath(path.toString());
+    INodesInPath inodesInPath = fsdir.getINodesInPath4Write(path.toString());
     // transfer the inode for path to an INodeDirectorySnapshottable.
     // the INodeDirectorySnapshottable#valueOf method will throw Exception 
     // if the path is not for a snapshottable directory

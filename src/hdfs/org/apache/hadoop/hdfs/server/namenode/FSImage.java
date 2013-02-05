@@ -1489,8 +1489,9 @@ public class FSImage extends Storage {
 
       // verify that file exists in namespace
       String path = cons.getLocalName();
-      final INodesInPath iip = fsDir.getINodesInPath(path);
+      final INodesInPath iip = fsDir.getLastINodeInPath(path);
       INodeFile oldnode = INodeFile.valueOf(iip.getINode(0), path);
+      cons.setLocalName(oldnode.getLocalNameBytes());
       fsDir.unprotectedReplaceINodeFile(path, oldnode, cons,
           iip.getLatestSnapshot());
       fs.leaseManager.addLease(cons.clientName, path); 

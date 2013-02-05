@@ -119,7 +119,7 @@ class PermissionChecker {
     }
 
     synchronized(root) {
-      final INodesInPath inodesInPath = root.getExistingPathINodes(path); 
+      final INodesInPath inodesInPath = root.getINodesInPath(path); 
       final INode[] inodes = inodesInPath.getINodes();
       int ancestorIndex = inodes.length - 2;
       for(; ancestorIndex >= 0 && inodes[ancestorIndex] == null;

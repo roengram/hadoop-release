@@ -111,10 +111,6 @@ public class INodeDirectory extends INode {
     return i;
   }
 
-  protected INode getExistingChild(int i) {
-    return children.get(i);
-  }
-
   /** Is this a snapshottable directory? */
   public boolean isSnapshottable() {
     return false;
@@ -270,13 +266,19 @@ public class INodeDirectory extends INode {
   }
 
   /** @return the {@link INodesInPath} containing only the last inode. */
-  INodesInPath getINodesInPath(String path) {
+  INodesInPath getLastINodeInPath(String path) {
     return getExistingPathINodes(getPathComponents(path), 1);
   }
 
+  /** @return the {@link INodesInPath} containing all inodes in the path. */
+  INodesInPath getINodesInPath(String path) {
+    final byte[][] components = getPathComponents(path);
+    return getExistingPathINodes(components, components.length);
+  }
+  
   /** @return the last inode in the path. */
   INode getNode(String path) {
-    return getINodesInPath(path).getINode(0);
+    return getLastINodeInPath(path).getINode(0);
   }
   
   /**
@@ -284,31 +286,22 @@ public class INodeDirectory extends INode {
    * component does not exist.
    * @throws SnapshotAccessControlException if path is in RO snapshot
    */
-  INode getMutableNode(String src) throws SnapshotAccessControlException {
-    INode[] inodes = getMutableINodesInPath(src).getINodes();
-    return inodes[inodes.length - 1];
+  INode getINode4Write(String src) throws SnapshotAccessControlException {
+    return getINodesInPath4Write(src).getLastINode();
   }
 
   /**
    * @return the INodesInPath of the components in src
    * @throws SnapshotAccessControlException if path is in RO snapshot
    */
-  INodesInPath getMutableINodesInPath(String src)
+  INodesInPath getINodesInPath4Write(String src)
       throws SnapshotAccessControlException {
-    return getMutableINodesInPath(INode.getPathComponents(src));
-  }
-
-  /**
-   * @return the INodesInPath of the components in src
-   * @throws SnapshotAccessControlException if path is in RO snapshot
-   */
-  INodesInPath getMutableINodesInPath(byte[][] components)
-      throws SnapshotAccessControlException {
+    final byte[][] components = INode.getPathComponents(src);
     INodesInPath inodesInPath = getExistingPathINodes(components,
         components.length);
     if (inodesInPath.isSnapshot()) {
       throw new SnapshotAccessControlException(
-          "Modification on RO snapshot is disallowed");
+          "Modification on read-only snapshot is disallowed");
     }
     return inodesInPath;
   }
@@ -417,24 +410,6 @@ public class INodeDirectory extends INode {
   private static boolean isDotSnapshotDir(byte[] pathComponent) {
     return pathComponent == null ? false : HdfsConstants.DOT_SNAPSHOT_DIR
         .equalsIgnoreCase(DFSUtil.bytes2String(pathComponent));
-  }
-  
-  /**
-   * Retrieve the existing INodes along the given path. The first INode
-   * always exist and is this INode.
-   * 
-   * @param path the path to explore
-   * @return INodes array containing the existing INodes in the order they
-   *         appear when following the path from the root INode to the
-   *         deepest INodes. The array size will be the number of expected
-   *         components in the path, and non existing components will be
-   *         filled with null
-   *         
-   * @see #getExistingPathINodes(byte[][], int)
-   */
-  INodesInPath getExistingPathINodes(String path) {
-    byte[][] components = getPathComponents(path);
-    return this.getExistingPathINodes(components, components.length);
   }
 
   /**
@@ -722,6 +697,10 @@ public class INodeDirectory extends INode {
     /** @return the last inode. */
     public INode getLastINode() {
       return inodes[inodes.length - 1];
+    }
+    
+    byte[] getLastLocalName() {
+      return path[path.length - 1];
     }
     
     /**
