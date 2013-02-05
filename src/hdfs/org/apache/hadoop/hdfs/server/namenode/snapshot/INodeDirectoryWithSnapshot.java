@@ -103,6 +103,16 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
     private List<INode> created;
     /** d-list: inode(s) deleted from current. */
     private List<INode> deleted;
+    
+    INode searchCreated(final byte[] name) {
+      int cIndex = search(created, name);
+      return cIndex < 0 ? null : created.get(cIndex);
+    }
+
+    INode searchDeleted(final byte[] name) {
+      int dIndex = search(deleted, name);
+      return dIndex < 0 ? null : deleted.get(dIndex);
+    }
 
     /**
      * Insert the inode to created.
@@ -536,6 +546,10 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
           + (posteriorDiff == null? null: posteriorDiff.snapshot)
           + ") childrenSize=" + childrenSize + ", " + diff;
     }
+
+    Diff getDiff() {
+      return diff;
+    }
   }
   
   /** An interface for passing a method to process inodes. */
@@ -751,6 +765,18 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
     final INode removed = super.removeChild(child, null);
     if (removed == null && undoInfo != null) {
       diff.undoDelete(child, undoInfo);
+    }
+    if (undoInfo != null) {
+      if (removed == null) {
+        //remove failed, undo
+        diff.undoDelete(child, undoInfo);
+      } else {
+        //clean up the previously created file, if there is any.
+        final INode trashed = undoInfo.middle;
+        if (trashed != null && trashed instanceof FileWithSnapshot) {
+          ((FileWithSnapshot) trashed).removeSelf();
+        }
+      }
     }
     return removed;
   }

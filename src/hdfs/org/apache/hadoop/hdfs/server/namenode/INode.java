@@ -415,8 +415,8 @@ public abstract class INode implements Comparable<byte[]>, FSInodeInfo {
   }
   
   public String getObjectString() {
-    final String s = super.toString();
-    return s.substring(s.lastIndexOf(getClass().getSimpleName()));
+    return getClass().getSimpleName() + "@"
+        + Integer.toHexString(super.hashCode());
   }
 
   public String toStringWithObjectType() {

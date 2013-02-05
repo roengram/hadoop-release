@@ -2872,7 +2872,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    * datanode from the original pipeline. The DataStreamer now
    * starts sending packets from the dataQueue.
   ****************************************************************/
-  class DFSOutputStream extends FSOutputSummer implements Syncable {
+  public class DFSOutputStream extends FSOutputSummer implements Syncable {
     private Socket s;
     boolean closed = false;
   

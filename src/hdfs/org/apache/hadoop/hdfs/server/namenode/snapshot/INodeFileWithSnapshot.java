@@ -43,7 +43,7 @@ public class INodeFileWithSnapshot extends INodeFile
     final INodeFileUnderConstructionWithSnapshot f
         = new INodeFileUnderConstructionWithSnapshot(this,
             clientName, clientMachine, clientNode);
-    Util.replace(this, f);
+    this.insertBefore(f);
     return f;
   }
 
@@ -69,9 +69,29 @@ public class INodeFileWithSnapshot extends INodeFile
   }
 
   @Override
-  public void insert(FileWithSnapshot inode) {
+  public void removeSelf() {
+    if (this.next != null && this.next != this) {
+      FileWithSnapshot previous = Util.getPrevious(this);
+      previous.setNext(next);
+    }
+    this.next = null;
+  }
+  
+  @Override
+  public void insertAfter(FileWithSnapshot inode) {
     inode.setNext(this.getNext());
     this.setNext(inode);
+  }
+  
+  @Override
+  public void insertBefore(FileWithSnapshot inode) {
+    inode.setNext(this);
+    if (this.next == null || this.next == this) {
+      this.next = inode;
+      return;
+    }
+    FileWithSnapshot previous = Util.getPrevious(this);
+    previous.setNext(inode);
   }
 
   @Override

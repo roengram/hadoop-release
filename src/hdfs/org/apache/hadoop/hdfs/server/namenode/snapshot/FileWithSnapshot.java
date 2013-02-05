@@ -39,8 +39,14 @@ public interface FileWithSnapshot {
   /** Set the next element. */
   public void setNext(FileWithSnapshot next);
   
-  /** Insert inode to the circular linked list. */
-  public void insert(FileWithSnapshot inode);
+  /** Insert inode to the circular linked list, after the current node. */
+  public void insertAfter(FileWithSnapshot inode);
+  
+  /** Insert inode to the circular linked list, before the current node. */
+  public void insertBefore(FileWithSnapshot inode);
+  
+  /** Remove self from the circular list */
+  public void removeSelf();
   
   /** Utility methods for the classes which implement the interface. */
   static class Util {

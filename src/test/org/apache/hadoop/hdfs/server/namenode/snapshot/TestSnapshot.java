@@ -40,6 +40,7 @@ import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.SnapshotTestHelper;
 import org.apache.hadoop.hdfs.server.namenode.SnapshotTestHelper.TestDirectoryTree;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 

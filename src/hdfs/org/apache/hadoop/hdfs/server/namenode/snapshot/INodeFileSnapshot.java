@@ -30,7 +30,7 @@ public class INodeFileSnapshot extends INodeFileWithSnapshot {
   INodeFileSnapshot(INodeFileWithSnapshot f) {
     super(f);
     this.size = f.computeContentSummary().getLength();
-    f.insert(this);
+    f.insertAfter(this);
   }
   
   @Override

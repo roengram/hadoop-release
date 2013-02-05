@@ -97,6 +97,7 @@ import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
 import org.apache.hadoop.hdfs.server.namenode.LeaseManager.Lease;
 import org.apache.hadoop.hdfs.server.namenode.UnderReplicatedBlocks.BlockIterator;
 import org.apache.hadoop.hdfs.server.namenode.metrics.FSNamesystemMBean;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeFileUnderConstructionWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotManager;
 import org.apache.hadoop.hdfs.server.protocol.BalancerBandwidthCommand;
@@ -2510,6 +2511,20 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     NameNode.stateChangeLog.info("Removing lease on  " + src + 
                                  " from client " + pendingFile.clientName);
     leaseManager.removeLease(pendingFile.clientName, src);
+    
+    if (latestSnapshot != null) {
+      if (!(pendingFile instanceof INodeFileUnderConstructionWithSnapshot)) {
+        // replace INodeFileUnderConstruction with
+        // INodeFileUnderConstructionWithSnapshot. This replacement does not
+        // need to be recorded in snapshot.
+        INodeFileUnderConstructionWithSnapshot pendingFileWithSnaphsot = 
+            new INodeFileUnderConstructionWithSnapshot(pendingFile);
+        dir.replaceINodeFile(src, pendingFile, pendingFileWithSnaphsot, null);
+        pendingFile = pendingFileWithSnaphsot;
+      }
+      pendingFile = (INodeFileUnderConstruction) pendingFile
+          .recordModification(latestSnapshot);
+    }
 
     // The file is no longer pending.
     // Create permanent INode, update blockmap
