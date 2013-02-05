@@ -43,6 +43,7 @@ import org.apache.hadoop.hdfs.protocol.FSConstants.SafeModeAction;
 import org.apache.hadoop.hdfs.protocol.FSConstants.UpgradeAction;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
+import org.apache.hadoop.hdfs.protocol.SnapshottableDirectoryStatus;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hdfs.server.common.UpgradeStatusReport;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
@@ -722,5 +723,14 @@ public class DistributedFileSystem extends FileSystem {
   public void deleteSnapshot(Path snapshotDir, String snapshotName)
       throws IOException {
     dfs.deleteSnapshot(getPathName(snapshotDir), snapshotName);
+  }
+  
+  /**
+   * @return All the snapshottable directories
+   * @throws IOException
+   */
+  public SnapshottableDirectoryStatus[] getSnapshottableDirListing()
+      throws IOException {
+    return dfs.getSnapshottableDirListing();
   }
 }

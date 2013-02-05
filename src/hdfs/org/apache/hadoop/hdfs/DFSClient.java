@@ -83,6 +83,7 @@ import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
 import org.apache.hadoop.hdfs.protocol.NSQuotaExceededException;
+import org.apache.hadoop.hdfs.protocol.SnapshottableDirectoryStatus;
 import org.apache.hadoop.hdfs.security.token.block.BlockTokenIdentifier;
 import org.apache.hadoop.hdfs.security.token.block.InvalidBlockTokenException;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
@@ -1629,6 +1630,18 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       this.info = info;
       this.addr = addr;
     }
+  }
+  
+  /**
+   * Get all the current snapshottable directories.
+   * @return All the current snapshottable directories
+   * @throws IOException
+   * @see ClientProtocol#getSnapshottableDirListing()
+   */
+  public SnapshottableDirectoryStatus[] getSnapshottableDirListing()
+      throws IOException {
+    checkOpen();
+    return namenode.getSnapshottableDirListing();
   }
 
   /** This is a wrapper around connection to datadone

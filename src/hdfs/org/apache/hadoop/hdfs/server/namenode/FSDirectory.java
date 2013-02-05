@@ -23,6 +23,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.ContentSummary;
@@ -611,13 +612,20 @@ public class FSDirectory implements FSConstants, Closeable {
         // snapshottable dir with snapshots, or its descendants have
         // snapshottable dir with snapshots
         INode targetNode = inodes[inodes.length-1];
-        INode snapshotNode = hasSnapshot(targetNode);
+        List<INodeDirectorySnapshottable> snapshottableDirs = 
+            new ArrayList<INodeDirectorySnapshottable>();
+        INode snapshotNode = hasSnapshot(targetNode, snapshottableDirs);
         if (snapshotNode != null) {
           throw new IOException("The direcotry " + targetNode.getFullPathName()
               + " cannot be deleted since " + snapshotNode.getFullPathName()
               + " is snapshottable and already has snapshots");
         }
         filesRemoved = unprotectedDelete(inodesInPath, collectedBlocks, now);
+        if (snapshottableDirs.size() > 0) {
+          // There are some snapshottable directories without snapshots to be
+          // deleted. Need to update the SnapshotManager.
+          namesystem.removeSnapshottableDirs(snapshottableDirs);
+        }
       }
     }
     if (filesRemoved <= 0) {
@@ -733,18 +741,28 @@ public class FSDirectory implements FSConstants, Closeable {
    * Check if the given INode (or one of its descendants) is snapshottable and
    * already has snapshots.
    * 
-   * @param target The given INode
+   * @param target
+   *          The given INode
+   * @param snapshottableDirs
+   *          The list of directories that are snapshottable but do not have
+   *          snapshots yet
    * @return The INode which is snapshottable and already has snapshots.
    */
-  private static INode hasSnapshot(INode target) {
+  private static INode hasSnapshot(INode target,
+      List<INodeDirectorySnapshottable> snapshottableDirs) {
     if (target instanceof INodeDirectory) {
       INodeDirectory targetDir = (INodeDirectory) target;
-      if (targetDir.isSnapshottable()
-          && ((INodeDirectorySnapshottable) targetDir).getNumSnapshots() > 0) {
-        return target;
-      }
+      if (targetDir.isSnapshottable()) {
+        INodeDirectorySnapshottable ssTargetDir = 
+            (INodeDirectorySnapshottable) targetDir;
+        if (ssTargetDir.getNumSnapshots() > 0) {
+          return target;
+        } else {
+          snapshottableDirs.add(ssTargetDir);
+        }
+      } 
       for (INode child : targetDir.getChildrenList(null)) {
-        INode snapshotDir = hasSnapshot(child);
+        INode snapshotDir = hasSnapshot(child, snapshottableDirs);
         if (snapshotDir != null) {
           return snapshotDir;
         }

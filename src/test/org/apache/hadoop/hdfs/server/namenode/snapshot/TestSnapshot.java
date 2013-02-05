@@ -40,7 +40,6 @@ import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.SnapshotTestHelper;
 import org.apache.hadoop.hdfs.server.namenode.SnapshotTestHelper.TestDirectoryTree;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -181,30 +180,6 @@ public class TestSnapshot {
     }
     System.out.println("XXX done:");
     SnapshotTestHelper.dumpTreeRecursively(fsn.getFSDirectory().getINode("/"));
-  }
-  
-  /**
-   * A simple test that updates a sub-directory of a snapshottable directory
-   * with snapshots
-   */
-  @Test
-  public void testUpdateDirectory() throws Exception {
-    Path dir = new Path("/dir");
-    Path sub = new Path(dir, "sub");
-    Path subFile = new Path(sub, "file");
-    DFSTestUtil.createFile(hdfs, subFile, BLOCKSIZE, REPLICATION, seed);
-
-    FileStatus oldStatus = hdfs.getFileStatus(sub);
-
-    hdfs.allowSnapshot(dir.toString());
-    hdfs.createSnapshot(dir, "s1");
-    hdfs.setTimes(sub, 100L, 100L);
-
-    Path snapshotPath = SnapshotTestHelper.getSnapshotPath(dir, "s1", "sub");
-    FileStatus snapshotStatus = hdfs.getFileStatus(snapshotPath);
-    assertEquals(oldStatus.getModificationTime(),
-        snapshotStatus.getModificationTime());
-    assertEquals(oldStatus.getAccessTime(), snapshotStatus.getAccessTime());
   }
   
   /**

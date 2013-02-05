@@ -77,6 +77,9 @@ public class NameNodeInstrumentation implements MetricsSource {
       "DeleteSnapshotOps", "Number of deleteSnapshotOps operations", 0);
   final MetricMutableCounterInt renameSnapshotOps = registry.newCounter(
       "RenameSnapshotOps", "Number of renameSnapshot operations", 0);
+  final MetricMutableCounterInt listSnapshottableDirOps = registry
+      .newCounter("ListSnapshottableDirOps",
+          "Number of listSnapshottableDir operations", 0);
 
   NameNodeInstrumentation(Configuration conf) {
     sessionId = conf.get("session.id");
@@ -178,6 +181,10 @@ public class NameNodeInstrumentation implements MetricsSource {
   
   public void incrRenameSnapshotOps() {
     renameSnapshotOps.incr();
+  }
+  
+  public void incrListSnapshottableDirOps() {
+    listSnapshottableDirOps.incr();
   }
   
   //@Override

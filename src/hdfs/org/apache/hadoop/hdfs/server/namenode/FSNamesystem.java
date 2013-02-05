@@ -78,6 +78,7 @@ import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
+import org.apache.hadoop.hdfs.protocol.SnapshottableDirectoryStatus;
 import org.apache.hadoop.hdfs.protocol.UnregisteredDatanodeException;
 import org.apache.hadoop.hdfs.security.token.block.BlockTokenSecretManager;
 import org.apache.hadoop.hdfs.security.token.block.ExportedBlockKeys;
@@ -97,6 +98,7 @@ import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
 import org.apache.hadoop.hdfs.server.namenode.LeaseManager.Lease;
 import org.apache.hadoop.hdfs.server.namenode.UnderReplicatedBlocks.BlockIterator;
 import org.apache.hadoop.hdfs.server.namenode.metrics.FSNamesystemMBean;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeFileUnderConstructionWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotManager;
@@ -6596,6 +6598,37 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       logAuditEvent(UserGroupInformation.getCurrentUser(), Server.getRemoteIp(),
           "renameSnapshot", oldSnapshotRoot.toString(),
           newSnapshotRoot.toString(), null);
+    }
+  }
+  
+  /**
+   * Get the list of all the current snapshottable directories
+   * @return The list of all the current snapshottable directories
+   * @throws IOException
+   */
+  public SnapshottableDirectoryStatus[] getSnapshottableDirListing()
+      throws IOException {
+    SnapshottableDirectoryStatus[] status = null;
+    synchronized (this) {
+      FSPermissionChecker checker = new FSPermissionChecker(
+          fsOwner.getShortUserName(), supergroup);
+      status = snapshotManager
+          .getSnapshottableDirListing(checker.isSuper ? null : checker.user);
+    }
+    if (auditLog.isInfoEnabled() && isExternalInvocation()) {
+      logAuditEvent(UserGroupInformation.getCurrentUser(), Server.getRemoteIp(),
+            "listSnapshottableDirectory", null, null, null);
+    }
+    return status;
+  }
+
+  /**
+   * Remove a list of INodeDirectorySnapshottable from the SnapshotManager
+   * @param toRemove the list of INodeDirectorySnapshottable to be removed
+   */
+  void removeSnapshottableDirs(List<INodeDirectorySnapshottable> toRemove) {
+    if (snapshotManager != null) {
+      snapshotManager.removeSnapshottableDirs(toRemove);
     }
   }
 }

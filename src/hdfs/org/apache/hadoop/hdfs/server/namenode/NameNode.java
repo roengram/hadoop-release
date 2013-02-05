@@ -49,6 +49,7 @@ import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
+import org.apache.hadoop.hdfs.protocol.SnapshottableDirectoryStatus;
 import org.apache.hadoop.hdfs.protocol.UnregisteredDatanodeException;
 import org.apache.hadoop.hdfs.security.token.block.ExportedBlockKeys;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
@@ -1491,4 +1492,13 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
     namesystem.disallowSnapshot(snapshot);
   }
 
+  @Override
+  // Client Protocol
+  public SnapshottableDirectoryStatus[] getSnapshottableDirListing()
+      throws IOException {
+    SnapshottableDirectoryStatus[] status = namesystem
+        .getSnapshottableDirListing();
+    myMetrics.incrListSnapshottableDirOps();
+    return status;
+  }
 }

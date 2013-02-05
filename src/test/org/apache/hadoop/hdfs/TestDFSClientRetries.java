@@ -62,6 +62,7 @@ import org.apache.hadoop.hdfs.protocol.FSConstants.UpgradeAction;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
+import org.apache.hadoop.hdfs.protocol.SnapshottableDirectoryStatus;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hdfs.server.common.UpgradeStatusReport;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
@@ -348,6 +349,12 @@ public class TestDFSClientRetries extends TestCase {
     @Override
     public void renameSnapshot(String snapshotRoot, String snapshotOldName,
         String snapshotNewName) throws IOException {}
+
+    @Override
+    public SnapshottableDirectoryStatus[] getSnapshottableDirListing()
+        throws IOException {
+      return null;
+    }
   }
   
   public void testNotYetReplicatedErrors() throws IOException

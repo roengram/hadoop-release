@@ -611,6 +611,15 @@ public interface ClientProtocol extends VersionedProtocol {
    * @param snapshotRoot the directory to disallow snapshot
    * @throws IOException
    */
-  public void disallowSnapshot(String snapshotRoot) throws IOException;   
-
+  public void disallowSnapshot(String snapshotRoot) throws IOException;
+  
+  /**
+   * Get listing of all the snapshottable directories
+   * 
+   * @return Information about all the current snapshottable directory
+   * @throws IOException
+   *           If an I/O error occurred
+   */
+  public SnapshottableDirectoryStatus[] getSnapshottableDirListing()
+      throws IOException;
 }
