@@ -36,6 +36,7 @@ import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.diff.Diff;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
 
 /**
@@ -43,7 +44,7 @@ import org.apache.hadoop.hdfs.util.ReadOnlyList;
  * This is a base INode class containing common fields for file and 
  * directory inodes.
  */
-public abstract class INode implements Comparable<byte[]>, FSInodeInfo {
+public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
   public static final Log LOG = LogFactory.getLog(INode.class);
   
   static final ReadOnlyList<INode> EMPTY_READ_ONLY_LIST
@@ -68,16 +69,6 @@ public abstract class INode implements Comparable<byte[]>, FSInodeInfo {
     public Pair(L left, R right) {
       this.left = left;
       this.right = right;
-    }
-  }
-
-  /** A triple of objects. */
-  public static class Triple<L, M, R> extends Pair<L, R> {
-    public final M middle;
-
-    public Triple(L left, M middle, R right) {
-      super(left, right);
-      this.middle = middle;
     }
   }
 
@@ -389,6 +380,11 @@ public abstract class INode implements Comparable<byte[]>, FSInodeInfo {
     return name;
   }
 
+  @Override
+  public byte[] getKey() {
+    return getLocalNameBytes();
+  }
+
   /**
    * Set local file name
    */
@@ -614,12 +610,9 @@ public abstract class INode implements Comparable<byte[]>, FSInodeInfo {
     out.print(getObjectString());
     out.print("), parent=");
     out.print(parent == null? null: parent.getLocalName() + "/");
-    if (!this.isDirectory()) {
-      out.println();
-    } else {
-      final INodeDirectory dir = (INodeDirectory)this;
-      out.println(", size=" + dir.getChildrenList(snapshot).size());
-    }
+    out.print(", permission=" + getFsPermission(snapshot));
+    out.print(", group=" + getGroupName(snapshot));
+    out.print(", user=" + getUserName(snapshot));
   }
   
   /**

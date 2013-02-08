@@ -215,7 +215,7 @@ public class INodeDirectory extends INode {
   }
   
   /** Replace a child {@link INodeFile} with an {@link INodeFileWithSnapshot}. */
-  INodeFileWithSnapshot replaceINodeFile(final INodeFile child) {
+  INodeFileWithSnapshot replaceChild4INodeFileWithSnapshot(final INodeFile child) {
     assertChildrenNonNull();
     if (child instanceof INodeFileWithSnapshot) {
       throw new IllegalStateException(
@@ -814,6 +814,8 @@ public class INodeDirectory extends INode {
   public void dumpTreeRecursively(PrintWriter out, StringBuilder prefix,
       final Snapshot snapshot) {
     super.dumpTreeRecursively(out, prefix, snapshot);
+    out.println(", childrenSize=" + getChildrenList(snapshot).size());
+
     if (prefix.length() >= 2) {
       prefix.setLength(prefix.length() - 2);
       prefix.append("  ");

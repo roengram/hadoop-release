@@ -19,12 +19,15 @@ package org.apache.hadoop.hdfs.server.namenode;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.Arrays;
 
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 
 public class INodeFile extends INode {
@@ -133,7 +136,7 @@ public class INodeFile extends INode {
 
   @Override
   public Pair<? extends INodeFile, ? extends INodeFile> createSnapshotCopy() {
-    return parent.replaceINodeFile(this).createSnapshotCopy();
+    return parent.replaceChild4INodeFileWithSnapshot(this).createSnapshotCopy();
   }
 
   /** @return the replication factor of the file. */
@@ -302,5 +305,23 @@ public class INodeFile extends INode {
     if (this.blocks == null || this.blocks.length == 0)
       return null;
     return this.blocks[this.blocks.length - 1];
+  }
+  
+  @Override
+  public void dumpTreeRecursively(PrintWriter out, StringBuilder prefix,
+      final Snapshot snapshot) {
+    super.dumpTreeRecursively(out, prefix, snapshot);
+    out.print(", fileSize=" + computeFileSize());
+    out.print(", blocks=" + (blocks == null? null: Arrays.asList(blocks)));
+    if (this instanceof FileWithSnapshot) {
+      final FileWithSnapshot withSnapshot = (FileWithSnapshot) this;
+      final FileWithSnapshot next = withSnapshot.getNext();
+      // next link pointing to itself is equivalent to no link 
+      if (withSnapshot.getNext() != this) {
+        out.print(", next="
+            + (next != null ? next.asINodeFile().getObjectString() : "null"));
+      }
+    }
+    out.println();
   }
 }
