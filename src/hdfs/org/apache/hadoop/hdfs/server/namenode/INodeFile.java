@@ -214,11 +214,16 @@ public class INodeFile extends INode {
   }
 
   @Override
-  public int collectSubtreeBlocksAndClear(BlocksMapUpdateInfo info) {
+  public int destroySubtreeAndCollectBlocks(final Snapshot snapshot,
+      final BlocksMapUpdateInfo collectedBlocks) {
+    if (snapshot != null) {
+      return 0;
+    }
+
     parent = null;
-    if (blocks != null && info != null) {
+    if (blocks != null && collectedBlocks != null) {
       for (BlockInfo blk : blocks) {
-        info.addDeleteBlock(blk);
+        collectedBlocks.addDeleteBlock(blk);
         blk.setINode(null);
       }
     }
