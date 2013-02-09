@@ -579,8 +579,8 @@ public class INodeDirectory extends INode {
    *         Note that the returned list is never null.
    */
   public ReadOnlyList<INode> getChildrenList(final Snapshot snapshot) {
-    return children == null ? EMPTY_READ_ONLY_LIST : ReadOnlyList.Util
-        .asReadOnlyList(children);
+    return children == null ? ReadOnlyList.Util.<INode> emptyList()
+        : ReadOnlyList.Util.asReadOnlyList(children);
   }
   
   /** Set the children list. */

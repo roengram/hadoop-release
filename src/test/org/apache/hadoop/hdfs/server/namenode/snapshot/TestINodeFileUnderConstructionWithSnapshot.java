@@ -119,7 +119,7 @@ public class TestINodeFileUnderConstructionWithSnapshot {
     assertEquals(BLOCKSIZE * 1, ((INodeFile) fileNode).computeFileSize());
     INodeDirectorySnapshottable dirNode = (INodeDirectorySnapshottable) fsdir
         .getINode(dir.toString());
-    ChildrenDiff diff = dirNode.getLastSnapshotDiff().getDiff();
+    ChildrenDiff diff = dirNode.getDiffs().getLast().getChildrenDiff();
     INode nodeInDeleted_S0 = diff.searchDeleted(fileNode.getLocalNameBytes());
     assertTrue(nodeInDeleted_S0 instanceof INodeFileUnderConstructionSnapshot);
     assertEquals(BLOCKSIZE, ((INodeFile) nodeInDeleted_S0).computeFileSize());
