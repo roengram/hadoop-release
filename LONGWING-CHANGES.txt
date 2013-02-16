@@ -7,6 +7,9 @@ LONGWING changes
     HADOOP-8923. Do not show intermediate web-ui page when authentication cookie
     (SPENGO/custom) expires. (Benoy Antony via acmurthy)
 
+    HADOOP-9296. Allow users from different realm to authenticate without a
+    trust relationship. (Benoy Antony via acmurthy)
+
   Changes now available from Apache
 
     HADOOP-8878. Uppercase namenode hostname causes issues with security turned

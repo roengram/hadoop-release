@@ -75,32 +75,40 @@ public class SaslRpcClient {
           SaslRpcServer.SASL_PROPS, new SaslClientCallbackHandler(token));
       break;
     case KERBEROS:
-      if (LOG.isDebugEnabled()) {
-        LOG
-            .debug("Creating SASL " + AuthMethod.KERBEROS.getMechanismName()
-                + " client. Server's Kerberos principal name is "
-                + serverPrincipal);
-      }
-      if (serverPrincipal == null || serverPrincipal.length() == 0) {
-        throw new IOException(
-            "Failed to specify server's Kerberos principal name");
-      }
-      String names[] = SaslRpcServer.splitKerberosName(serverPrincipal);
-      if (names.length != 3) {
-        throw new IOException(
-          "Kerberos principal name does NOT have the expected hostname part: "
-                + serverPrincipal);
-      }
-      saslClient = Sasl.createSaslClient(new String[] { AuthMethod.KERBEROS
-          .getMechanismName() }, null, names[0], names[1],
-          SaslRpcServer.SASL_PROPS, null);
-      break;
+    case KERBEROS_USER_REALM:
+    	saslClient = createKerberosClient(serverPrincipal);
+        break;
     default:
       throw new IOException("Unknown authentication method " + method);
     }
     if (saslClient == null)
       throw new IOException("Unable to find SASL client implementation");
   }
+
+
+  private SaslClient createKerberosClient(String serverPrincipal) throws IOException,
+  SaslException {
+    if (LOG.isDebugEnabled()) {
+      LOG
+      .debug("Creating SASL " + AuthMethod.KERBEROS.getMechanismName()
+          + " client. Server's Kerberos principal name is "
+          + serverPrincipal);
+    }
+    if (serverPrincipal == null || serverPrincipal.length() == 0) {
+      throw new IOException(
+      "Failed to specify server's Kerberos principal name");
+    }
+    String names[] = SaslRpcServer.splitKerberosName(serverPrincipal);
+    if (names.length != 3) {
+      throw new IOException(
+          "Kerberos principal name does NOT have the expected hostname part: "
+          + serverPrincipal);
+    }
+    return Sasl.createSaslClient(new String[] { AuthMethod.KERBEROS
+        .getMechanismName() }, null, names[0], names[1],
+        SaslRpcServer.SASL_PROPS, null);
+  }
+
 
   private static void readStatus(DataInputStream inStream) throws IOException {
     int status = inStream.readInt(); // read status

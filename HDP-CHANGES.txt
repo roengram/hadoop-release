@@ -42,3 +42,7 @@ Condor release branched from Apache @ https://svn.apache.org/repos/asf/hadoop/co
 
     HDFS-4108. Fix dfsnodelist to work in secure mode. Contributed by Benoy
     Antony.
+ 
+    HADOOP-9296. Allow users from different realm to authenticate without a
+    trust relationship. (Benoy Antony via acmurthy)
+

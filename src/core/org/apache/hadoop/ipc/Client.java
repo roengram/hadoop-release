@@ -55,6 +55,7 @@ import org.apache.hadoop.io.retry.RetryPolicies;
 import org.apache.hadoop.io.retry.RetryPolicy;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.KerberosInfo;
+import org.apache.hadoop.security.MultiRealmUserAuthentication;
 import org.apache.hadoop.security.SaslRpcClient;
 import org.apache.hadoop.security.SaslRpcServer.AuthMethod;
 import org.apache.hadoop.security.SecurityUtil;
@@ -273,7 +274,14 @@ public class Client {
         authMethod = AuthMethod.SIMPLE;
       } else if (token != null) {
         authMethod = AuthMethod.DIGEST;
-      } else {
+      } else  if  ( MultiRealmUserAuthentication.isAUserInADifferentRealm (ticket, conf) ){
+        authMethod =   AuthMethod.KERBEROS_USER_REALM;
+        serverPrincipal  = MultiRealmUserAuthentication.replaceRealmWithUserRealm(serverPrincipal, conf);
+        if (LOG.isDebugEnabled()){
+          LOG.debug("AuthMehod is KERBEROS_USER_REALM and serverPrincipal is changed to " + serverPrincipal);
+        }
+      }
+      else {
         authMethod = AuthMethod.KERBEROS;
       }
       
@@ -290,7 +298,8 @@ public class Client {
       this.setDaemon(true);
     }
 
-    /** Update lastActivity with the current time. */
+
+	/** Update lastActivity with the current time. */
     private void touch() {
       lastActivity.set(System.currentTimeMillis());
     }
@@ -380,7 +389,8 @@ public class Client {
       UserGroupInformation currentUser = 
         UserGroupInformation.getCurrentUser();
       UserGroupInformation realUser = currentUser.getRealUser();
-      if (authMethod == AuthMethod.KERBEROS && 
+      if ((authMethod == AuthMethod.KERBEROS || 
+    		  authMethod == AuthMethod.KERBEROS_USER_REALM) && 
           loginUser != null &&
           //Make sure user logged in using Kerberos either keytab or TGT
           loginUser.hasKerberosCredentials() && 
@@ -584,7 +594,8 @@ public class Client {
             final InputStream in2 = inStream;
             final OutputStream out2 = outStream;
             UserGroupInformation ticket = remoteId.getTicket();
-            if (authMethod == AuthMethod.KERBEROS) {
+            if (authMethod == AuthMethod.KERBEROS || 
+                authMethod == AuthMethod.KERBEROS_USER_REALM) {
               if (ticket.getRealUser() != null) {
                 ticket = ticket.getRealUser();
               }

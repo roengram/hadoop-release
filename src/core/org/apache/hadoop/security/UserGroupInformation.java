@@ -351,6 +351,8 @@ public class UserGroupInformation {
       "hadoop-user-kerberos";
     private static final String KEYTAB_KERBEROS_CONFIG_NAME = 
       "hadoop-keytab-kerberos";
+    private static final String SERVER_KEYTAB_KERBEROS_CONFIG_NAME = 
+      "server-hadoop-keytab-kerberos";
     
     private static final AppConfigurationEntry OS_SPECIFIC_LOGIN =
       new AppConfigurationEntry(OS_LOGIN_MODULE_NAME,
@@ -387,6 +389,19 @@ public class UserGroupInformation {
       new AppConfigurationEntry(KerberosUtil.getKrb5LoginModuleName(),
                                 LoginModuleControlFlag.REQUIRED,
                                 KEYTAB_KERBEROS_OPTIONS);
+    private static final Map<String,String> SERVER_KEYTAB_KERBEROS_OPTIONS = 
+      new HashMap<String,String>();
+    static {
+      SERVER_KEYTAB_KERBEROS_OPTIONS.put("doNotPrompt", "true");
+      SERVER_KEYTAB_KERBEROS_OPTIONS.put("useKeyTab", "true");
+      SERVER_KEYTAB_KERBEROS_OPTIONS.put("storeKey", "true");
+      SERVER_KEYTAB_KERBEROS_OPTIONS.put("isInitiator", "false");
+    }
+
+    private static final AppConfigurationEntry SERVER_KEYTAB_KERBEROS_LOGIN =
+      new AppConfigurationEntry(KerberosUtil.getKrb5LoginModuleName(),
+          LoginModuleControlFlag.REQUIRED,
+          SERVER_KEYTAB_KERBEROS_OPTIONS);
     
     private static final AppConfigurationEntry[] SIMPLE_CONF = 
       new AppConfigurationEntry[]{OS_SPECIFIC_LOGIN, HADOOP_LOGIN};
@@ -397,6 +412,10 @@ public class UserGroupInformation {
 
     private static final AppConfigurationEntry[] KEYTAB_KERBEROS_CONF =
       new AppConfigurationEntry[]{KEYTAB_KERBEROS_LOGIN, HADOOP_LOGIN};
+    
+    private static final AppConfigurationEntry[] SERVER_KEYTAB_KERBEROS_CONF =
+      new AppConfigurationEntry[]{SERVER_KEYTAB_KERBEROS_LOGIN, HADOOP_LOGIN};
+
 
     @Override
     public AppConfigurationEntry[] getAppConfigurationEntry(String appName) {
@@ -409,6 +428,11 @@ public class UserGroupInformation {
         KEYTAB_KERBEROS_OPTIONS.put("principal", keytabPrincipal);
         return KEYTAB_KERBEROS_CONF;
       }
+      else if (SERVER_KEYTAB_KERBEROS_CONFIG_NAME.equals(appName)) {
+        SERVER_KEYTAB_KERBEROS_OPTIONS.put("keyTab", keytabFile);
+        SERVER_KEYTAB_KERBEROS_OPTIONS.put("principal", keytabPrincipal);
+        return SERVER_KEYTAB_KERBEROS_CONF;
+      }      
       return null;
     }
   }
@@ -700,7 +724,6 @@ public class UserGroupInformation {
     } 
   }
 
-
   /**
    * Log a user in from a keytab file. Loads a user identity from a keytab
    * file and login them in. This new user does not affect the currently
@@ -711,8 +734,28 @@ public class UserGroupInformation {
    */
   public synchronized
   static UserGroupInformation loginUserFromKeytabAndReturnUGI(String user,
-                                  String path
-                                  ) throws IOException {
+                                  String path) throws IOException {
+    return loginUserFromKeytabAndReturnUGI(user, path, 
+        HadoopConfiguration.KEYTAB_KERBEROS_CONFIG_NAME);
+  }
+  
+  /**
+   * Log in a Server using the current keytab.
+   * This will not make a call to the KDC
+   * @param server the principal name to load from the keytab
+   * @throws IOException if the keytab file can't be read
+   */
+  public synchronized
+  static UserGroupInformation loginServerFromCurrentKeytabAndReturnUGI(String server) 
+    throws IOException {
+    return loginUserFromKeytabAndReturnUGI(server, keytabFile, 
+        HadoopConfiguration.SERVER_KEYTAB_KERBEROS_CONFIG_NAME);
+  }
+  
+  private synchronized
+  static UserGroupInformation loginUserFromKeytabAndReturnUGI(String user,
+                                  String path,
+                                  String hadoopConfiguration) throws IOException {
     if (!isSecurityEnabled())
       return UserGroupInformation.getCurrentUser();
     String oldKeytabFile = null;
@@ -726,8 +769,7 @@ public class UserGroupInformation {
       keytabPrincipal = user;
       Subject subject = new Subject();
       
-      LoginContext login = 
-        newLoginContext(HadoopConfiguration.KEYTAB_KERBEROS_CONFIG_NAME, subject); 
+      LoginContext login = newLoginContext(hadoopConfiguration, subject); 
        
       start = System.currentTimeMillis();
       login.login();
@@ -748,7 +790,7 @@ public class UserGroupInformation {
       if(oldKeytabPrincipal != null) keytabPrincipal = oldKeytabPrincipal;
     }
   }
-
+  
   /**
    * Re-login a user from keytab if TGT is expired or is close to expiry.
    * 

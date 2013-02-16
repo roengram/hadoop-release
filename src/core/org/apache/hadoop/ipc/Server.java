@@ -18,6 +18,10 @@
 
 package org.apache.hadoop.ipc;
 
+import static org.apache.hadoop.fs.CommonConfigurationKeys.HADOOP_SECURITY_AUTHORIZATION;
+import static org.apache.hadoop.fs.CommonConfigurationKeys.IPC_SERVER_RPC_READ_THREADS_DEFAULT;
+import static org.apache.hadoop.fs.CommonConfigurationKeys.IPC_SERVER_RPC_READ_THREADS_KEY;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -50,10 +54,9 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.LinkedBlockingQueue;
 
 import javax.security.sasl.Sasl;
 import javax.security.sasl.SaslException;
@@ -65,17 +68,17 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.IntWritable;
-import static org.apache.hadoop.fs.CommonConfigurationKeys.*;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableUtils;
 import org.apache.hadoop.ipc.metrics.RpcInstrumentation;
 import org.apache.hadoop.security.AccessControlException;
+import org.apache.hadoop.security.MultiRealmUserAuthentication;
 import org.apache.hadoop.security.SaslRpcServer;
-import org.apache.hadoop.security.SaslRpcServer.SaslStatus;
-import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.SaslRpcServer.AuthMethod;
 import org.apache.hadoop.security.SaslRpcServer.SaslDigestCallbackHandler;
 import org.apache.hadoop.security.SaslRpcServer.SaslGssCallbackHandler;
+import org.apache.hadoop.security.SaslRpcServer.SaslStatus;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.UserGroupInformation.AuthenticationMethod;
 import org.apache.hadoop.security.authorize.AuthorizationException;
 import org.apache.hadoop.security.authorize.ProxyUsers;
@@ -972,27 +975,14 @@ public abstract class Server {
                   SaslRpcServer.SASL_PROPS, new SaslDigestCallbackHandler(
                       secretManager, this));
               break;
+            case KERBEROS_USER_REALM:
+              UserGroupInformation ugi = MultiRealmUserAuthentication.getServerUGIForUserRealm(conf);
+              createSaslServer(ugi);
+              break;
             default:
               UserGroupInformation current = UserGroupInformation
-                  .getCurrentUser();
-              String fullName = current.getUserName();
-              if (LOG.isDebugEnabled())
-                LOG.debug("Kerberos principal name is " + fullName);
-              final String names[] = SaslRpcServer.splitKerberosName(fullName);
-              if (names.length != 3) {
-                throw new AccessControlException(
-                    "Kerberos principal name does NOT have the expected "
-                        + "hostname part: " + fullName);
-              }
-              current.doAs(new PrivilegedExceptionAction<Object>() {
-                @Override
-                public Object run() throws SaslException {
-                  saslServer = Sasl.createSaslServer(AuthMethod.KERBEROS
-                      .getMechanismName(), names[0], names[1],
-                      SaslRpcServer.SASL_PROPS, new SaslGssCallbackHandler());
-                  return null;
-                }
-              });
+              .getCurrentUser();
+              createSaslServer(current);
             }
             if (saslServer == null)
               throw new AccessControlException(
@@ -1059,6 +1049,28 @@ public abstract class Server {
           processUnwrappedData(plaintextData);
         }
       }
+    }
+
+    private void createSaslServer(UserGroupInformation ugi)
+        throws AccessControlException, IOException, InterruptedException {
+      String fullName = ugi.getUserName();
+      if (LOG.isDebugEnabled())
+        LOG.debug("Kerberos principal name is " + fullName);
+      final String names[] = SaslRpcServer.splitKerberosName(fullName);
+      if (names.length != 3) {
+        throw new AccessControlException(
+            "Kerberos principal name does NOT have the expected "
+            + "hostname part: " + fullName);
+      }
+      ugi.doAs(new PrivilegedExceptionAction<Object>() {
+        @Override
+        public Object run() throws SaslException {
+          saslServer = Sasl.createSaslServer(AuthMethod.KERBEROS
+              .getMechanismName(), names[0], names[1],
+              SaslRpcServer.SASL_PROPS, new SaslGssCallbackHandler());
+          return null;
+        }
+      });
     }
     
     private void doSaslReply(SaslStatus status, Writable rv,
