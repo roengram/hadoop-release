@@ -1,0 +1,13 @@
+Condor release branched from Apache @ https://svn.apache.org/repos/asf/hadoop/common/branches/branch-1@1446352 13f79535-47bb-0310-9956-ffa450edef68
+
+
+ INCOMPATIBLE CHANGES
+
+
+ NEW FEATURES
+
+
+ IMPROVEMENTS
+
+
+ BUG FIXES
