@@ -823,7 +823,7 @@ public class FSImage extends Storage {
     if (latestNameCheckpointTime > latestEditsCheckpointTime) {
       // the image is already current, discard edits
       needToSave |= true;
-      FSNamesystem.getFSNamesystem().dir.updateCountForINodeWithQuota();
+      updateCountForQuota(FSNamesystem.getFSNamesystem().dir.rootDir);
     } else { // latestNameCheckpointTime == latestEditsCheckpointTime
       needToSave |= (loadFSEdits(latestEditsSD, recovery) > 0);
     }

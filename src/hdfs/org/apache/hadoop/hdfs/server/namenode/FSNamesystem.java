@@ -140,6 +140,8 @@ import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.VersionInfo;
 import org.mortbay.util.ajax.JSON;
 
+import sun.security.provider.PolicyParser.PermissionEntry;
+
 /***************************************************
  * FSNamesystem does the actual bookkeeping work for the
  * DataNode.
@@ -198,6 +200,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   private boolean isPermissionEnabled;
   private boolean persistBlocks;
   private UserGroupInformation fsOwner;
+  private String fsOwnerShortUserName;
   private String supergroup;
   private PermissionStatus defaultPermission;
   // FSNamesystemMetrics counter variables
@@ -523,6 +526,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
                                           throws IOException {
     fsNamesystemObject = this;
     fsOwner = UserGroupInformation.getCurrentUser();
+    this.fsOwnerShortUserName = fsOwner.getShortUserName();
     LOG.info("fsOwner=" + fsOwner);
 
     this.supergroup = conf.get("dfs.permissions.supergroup", "supergroup");
@@ -535,7 +539,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     
     short filePermission = (short)conf.getInt("dfs.upgrade.permission", 0777);
     this.defaultPermission = PermissionStatus.createImmutable(
-        fsOwner.getShortUserName(), supergroup, new FsPermission(filePermission));
+        fsOwnerShortUserName, supergroup, new FsPermission(filePermission));
 
     this.blocksInvalidateWorkPct = 
               DFSUtil.getInvalidateWorkPctPerIteration(conf);
@@ -745,91 +749,90 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   /**
    * Dump all metadata into specified file
    */
-  synchronized void metaSave(String filename) throws IOException {
+  void metaSave(String filename) throws IOException {
     checkSuperuserPrivilege();
-    File file = new File(System.getProperty("hadoop.log.dir"), 
-                         filename);
-    PrintWriter out = new PrintWriter(new BufferedWriter(
-                                                         new FileWriter(file, true)));
- 
-    long totalInodes = this.dir.totalInodes();
-    long totalBlocks = this.getBlocksTotal();
+    synchronized (this) {
+      File file = new File(System.getProperty("hadoop.log.dir"), filename);
+      PrintWriter out = new PrintWriter(new BufferedWriter(new FileWriter(file,
+          true)));
 
-    ArrayList<DatanodeDescriptor> live = new ArrayList<DatanodeDescriptor>();
-    ArrayList<DatanodeDescriptor> dead = new ArrayList<DatanodeDescriptor>();
-    this.DFSNodesStatus(live, dead);
-    
-    String str = totalInodes + " files and directories, " + totalBlocks
-        + " blocks = " + (totalInodes + totalBlocks) + " total";
-    out.println(str);
-    out.println("Live Datanodes: "+live.size());
-    out.println("Dead Datanodes: "+dead.size());
+      long totalInodes = this.dir.totalInodes();
+      long totalBlocks = this.getBlocksTotal();
 
-    //
-    // Dump contents of neededReplication
-    //
-    synchronized (neededReplications) {
-      out.println("Metasave: Blocks waiting for replication: " + 
-                  neededReplications.size());
-      for (Block block : neededReplications) {
-        List<DatanodeDescriptor> containingNodes =
-                                          new ArrayList<DatanodeDescriptor>();
-        NumberReplicas numReplicas = new NumberReplicas();
-        // source node returned is not used
-        chooseSourceDatanode(block, containingNodes, numReplicas);
-        int usableReplicas = numReplicas.liveReplicas() + 
-                             numReplicas.decommissionedReplicas(); 
+      ArrayList<DatanodeDescriptor> live = new ArrayList<DatanodeDescriptor>();
+      ArrayList<DatanodeDescriptor> dead = new ArrayList<DatanodeDescriptor>();
+      this.DFSNodesStatus(live, dead);
 
-        if (block instanceof BlockInfo) {
-          String fileName = FSDirectory.getFullPathName(((BlockInfo) block)
-              .getINode());
-          out.print(fileName + ": ");
-        }
+      String str = totalInodes + " files and directories, " + totalBlocks
+          + " blocks = " + (totalInodes + totalBlocks) + " total";
+      out.println(str);
+      out.println("Live Datanodes: " + live.size());
+      out.println("Dead Datanodes: " + dead.size());
 
-        // l: == live:, d: == decommissioned c: == corrupt e: == excess
-        out.print(block + ((usableReplicas > 0)? "" : " MISSING") +
-                  " (replicas:" +
-                  " l: " + numReplicas.liveReplicas() + 
-                  " d: " + numReplicas.decommissionedReplicas() + 
-                  " c: " + numReplicas.corruptReplicas() + 
-                  " e: " + numReplicas.excessReplicas() + ") ");
+      //
+      // Dump contents of neededReplication
+      //
+      synchronized (neededReplications) {
+        out.println("Metasave: Blocks waiting for replication: "
+            + neededReplications.size());
+        for (Block block : neededReplications) {
+          List<DatanodeDescriptor> containingNodes = new ArrayList<DatanodeDescriptor>();
+          NumberReplicas numReplicas = new NumberReplicas();
+          // source node returned is not used
+          chooseSourceDatanode(block, containingNodes, numReplicas);
+          int usableReplicas = numReplicas.liveReplicas()
+              + numReplicas.decommissionedReplicas();
 
-        Collection<DatanodeDescriptor> corruptNodes =
-                                       corruptReplicas.getNodes(block);
-
-        for (Iterator<DatanodeDescriptor> jt = blocksMap.nodeIterator(block);
-             jt.hasNext();) {
-          DatanodeDescriptor node = jt.next();
-          String state = "";
-          if (corruptNodes != null && corruptNodes.contains(node)) {
-            state = "(corrupt)";
-          } else if (node.isDecommissioned() ||
-                     node.isDecommissionInProgress()) {
-            state = "(decommissioned)";
+          if (block instanceof BlockInfo) {
+            String fileName = FSDirectory.getFullPathName(((BlockInfo) block)
+                .getINode());
+            out.print(fileName + ": ");
           }
-          out.print(" " + node + state + " : ");
+
+          // l: == live:, d: == decommissioned c: == corrupt e: == excess
+          out.print(block + ((usableReplicas > 0) ? "" : " MISSING")
+              + " (replicas:" + " l: " + numReplicas.liveReplicas() + " d: "
+              + numReplicas.decommissionedReplicas() + " c: "
+              + numReplicas.corruptReplicas() + " e: "
+              + numReplicas.excessReplicas() + ") ");
+
+          Collection<DatanodeDescriptor> corruptNodes = corruptReplicas
+              .getNodes(block);
+
+          for (Iterator<DatanodeDescriptor> jt = blocksMap.nodeIterator(block); jt
+              .hasNext();) {
+            DatanodeDescriptor node = jt.next();
+            String state = "";
+            if (corruptNodes != null && corruptNodes.contains(node)) {
+              state = "(corrupt)";
+            } else if (node.isDecommissioned()
+                || node.isDecommissionInProgress()) {
+              state = "(decommissioned)";
+            }
+            out.print(" " + node + state + " : ");
+          }
+          out.println("");
         }
-        out.println("");
       }
+
+      //
+      // Dump blocks from pendingReplication
+      //
+      pendingReplications.metaSave(out);
+
+      //
+      // Dump blocks that are waiting to be deleted
+      //
+      dumpRecentInvalidateSets(out);
+
+      //
+      // Dump all datanodes
+      //
+      datanodeDump(out);
+
+      out.flush();
+      out.close();
     }
-
-    //
-    // Dump blocks from pendingReplication
-    //
-    pendingReplications.metaSave(out);
-
-    //
-    // Dump blocks that are waiting to be deleted
-    //
-    dumpRecentInvalidateSets(out);
-
-    //
-    // Dump all datanodes
-    //
-    datanodeDump(out);
-
-    out.flush();
-    out.close();
   }
 
   /**
@@ -901,43 +904,47 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    * @param datanode on which blocks are located
    * @param size total size of blocks
    */
-  synchronized BlocksWithLocations getBlocks(DatanodeID datanode, long size)
+  BlocksWithLocations getBlocks(DatanodeID datanode, long size)
       throws IOException {
     checkSuperuserPrivilege();
 
-    DatanodeDescriptor node = getDatanode(datanode);
-    if (node == null) {
-      NameNode.stateChangeLog.warn("BLOCK* NameSystem.getBlocks: "
-          + "Asking for blocks from an unrecorded node " + datanode.getName());
-      throw new IllegalArgumentException(
-          "Unexpected exception.  Got getBlocks message for datanode " + 
-          datanode.getName() + ", but there is no info for it");
-    }
+    synchronized (this) {
+      DatanodeDescriptor node = getDatanode(datanode);
+      if (node == null) {
+        NameNode.stateChangeLog
+            .warn("BLOCK* NameSystem.getBlocks: "
+                + "Asking for blocks from an unrecorded node "
+                + datanode.getName());
+        throw new IllegalArgumentException(
+            "Unexpected exception.  Got getBlocks message for datanode "
+                + datanode.getName() + ", but there is no info for it");
+      }
 
-    int numBlocks = node.numBlocks();
-    if(numBlocks == 0) {
-      return new BlocksWithLocations(new BlockWithLocations[0]);
-    }
-    Iterator<Block> iter = node.getBlockIterator();
-    int startBlock = r.nextInt(numBlocks); // starting from a random block
-    // skip blocks
-    for(int i=0; i<startBlock; i++) {
-      iter.next();
-    }
-    List<BlockWithLocations> results = new ArrayList<BlockWithLocations>();
-    long totalSize = 0;
-    while(totalSize<size && iter.hasNext()) {
-      totalSize += addBlock(iter.next(), results);
-    }
-    if(totalSize<size) {
-      iter = node.getBlockIterator(); // start from the beginning
-      for(int i=0; i<startBlock&&totalSize<size; i++) {
+      int numBlocks = node.numBlocks();
+      if (numBlocks == 0) {
+        return new BlocksWithLocations(new BlockWithLocations[0]);
+      }
+      Iterator<Block> iter = node.getBlockIterator();
+      int startBlock = r.nextInt(numBlocks); // starting from a random block
+      // skip blocks
+      for (int i = 0; i < startBlock; i++) {
+        iter.next();
+      }
+      List<BlockWithLocations> results = new ArrayList<BlockWithLocations>();
+      long totalSize = 0;
+      while (totalSize < size && iter.hasNext()) {
         totalSize += addBlock(iter.next(), results);
       }
+      if (totalSize < size) {
+        iter = node.getBlockIterator(); // start from the beginning
+        for (int i = 0; i < startBlock && totalSize < size; i++) {
+          totalSize += addBlock(iter.next(), results);
+        }
+      }
+
+      return new BlocksWithLocations(
+          results.toArray(new BlockWithLocations[results.size()]));
     }
-    
-    return new BlocksWithLocations(
-        results.toArray(new BlockWithLocations[results.size()]));
   }
   
   /**
@@ -986,10 +993,12 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    */
   public void setPermission(String src, FsPermission permission
       ) throws IOException {
+    FSPermissionChecker pc = new FSPermissionChecker(fsOwnerShortUserName,
+        supergroup);
     synchronized (this) {
       if (isInSafeMode())
          throw new SafeModeException("Cannot set permission for " + src, safeMode);
-      checkOwner(src);
+      checkOwner(pc, src);
       dir.setPermission(src, permission);
     }
     getEditLog().logSync();
@@ -1007,12 +1016,14 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    */
   public void setOwner(String src, String username, String group
       ) throws IOException {
+    FSPermissionChecker pc = new FSPermissionChecker(fsOwnerShortUserName,
+        supergroup);
     synchronized (this) {
       if (isInSafeMode())
          throw new SafeModeException("Cannot set owner for " + src, safeMode);
-      FSPermissionChecker pc = checkOwner(src);
-      if (!pc.isSuper) {
-        if (username != null && !pc.user.equals(username)) {
+      checkOwner(pc, src);
+      if (!pc.isSuperUser()) {
+        if (username != null && !pc.getUser().equals(username)) {
           throw new AccessControlException("Non-super user cannot change owner");
         }
         if (group != null && !pc.containsGroup(group)) {
@@ -1087,7 +1098,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       boolean doAccessTime, boolean needBlockToken, boolean checkSafeMode)
       throws IOException {
     if (isPermissionEnabled) {
-      checkPathAccess(src, FsAction.READ);
+      FSPermissionChecker pc = getPermissionChecker();
+      checkPathAccess(pc, src, FsAction.READ);
     }
 
     if (offset < 0) {
@@ -1247,12 +1259,13 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       }
     }
 
+    FSPermissionChecker pc = getPermissionChecker();
     HdfsFileStatus resultingStat = null;
     synchronized(this) {
       if (isInSafeMode()) {
         throw new SafeModeException("Cannot concat " + target, safeMode);
       }
-      concatInternal(target, srcs);
+      concatInternal(pc, target, srcs);
       if (auditLog.isInfoEnabled() && isExternalInvocation()) {
         resultingStat = dir.getFileInfo(target);
       }
@@ -1266,17 +1279,17 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   }
 
   /** See {@link #concat(String, String[])} */
-  private void concatInternal(String target, String [] srcs) 
+  private void concatInternal(FSPermissionChecker pc, String target, String [] srcs) 
       throws IOException {
 
     // write permission for the target
     if (isPermissionEnabled) {
-      checkPathAccess(target, FsAction.WRITE);
+      checkPathAccess(pc, target, FsAction.WRITE);
 
       // and srcs
       for(String aSrc: srcs) {
-        checkPathAccess(aSrc, FsAction.READ); // read the file
-        checkParentAccess(aSrc, FsAction.WRITE); // for delete 
+        checkPathAccess(pc, aSrc, FsAction.READ); // read the file
+        checkParentAccess(pc, aSrc, FsAction.WRITE); // for delete 
       }
     }
 
@@ -1374,31 +1387,34 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    * The access time is precise upto an hour. The transaction, if needed, is
    * written to the edits log but is not flushed.
    */
-  public synchronized void setTimes(String src, long mtime, long atime) throws IOException {
+  public void setTimes(String src, long mtime, long atime) throws IOException {
     if (!isAccessTimeSupported() && atime != -1) {
       throw new IOException("Access time for hdfs is not configured. " +
                             " Please set dfs.access.time.precision configuration parameter");
     }
-    if (isInSafeMode()) {
-      throw new SafeModeException("Cannot set accesstimes  for " + src, safeMode);
-    }
-    //
-    // The caller needs to have write access to set access & modification times.
-    if (isPermissionEnabled) {
-      checkPathAccess(src, FsAction.WRITE);
-    }
-    final INodesInPath iip = dir.getINodesInPath4Write(src);
-    final INodeFile inode = INodeFile.valueOf(iip.getLastINode(), src);
-    if (inode != null) {
-      dir.setTimes(src, inode, mtime, atime, true, iip.getLatestSnapshot());
-      if (auditLog.isInfoEnabled() && isExternalInvocation()) {
-        final HdfsFileStatus stat = dir.getFileInfo(src);
-        logAuditEvent(UserGroupInformation.getCurrentUser(),
-                      Server.getRemoteIp(),
-                      "setTimes", src, null, stat);
+    FSPermissionChecker pc = getPermissionChecker();
+    synchronized (this) {
+      if (isInSafeMode()) {
+        throw new SafeModeException("Cannot set accesstimes  for " + src, safeMode);
       }
-    } else {
-      throw new FileNotFoundException("File " + src + " does not exist");
+      //
+      // The caller needs to have write access to set access & modification times.
+      if (isPermissionEnabled) {
+        checkPathAccess(pc, src, FsAction.WRITE);
+      }
+      final INodesInPath iip = dir.getINodesInPath4Write(src);
+      final INodeFile inode = INodeFile.valueOf(iip.getLastINode(), src);
+      if (inode != null) {
+        dir.setTimes(src, inode, mtime, atime, true, iip.getLatestSnapshot());
+        if (auditLog.isInfoEnabled() && isExternalInvocation()) {
+          final HdfsFileStatus stat = dir.getFileInfo(src);
+          logAuditEvent(UserGroupInformation.getCurrentUser(),
+                        Server.getRemoteIp(),
+                        "setTimes", src, null, stat);
+        }
+      } else {
+        throw new FileNotFoundException("File " + src + " does not exist");
+      }
     }
   }
 
@@ -1427,45 +1443,50 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     return status;
   }
 
-  private synchronized boolean setReplicationInternal(String src, 
+  private boolean setReplicationInternal(String src,
                                              short replication
                                              ) throws IOException {
-    if (isInSafeMode())
-      throw new SafeModeException("Cannot set replication for " + src, safeMode);
-    verifyReplication(src, replication, null);
-    if (isPermissionEnabled) {
-      checkPathAccess(src, FsAction.WRITE);
-    }
+    FSPermissionChecker pc = getPermissionChecker();
+    synchronized (this) {
+      if (isInSafeMode())
+        throw new SafeModeException("Cannot set replication for " + src,
+            safeMode);
+      verifyReplication(src, replication, null);
+      if (isPermissionEnabled) {
+        checkPathAccess(pc, src, FsAction.WRITE);
+      }
 
-    int[] oldReplication = new int[1];
-    Block[] fileBlocks;
-    fileBlocks = dir.setReplication(src, replication, oldReplication);
-    if (fileBlocks == null)  // file not found or is a directory
-      return false;
-    int oldRepl = oldReplication[0];
-    if (oldRepl == replication) // the same replication
-      return true;
+      int[] oldReplication = new int[1];
+      Block[] fileBlocks;
+      fileBlocks = dir.setReplication(src, replication, oldReplication);
+      if (fileBlocks == null) // file not found or is a directory
+        return false;
+      int oldRepl = oldReplication[0];
+      if (oldRepl == replication) // the same replication
+        return true;
 
-    // update needReplication priority queues
-    for(int idx = 0; idx < fileBlocks.length; idx++)
-      updateNeededReplications(fileBlocks[idx], 0, replication-oldRepl);
-      
-    if (oldRepl > replication) {  
-      // old replication > the new one; need to remove copies
-      LOG.info("Reducing replication for " + src 
-               + ". New replication is " + replication);
+      // update needReplication priority queues
       for(int idx = 0; idx < fileBlocks.length; idx++)
-        processOverReplicatedBlock(fileBlocks[idx], replication, null, null);
-    } else { // replication factor is increased
-      LOG.info("Increasing replication for " + src 
-          + ". New replication is " + replication);
+        updateNeededReplications(fileBlocks[idx], 0, replication - oldRepl);
+
+      if (oldRepl > replication) {
+        // old replication > the new one; need to remove copies
+        LOG.info("Reducing replication for " + src 
+            + ". New replication is " + replication);
+        for (int idx = 0; idx < fileBlocks.length; idx++)
+          processOverReplicatedBlock(fileBlocks[idx], replication, null, null);
+      } else { // replication factor is increased
+        LOG.info("Increasing replication for " + src
+            + ". New replication is " + replication);
+      }
     }
     return true;
   }
     
   long getPreferredBlockSize(String filename) throws IOException {
     if (isPermissionEnabled) {
-      checkTraverse(filename);
+      FSPermissionChecker pc = getPermissionChecker();
+      checkTraverse(pc, filename);
     }
     return dir.getPreferredBlockSize(filename);
   }
@@ -1532,7 +1553,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     }
   }
 
-  private synchronized void startFileInternal(String src,
+  private void startFileInternal(String src,
                                               PermissionStatus permissions,
                                               String holder, 
                                               String clientMachine, 
@@ -1552,6 +1573,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
           + ", append=" + append);
     }
 
+    FSPermissionChecker pc = getPermissionChecker();
+    synchronized (this) {
     if (isInSafeMode())
       throw new SafeModeException("Cannot create " + src, safeMode);
     if (!DFSUtil.isValidName(src)) {
@@ -1567,10 +1590,10 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
 
     if (isPermissionEnabled) {
       if (append || (overwrite && myFile != null)) {
-        checkPathAccess(src, FsAction.WRITE);
+        checkPathAccess(pc, src, FsAction.WRITE);
       }
       else {
-        checkAncestorAccess(src, FsAction.WRITE);
+        checkAncestorAccess(pc, src, FsAction.WRITE);
       }
     }
 
@@ -1644,6 +1667,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
                                    +ie.getMessage());
       throw ie;
     }
+    }
   }
 
   /**
@@ -1657,29 +1681,32 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    * @return true if the file is already closed
    * @throws IOException
    */
-  synchronized boolean recoverLease(String src, String holder, String clientMachine)
+  boolean recoverLease(String src, String holder, String clientMachine)
   throws IOException {
-    if (isInSafeMode()) {
-      throw new SafeModeException(
-          "Cannot recover the lease of " + src, safeMode);
-    }
-    if (!DFSUtil.isValidName(src)) {
-      throw new IOException("Invalid name: " + src);
-    }
+    FSPermissionChecker pc = getPermissionChecker();
+    synchronized (this) {
+      if (isInSafeMode()) {
+        throw new SafeModeException("Cannot recover the lease of " + src,
+            safeMode);
+      }
+      if (!DFSUtil.isValidName(src)) {
+        throw new IOException("Invalid name: " + src);
+      }
 
-    INodeFile inode = INodeFile.valueOf(dir.getINode(src), src);
-    if (inode == null) {
-      throw new FileNotFoundException("File not found " + src);
-    }
+      INodeFile inode = INodeFile.valueOf(dir.getINode(src), src);
+      if (inode == null) {
+        throw new FileNotFoundException("File not found " + src);
+      }
 
-    if (!inode.isUnderConstruction()) {
-      return true;
-    }
-    if (isPermissionEnabled) {
-      checkPathAccess(src, FsAction.WRITE);
-    }
+      if (!inode.isUnderConstruction()) {
+        return true;
+      }
+      if (isPermissionEnabled) {
+        checkPathAccess(pc, src, FsAction.WRITE);
+      }
 
-    recoverLeaseInternal(inode, src, holder, clientMachine, true);
+      recoverLeaseInternal(inode, src, holder, clientMachine, true);
+    }
     return false;
   }
   
@@ -2301,28 +2328,31 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     return status;
   }
 
-  private synchronized boolean renameToInternal(String src, String dst
+  private boolean renameToInternal(String src, String dst
       ) throws IOException {
     NameNode.stateChangeLog.debug("DIR* renameTo: " + src + " to " + dst);
-    if (isInSafeMode())
-      throw new SafeModeException("Cannot rename " + src, safeMode);
-    if (!DFSUtil.isValidName(dst)) {
-      throw new IOException("Invalid name: " + dst);
-    }
-
-    if (isPermissionEnabled) {
-      //We should not be doing this.  This is move() not renameTo().
-      //but for now,
-      String actualdst = dir.isDir(dst)?
-          dst + Path.SEPARATOR + new Path(src).getName(): dst;
-      checkParentAccess(src, FsAction.WRITE);
-      checkAncestorAccess(actualdst, FsAction.WRITE);
-    }
-
-    HdfsFileStatus dinfo = dir.getFileInfo(dst);
-    if (dir.renameTo(src, dst)) {
-      changeLease(src, dst, dinfo);     // update lease with new filename
-      return true;
+    FSPermissionChecker pc = getPermissionChecker();
+    synchronized (this) {
+      if (isInSafeMode())
+        throw new SafeModeException("Cannot rename " + src, safeMode);
+      if (!DFSUtil.isValidName(dst)) {
+        throw new IOException("Invalid name: " + dst);
+      }
+  
+      if (isPermissionEnabled) {
+        //We should not be doing this.  This is move() not renameTo().
+        //but for now,
+        String actualdst = dir.isDir(dst)?
+            dst + Path.SEPARATOR + new Path(src).getName(): dst;
+        checkParentAccess(pc, src, FsAction.WRITE);
+        checkAncestorAccess(pc, actualdst, FsAction.WRITE);
+      }
+  
+      HdfsFileStatus dinfo = dir.getFileInfo(dst);
+      if (dir.renameTo(src, dst)) {
+        changeLease(src, dst, dinfo);     // update lease with new filename
+        return true;
+      }
     }
     return false;
   }
@@ -2358,13 +2388,15 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    */
   private boolean deleteInternal(String src,
       boolean enforcePermission) throws IOException {
+    FSPermissionChecker pc = getPermissionChecker();
     BlocksMapUpdateInfo collectedBlocks = new BlocksMapUpdateInfo();
     synchronized (this) {
       if (isInSafeMode()) {
         throw new SafeModeException("Cannot delete " + src, safeMode);
       }
       if (enforcePermission && isPermissionEnabled) {
-        checkPermission(src, false, null, FsAction.WRITE, null, FsAction.ALL);
+        checkPermission(pc, src, false, null, FsAction.WRITE, null,
+            FsAction.ALL);
       }
       // Unlink the target directory from directory tree
       if (!dir.delete(src, collectedBlocks)) {
@@ -2436,10 +2468,13 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    *         or null if file not found
    */
   HdfsFileStatus getFileInfo(String src) throws IOException {
-    if (isPermissionEnabled) {
-      checkTraverse(src);
+    FSPermissionChecker pc = getPermissionChecker();
+    synchronized (this) {
+      if (isPermissionEnabled) {
+        checkTraverse(pc, src);
+      }
+      return dir.getFileInfo(src);
     }
-    return dir.getFileInfo(src);
   }
 
   /**
@@ -2461,42 +2496,48 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   /**
    * Create all the necessary directories
    */
-  private synchronized boolean mkdirsInternal(String src,
+  private boolean mkdirsInternal(String src,
       PermissionStatus permissions) throws IOException {
     NameNode.stateChangeLog.debug("DIR* mkdirs: " + src);
-    if (isPermissionEnabled) {
-      checkTraverse(src);
-    }
-    if (dir.isDirMutable(src)) {
-      // all the users of mkdirs() are used to expect 'true' even if
-      // a new directory is not created.
+    FSPermissionChecker pc = getPermissionChecker();
+    synchronized (this) {
+      if (isPermissionEnabled) {
+        checkTraverse(pc, src);
+      }
+      if (dir.isDirMutable(src)) {
+        // all the users of mkdirs() are used to expect 'true' even if
+        // a new directory is not created.
+        return true;
+      }
+      if (isInSafeMode())
+        throw new SafeModeException("Cannot create directory " + src, safeMode);
+      if (!DFSUtil.isValidName(src)) {
+        throw new IOException("Invalid directory name: " + src);
+      }
+      if (isPermissionEnabled) {
+        checkAncestorAccess(pc, src, FsAction.WRITE);
+      }
+
+      // validate that we have enough inodes. This is, at best, a
+      // heuristic because the mkdirs() operation migth need to
+      // create multiple inodes.
+      checkFsObjectLimit();
+
+      if (!dir.mkdirs(src, permissions, false, now())) {
+        throw new IOException("Invalid directory name: " + src);
+      }
       return true;
     }
-    if (isInSafeMode())
-      throw new SafeModeException("Cannot create directory " + src, safeMode);
-    if (!DFSUtil.isValidName(src)) {
-      throw new IOException("Invalid directory name: " + src);
-    }
-    if (isPermissionEnabled) {
-      checkAncestorAccess(src, FsAction.WRITE);
-    }
-
-    // validate that we have enough inodes. This is, at best, a 
-    // heuristic because the mkdirs() operation migth need to 
-    // create multiple inodes.
-    checkFsObjectLimit();
-
-    if (!dir.mkdirs(src, permissions, false, now())) {
-      throw new IOException("Invalid directory name: " + src);
-    }
-    return true;
   }
 
   ContentSummary getContentSummary(String src) throws IOException {
-    if (isPermissionEnabled) {
-      checkPermission(src, false, null, null, null, FsAction.READ_EXECUTE);
+    FSPermissionChecker pc = getPermissionChecker();
+    synchronized (this) {
+      if (isPermissionEnabled) {
+        checkPermission(pc, src, false, null, null, null, FsAction.READ_EXECUTE);
+      }
+      return dir.getContentSummary(src);
     }
-    return dir.getContentSummary(src);
   }
 
   /**
@@ -2505,12 +2546,10 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    * contract.
    */
   void setQuota(String path, long nsQuota, long dsQuota) throws IOException {
-   synchronized (this) {
-     if (isInSafeMode())
+    checkSuperuserPrivilege();
+    synchronized (this) {
+      if (isInSafeMode())
         throw new SafeModeException("Cannot set quota on " + path, safeMode); 
-     if (isPermissionEnabled) {
-        checkSuperuserPrivilege();
-      }
     
       dir.setQuota(path, nsQuota, dsQuota);
     }
@@ -2763,20 +2802,21 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    */
   public DirectoryListing getListing(String src, byte[] startAfter)
   throws IOException {
-    if (isPermissionEnabled) {
-      if (dir.isDir(src)) {
-        checkPathAccess(src, FsAction.READ_EXECUTE);
+    FSPermissionChecker pc = getPermissionChecker();
+    synchronized (this) {
+      if (isPermissionEnabled) {
+        if (dir.isDir(src)) {
+          checkPathAccess(pc, src, FsAction.READ_EXECUTE);
+        } else {
+          checkTraverse(pc, src);
+        }
       }
-      else {
-        checkTraverse(src);
+      if (auditLog.isInfoEnabled() && isExternalInvocation()) {
+        logAuditEvent(UserGroupInformation.getCurrentUser(),
+            Server.getRemoteIp(), "listStatus", src, null, null);
       }
+      return dir.getListing(src, startAfter);
     }
-    if (auditLog.isInfoEnabled() && isExternalInvocation()) {
-      logAuditEvent(UserGroupInformation.getCurrentUser(),
-                    Server.getRemoteIp(),
-                    "listStatus", src, null, null);
-    }
-    return dir.getListing(src, startAfter);
   }
 
   /////////////////////////////////////////////////////////
@@ -4634,16 +4674,18 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     return nodes;
   }
 
-  public synchronized DatanodeInfo[] datanodeReport( DatanodeReportType type
+  public DatanodeInfo[] datanodeReport(DatanodeReportType type
       ) throws AccessControlException {
     checkSuperuserPrivilege();
 
-    ArrayList<DatanodeDescriptor> results = getDatanodeListForReport(type);
-    DatanodeInfo[] arr = new DatanodeInfo[results.size()];
-    for (int i=0; i<arr.length; i++) {
-      arr[i] = new DatanodeInfo(results.get(i));
+    synchronized (this) {
+      ArrayList<DatanodeDescriptor> results = getDatanodeListForReport(type);
+      DatanodeInfo[] arr = new DatanodeInfo[results.size()];
+      for (int i = 0; i < arr.length; i++) {
+        arr[i] = new DatanodeInfo(results.get(i));
+      }
+      return arr;
     }
-    return arr;
   }
 
   /**
@@ -4654,14 +4696,16 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    * @throws AccessControlException if superuser privilege is violated.
    * @throws IOException if 
    */
-  synchronized void saveNamespace() throws AccessControlException, IOException {
+  void saveNamespace() throws AccessControlException, IOException {
     checkSuperuserPrivilege();
-    if(!isInSafeMode()) {
-      throw new IOException("Safe mode should be turned ON " +
-                            "in order to create namespace image");
+    synchronized (this) {
+      if(!isInSafeMode()) {
+        throw new IOException("Safe mode should be turned ON " +
+                              "in order to create namespace image");
+      }
+      getFSImage().saveNamespace(true);
+      LOG.info("New namespace image has been created");
     }
-    getFSImage().saveNamespace(true);
-    LOG.info("New namespace image has been created");
   }
 
   /**
@@ -4989,7 +5033,9 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     
   void finalizeUpgrade() throws IOException {
     checkSuperuserPrivilege();
-    getFSImage().finalizeUpgrade();
+    synchronized (this) {
+      getFSImage().finalizeUpgrade();
+    }
   }
 
   /**
@@ -5636,12 +5682,14 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   }
 
   synchronized CheckpointSignature rollEditLog() throws IOException {
-    if (isInSafeMode()) {
-      throw new SafeModeException("Checkpoint not created",
-                                  safeMode);
+    checkSuperuserPrivilege();
+    synchronized (this) {
+      if (isInSafeMode()) {
+        throw new SafeModeException("Log not rolled", safeMode);
+      }
+      LOG.info("Roll Edit Log from " + Server.getRemoteAddress());
+      return getFSImage().rollEditLog();
     }
-    LOG.info("Roll Edit Log from " + Server.getRemoteAddress());
-    return getFSImage().rollEditLog();
   }
 
   synchronized void rollFSImage() throws IOException {
@@ -5696,33 +5744,48 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     return new PermissionStatus(fsOwner.getShortUserName(), supergroup, permission);
   }
 
-  private FSPermissionChecker checkOwner(String path) throws AccessControlException {
-    return checkPermission(path, true, null, null, null, null);
+  /*
+   * Caller of this method should NOT hold FSNamesystem lock. Otherwise, if
+   * FSPermissionChecker instantiation hangs, NN will hang also.
+   */
+  private FSPermissionChecker getPermissionChecker()
+      throws AccessControlException {
+    return (isPermissionEnabled) ? new FSPermissionChecker(
+        fsOwnerShortUserName, supergroup) : null;
   }
 
-  private FSPermissionChecker checkPathAccess(String path, FsAction access
-      ) throws AccessControlException {
-    return checkPermission(path, false, null, null, access, null);
+  private void checkOwner(FSPermissionChecker pc, String path)
+      throws AccessControlException {
+    checkPermission(pc, path, true, null, null, null, null);
   }
 
-  private FSPermissionChecker checkParentAccess(String path, FsAction access
+  private void checkPathAccess(FSPermissionChecker pc,
+      String path, FsAction access
       ) throws AccessControlException {
-    return checkPermission(path, false, null, access, null, null);
+    checkPermission(pc, path, false, null, null, access, null);
   }
 
-  private FSPermissionChecker checkAncestorAccess(String path, FsAction access
+  private void checkParentAccess(FSPermissionChecker pc,
+      String path, FsAction access
       ) throws AccessControlException {
-    return checkPermission(path, false, access, null, null, null);
+    checkPermission(pc, path, false, null, access, null, null);
   }
 
-  private FSPermissionChecker checkTraverse(String path
+  private void checkAncestorAccess(FSPermissionChecker pc,
+      String path, FsAction access
       ) throws AccessControlException {
-    return checkPermission(path, false, null, null, null, null);
+    checkPermission(pc, path, false, access, null, null, null);
+  }
+
+  private void checkTraverse(FSPermissionChecker pc, String path
+      ) throws AccessControlException {
+    checkPermission(pc, path, false, null, null, null, null);
   }
 
   private void checkSuperuserPrivilege() throws AccessControlException {
     if (isPermissionEnabled) {
-      PermissionChecker.checkSuperuserPrivilege(fsOwner, supergroup);
+      FSPermissionChecker pc = getPermissionChecker();
+      pc.checkSuperuserPrivilege();
     }
   }
 
@@ -5731,17 +5794,17 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    * For more details of the parameters, see
    * {@link FSPermissionChecker#checkPermission(String, INodeDirectory, boolean, FsAction, FsAction, FsAction, FsAction)}.
    */
-  private FSPermissionChecker checkPermission(String path, boolean doCheckOwner,
+  private void checkPermission(FSPermissionChecker pc,
+      String path, boolean doCheckOwner,
       FsAction ancestorAccess, FsAction parentAccess, FsAction access,
       FsAction subAccess) throws AccessControlException {
-    FSPermissionChecker pc = new FSPermissionChecker(
-        fsOwner.getShortUserName(), supergroup);
-    if (!pc.isSuper) {
+    if (!pc.isSuperUser()) {
       dir.waitForReady();
-      pc.checkPermission(path, dir.rootDir, doCheckOwner,
-          ancestorAccess, parentAccess, access, subAccess);
+      synchronized (this) {
+        pc.checkPermission(path, dir.rootDir, doCheckOwner, ancestorAccess,
+            parentAccess, access, subAccess);
+      }
     }
-    return pc;
   }
 
   /**
@@ -6554,11 +6617,14 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   /** Allow snapshot on a directroy. */
   public void allowSnapshot(String path)
       throws SafeModeException, IOException {
+    FSPermissionChecker pc = getPermissionChecker();
     synchronized (this) {
       if (isInSafeMode()) {
         throw new SafeModeException("Cannot allow snapshot for " + path, safeMode);
       }
-      checkOwner(path);
+      if (isPermissionEnabled) {
+        checkOwner(pc, path);
+      }
       
       snapshotManager.setSnapshottable(path);
       getEditLog().logAllowSnapshot(path);
@@ -6576,12 +6642,15 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   /** Disallow snapshot on a snapshottable directory */
   public void disallowSnapshot(String path)
       throws SafeModeException, IOException {
+    FSPermissionChecker pc = getPermissionChecker();
     synchronized (this) {
       if (isInSafeMode()) {
         throw new SafeModeException("Cannot disallow snapshot for " + path,
             safeMode);
       }
-      checkOwner(path);
+      if (isPermissionEnabled) {
+        checkOwner(pc, path);
+      }
     
       snapshotManager.resetSnapshottable(path);
       getEditLog().logDisallowSnapshot(path);
@@ -6603,12 +6672,16 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    */
   public void createSnapshot(String snapshotRoot, String snapshotName)
       throws SafeModeException, IOException {
+    FSPermissionChecker pc = new FSPermissionChecker(fsOwnerShortUserName,
+        supergroup);
     synchronized (this) {
       if (isInSafeMode()) {
         throw new SafeModeException("Cannot create snapshot for "
             + snapshotRoot, safeMode);
       }
-      checkOwner(snapshotRoot);
+      if (isPermissionEnabled) {
+        checkOwner(pc, snapshotRoot);
+      }
       synchronized (dir.rootDir) {
         snapshotManager.createSnapshot(snapshotRoot, snapshotName);
       }
@@ -6634,12 +6707,15 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    */
   public void deleteSnapshot(String snapshotRoot, String snapshotName)
       throws SafeModeException, IOException {
+    FSPermissionChecker pc = getPermissionChecker();
     synchronized (this) {
       if (isInSafeMode()) {
         throw new SafeModeException(
             "Cannot delete snapshot for " + snapshotRoot, safeMode);
       }
-      checkOwner(snapshotRoot);
+      if (isPermissionEnabled) {
+        checkOwner(pc, snapshotRoot);
+      }
 
       BlocksMapUpdateInfo collectedBlocks = new BlocksMapUpdateInfo();
       synchronized (dir) {
@@ -6670,12 +6746,15 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    */
   public void renameSnapshot(String path, String snapshotOldName,
       String snapshotNewName) throws SafeModeException, IOException {
+    FSPermissionChecker pc = getPermissionChecker();
     synchronized (this) {
       if (isInSafeMode()) {
         throw new SafeModeException("Cannot rename snapshot for " + path,
             safeMode);
       }
-      checkOwner(path);
+      if (isPermissionEnabled) {
+        checkOwner(pc, path);
+      }
       // TODO: check if the new name is valid. May also need this for
       // creationSnapshot
       
@@ -6707,7 +6786,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       FSPermissionChecker checker = new FSPermissionChecker(
           fsOwner.getShortUserName(), supergroup);
       status = snapshotManager
-          .getSnapshottableDirListing(checker.isSuper ? null : checker.user);
+          .getSnapshottableDirListing(checker.isSuperUser() ? null : checker
+              .getUser());
     }
     if (auditLog.isInfoEnabled() && isExternalInvocation()) {
       logAuditEvent(UserGroupInformation.getCurrentUser(), Server.getRemoteIp(),
