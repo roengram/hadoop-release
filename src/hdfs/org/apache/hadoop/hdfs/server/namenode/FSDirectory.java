@@ -41,7 +41,6 @@ import org.apache.hadoop.hdfs.server.common.HdfsConstants.StartupOption;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
-import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotAccessControlException;
@@ -778,24 +777,7 @@ public class FSDirectory implements FSConstants, Closeable {
   /** Replace an INodeFile and record modification for the latest snapshot. */
   void unprotectedReplaceINodeFile(final String path, final INodeFile oldnode,
       final INodeFile newnode, Snapshot latest) {
-    INodeDirectory parent = oldnode.getParent();
-    final INode removed = parent.removeChild(oldnode, latest);
-    if (removed != oldnode) {
-      throw new IllegalStateException("removed != oldnode=" + oldnode
-          + ", removed=" + removed);
-    }
-    
-    // cleanup the removed object
-    parent = removed.getParent(); //parent could be replaced.
-    removed.clearReferences();
-    if (removed instanceof FileWithSnapshot) {
-      final FileWithSnapshot withSnapshot = (FileWithSnapshot)removed;
-      if (withSnapshot.isEverythingDeleted()) {
-        withSnapshot.removeSelf();
-      }
-    }
-
-    parent.addChild(newnode, false, latest);
+    oldnode.getParent().replaceChild(newnode);
 
     /* Currently oldnode and newnode are assumed to contain the same
      * blocks. Otherwise, blocks need to be removed from the blocksMap.

@@ -30,7 +30,6 @@ import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
-import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 
 public class INodeFile extends INode {
@@ -333,15 +332,6 @@ public class INodeFile extends INode {
     super.dumpTreeRecursively(out, prefix, snapshot);
     out.print(", fileSize=" + computeFileSize(null));
     out.print(", blocks=" + (blocks == null? null: Arrays.asList(blocks)));
-    if (this instanceof FileWithSnapshot) {
-      final FileWithSnapshot withSnapshot = (FileWithSnapshot) this;
-      final FileWithSnapshot next = withSnapshot.getNext();
-      // next link pointing to itself is equivalent to no link 
-      if (withSnapshot.getNext() != this) {
-        out.print(", next="
-            + (next != null ? next.asINodeFile().getObjectString() : "null"));
-      }
-    }
     out.println();
   }
 }

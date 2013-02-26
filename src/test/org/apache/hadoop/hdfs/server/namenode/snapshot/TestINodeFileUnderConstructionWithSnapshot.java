@@ -18,11 +18,11 @@
 package org.apache.hadoop.hdfs.server.namenode.snapshot;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.util.Random;
 
+import org.apache.commons.logging.impl.Log4JLogger;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.Path;
@@ -32,9 +32,10 @@ import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.server.namenode.FSDirectory;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
+import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INodeFile;
 import org.apache.hadoop.hdfs.server.namenode.SnapshotTestHelper;
-import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectoryWithSnapshot.ChildrenDiff;
+import org.apache.log4j.Level;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -43,6 +44,10 @@ import org.junit.Test;
  * Test snapshot functionalities while file appending.
  */
 public class TestINodeFileUnderConstructionWithSnapshot {
+  {
+    ((Log4JLogger)INode.LOG).getLogger().setLevel(Level.ALL);
+    SnapshotTestHelper.disableLogs();
+  }
 
   static final long seed = 0;
   static final short REPLICATION = 3;
@@ -106,10 +111,7 @@ public class TestINodeFileUnderConstructionWithSnapshot {
     assertEquals(BLOCKSIZE, fileNode.computeFileSize());
     INodeDirectorySnapshottable dirNode = (INodeDirectorySnapshottable) fsdir
         .getINode(dir.toString());
-    ChildrenDiff diff = dirNode.getDiffs().getLast().getChildrenDiff();
-    INodeFile nodeInDeleted_S0 = (INodeFile) diff.searchDeleted(fileNode
-        .getLocalNameBytes());
-    assertTrue(nodeInDeleted_S0 instanceof INodeFileUnderConstructionWithSnapshot);
-    assertEquals(BLOCKSIZE, nodeInDeleted_S0.computeFileSize());
+    Snapshot s0 = dirNode.getDiffs().getLast().snapshot;
+    assertEquals(BLOCKSIZE, fileNode.computeFileSize(s0));
   }  
 }

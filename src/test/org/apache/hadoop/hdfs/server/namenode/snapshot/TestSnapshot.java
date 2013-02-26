@@ -113,7 +113,7 @@ public class TestSnapshot {
   private void modifyCurrentDirAndCheckSnapshots(Modification[] modifications)
       throws Exception {
     for (Modification modification : modifications) {
-      System.out.println(++modificationCount + ") modification = " + modification);
+      System.out.println(++modificationCount + ") " + modification);
       modification.loadSnapshots();
       modification.modify();
       modification.checkSnapshots();

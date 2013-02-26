@@ -155,9 +155,11 @@ public class INodeFileUnderConstruction extends INodeFile {
     * The new modification is the specified mtime.
     */
    protected INodeFile toINodeFile(long mtime) {
-    return new INodeFile(getLocalNameBytes(), getPermissionStatus(), mtime,
-        getModificationTime(), getBlocks(), getFileReplication(),
-        getPreferredBlockSize());
+    final INodeFile f = new INodeFile(getLocalNameBytes(),
+        getPermissionStatus(), mtime, getModificationTime(), getBlocks(),
+        getFileReplication(), getPreferredBlockSize());
+    f.setParent(getParent());
+    return f;
   }
 
   /**

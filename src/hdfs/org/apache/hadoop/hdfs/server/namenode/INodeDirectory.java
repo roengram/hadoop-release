@@ -203,7 +203,7 @@ public class INodeDirectory extends INode {
     return parent.replaceChild(newDir);
   }
   
-  private final <N extends INode> N replaceChild(final N newChild) {
+  final <N extends INode> N replaceChild(final N newChild) {
     assertChildrenNonNull();
     final int i = searchChildrenForExistingINode(newChild);
     final INode oldChild = children.set(i, newChild);
@@ -219,7 +219,7 @@ public class INodeDirectory extends INode {
       throw new IllegalStateException(
           "Child file is already an INodeFileWithLink, child=" + child);
     }
-    return replaceChild(new INodeFileWithSnapshot(child, null));
+    return replaceChild(new INodeFileWithSnapshot(child));
   }
   
   /**

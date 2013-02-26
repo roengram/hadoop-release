@@ -40,8 +40,6 @@ import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants;
 import org.apache.hadoop.hdfs.server.datanode.DataNode;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
-import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot;
-import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot.Util;
 import org.apache.hadoop.ipc.RPC.Server;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.log4j.Level;
@@ -160,26 +158,6 @@ public class SnapshotTestHelper {
       }
     }
     return null;
-  }
-  
-  /**
-   * Check if the given nodes can form a circular list
-   */
-  public static void checkCircularList(INodeFile... nodes) {
-    for (int i = 0; i < nodes.length; i++) {
-      FileWithSnapshot next = ((FileWithSnapshot)nodes[i]).getNext();
-      INodeFile expectedNext = nodes[(i + 1) % nodes.length];
-      if (next != expectedNext) {
-        final StringBuilder b = new StringBuilder("nodes = [")
-            .append(nodes[0].getObjectString());
-        for(int j = 1; j < nodes.length; j++) {
-          b.append(", ").append(nodes[i].getObjectString());
-        }
-        b.append("]\nbut the circular list of nodes[").append(i).append("] is ")
-         .append(Util.circularListString((FileWithSnapshot)nodes[i]));
-        throw new AssertionError(b.toString());
-      }
-    }
   }
 
   /**

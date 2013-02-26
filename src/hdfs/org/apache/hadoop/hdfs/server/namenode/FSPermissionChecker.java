@@ -202,6 +202,6 @@ private final UserGroupInformation ugi;
       if (mode.getOtherAction().implies(access)) { return; }
     }
     throw new AccessControlException("Permission denied: user=" + user
-        + ", access=" + access + ", inode=" + inode);
+        + ", access=" + access + ", inode=" + inode.getFullPathName());
   }
 }
