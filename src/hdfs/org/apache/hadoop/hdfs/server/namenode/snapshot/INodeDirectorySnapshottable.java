@@ -232,11 +232,10 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithSnapshot {
       final String name = getLocalName();
       out.println(name.isEmpty() ? "/" : name);
 
-      dumpTreeRecursively(out, prefix,
-          new Iterable<Pair<? extends INode, Snapshot>>() {
+      dumpTreeRecursively(out, prefix, new Iterable<SnapshotAndINode>() {
             @Override
-            public Iterator<Pair<? extends INode, Snapshot>> iterator() {
-              return new Iterator<Pair<? extends INode, Snapshot>>() {
+            public Iterator<SnapshotAndINode> iterator() {
+              return new Iterator<SnapshotAndINode>() {
                 final Iterator<DirectoryDiff> i = getDiffs().iterator();
                 private DirectoryDiff next = findNext();
 
@@ -256,10 +255,9 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithSnapshot {
                 }
 
                 @Override
-                public Pair<INodeDirectory, Snapshot> next() {
+                public SnapshotAndINode next() {
                   final Snapshot s = next.snapshot;
-                  final Pair<INodeDirectory, Snapshot> pair = 
-                      new Pair<INodeDirectory, Snapshot>(s.getRoot(), s);
+                  final SnapshotAndINode pair = new SnapshotAndINode(s);
                   next = findNext();
                   return pair;
                 }

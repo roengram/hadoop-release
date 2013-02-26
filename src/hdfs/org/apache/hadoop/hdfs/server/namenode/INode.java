@@ -41,17 +41,6 @@ import org.apache.hadoop.hdfs.server.namenode.snapshot.diff.Diff;
  */
 public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
   public static final Log LOG = LogFactory.getLog(INode.class);
-  
-  /** A pair of objects. */
-  public static class Pair<L, R> {
-    public final L left;
-    public final R right;
-
-    public Pair(L left, R right) {
-      this.left = left;
-      this.right = right;
-    }
-  }
 
   /** Wrapper of two counters for namespace consumed and diskspace consumed. */
   static class DirCounts {
@@ -179,14 +168,23 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
   }
 
   /** Get the {@link PermissionStatus} */
-  public PermissionStatus getPermissionStatus(Snapshot snapshot) {
+  public final PermissionStatus getPermissionStatus(Snapshot snapshot) {
     return new PermissionStatus(getUserName(snapshot), getGroupName(snapshot),
         getFsPermission(snapshot));
   }
   /** The same as getPermissionStatus(null). */
-  public PermissionStatus getPermissionStatus() {
+  public final PermissionStatus getPermissionStatus() {
     return getPermissionStatus(null);
   }
+  
+  /**
+   * @return if the given snapshot is null, return this;
+   *     otherwise return the corresponding snapshot inode.
+   */
+  public INode getSnapshotINode(final Snapshot snapshot) {
+    return this;
+  }
+  
   private INode updatePermissionStatus(PermissionStatusFormat f, long n,
       Snapshot latest) {
     final INode nodeToUpdate = recordModification(latest);
@@ -199,14 +197,19 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
    *          otherwise, get the result from the current inode.
    * @return user name
    */
-  public String getUserName(Snapshot snapshot) {
-     int n = (int)PermissionStatusFormat.USER.retrieve(permission);
-     return SerialNumberManager.INSTANCE.getUser(n);
-   }
+  public final String getUserName(Snapshot snapshot) {
+    if (snapshot != null) {
+      return getSnapshotINode(snapshot).getUserName();
+    }
+
+    int n = (int)PermissionStatusFormat.USER.retrieve(permission);
+    return SerialNumberManager.INSTANCE.getUser(n);
+  }
   /** The same as getUserName(null). */
-  public String getUserName() {
+  public final String getUserName() {
     return getUserName(null);
   }
+
   /** Set user */
   protected INode setUser(String user, Snapshot latest) {
     int n = SerialNumberManager.INSTANCE.getUserSerialNumber(user);
@@ -218,12 +221,16 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
    *          otherwise, get the result from the current inode.
    * @return group name
    */
-  public String getGroupName(Snapshot snapshot) {
+  public final String getGroupName(Snapshot snapshot) {
+    if (snapshot != null) {
+      return getSnapshotINode(snapshot).getGroupName();
+    }
+
     int n = (int)PermissionStatusFormat.GROUP.retrieve(permission);
     return SerialNumberManager.INSTANCE.getGroup(n);
   }
   /** The same as getGroupName(null). */
-  public String getGroupName() {
+  public final String getGroupName() {
     return getGroupName(null);
   }
   /** Set group */
@@ -237,12 +244,16 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
    *          otherwise, get the result from the current inode.
    * @return permission.
    */
-  public FsPermission getFsPermission(Snapshot snapshot) {
+  public final FsPermission getFsPermission(Snapshot snapshot) {
+    if (snapshot != null) {
+      return getSnapshotINode(snapshot).getFsPermission();
+    }
+
     return new FsPermission(
         (short)PermissionStatusFormat.MODE.retrieve(permission));
   }
   /** The same as getFsPermission(null). */
-  public FsPermission getFsPermission() {
+  public final FsPermission getFsPermission() {
     return getFsPermission(null);
   }
   protected short getFsPermissionShort() {
@@ -408,7 +419,11 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
    *          otherwise, get the result from the current inode.
    * @return modification time.
    */
-  public long getModificationTime(Snapshot snapshot) {
+  public final long getModificationTime(Snapshot snapshot) {
+    if (snapshot != null) {
+      return getSnapshotINode(snapshot).modificationTime;
+    }
+
     return this.modificationTime;
   }
 
@@ -445,12 +460,16 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
    *          otherwise, get the result from the current inode.
    * @return access time
    */
-  public long getAccessTime(Snapshot snapshot) {
+  public final long getAccessTime(Snapshot snapshot) {
+    if (snapshot != null) {
+      return getSnapshotINode(snapshot).accessTime;
+    }
+
     return accessTime;
   }
 
   /** The same as getAccessTime(null). */
-  public long getAccessTime() {
+  public final long getAccessTime() {
     return getAccessTime(null);
   }
 
@@ -570,9 +589,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
     out.print(getObjectString());
     out.print("), parent=");
     out.print(parent == null? null: parent.getLocalName() + "/");
-    out.print(", permission=" + getFsPermission(snapshot));
-    out.print(", group=" + getGroupName(snapshot));
-    out.print(", user=" + getUserName(snapshot));
+    out.print(", " + getPermissionStatus(snapshot));
   }
 
   /** Clear references to other objects. */

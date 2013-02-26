@@ -20,7 +20,6 @@ package org.apache.hadoop.hdfs.server.namenode.snapshot;
 import java.util.Iterator;
 import java.util.List;
 
-import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectoryWithQuota;
@@ -218,6 +217,11 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
   DirectoryDiffList getDiffs() {
     return diffs;
   }
+  
+  @Override
+  public INodeDirectory getSnapshotINode(Snapshot snapshot) {
+    return diffs.getSnapshotINode(snapshot, this);
+  }
 
   @Override
   public INodeDirectoryWithSnapshot recordModification(Snapshot latest) {
@@ -298,37 +302,6 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
   public INode getChild(byte[] name, Snapshot snapshot) {
     final DirectoryDiff diff = diffs.getDiff(snapshot);
     return diff != null? diff.getChild(name, true, this): super.getChild(name, null);
-  }
-
-  @Override
-  public String getUserName(Snapshot snapshot) {
-    final INodeDirectory inode = diffs.getSnapshotINode(snapshot);
-    return inode != null? inode.getUserName(): super.getUserName(null);
-  }
-
-  @Override
-  public String getGroupName(Snapshot snapshot) {
-    final INodeDirectory inode = diffs.getSnapshotINode(snapshot);
-    return inode != null? inode.getGroupName(): super.getGroupName(null);
-  }
-
-  @Override
-  public FsPermission getFsPermission(Snapshot snapshot) {
-    final INodeDirectory inode = diffs.getSnapshotINode(snapshot);
-    return inode != null? inode.getFsPermission(): super.getFsPermission(null);
-  }
-
-  @Override
-  public long getAccessTime(Snapshot snapshot) {
-    final INodeDirectory inode = diffs.getSnapshotINode(snapshot);
-    return inode != null? inode.getAccessTime(): super.getAccessTime(null);
-  }
-
-  @Override
-  public long getModificationTime(Snapshot snapshot) {
-    final INodeDirectory inode = diffs.getSnapshotINode(snapshot);
-    return inode != null? inode.getModificationTime()
-        : super.getModificationTime(null);
   }
 
   @Override
