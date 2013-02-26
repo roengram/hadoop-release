@@ -23,6 +23,7 @@ import java.io.IOException;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 
 
 public class INodeFileUnderConstruction extends INodeFile {
@@ -74,7 +75,7 @@ public class INodeFileUnderConstruction extends INodeFile {
     this.clientNode = clientNode;
   }
   
-  protected INodeFileUnderConstruction(final INodeFile that,
+  public INodeFileUnderConstruction(final INodeFile that,
       final String clientName,
       final String clientMachine,
       final DatanodeDescriptor clientNode) {
@@ -106,6 +107,13 @@ public class INodeFileUnderConstruction extends INodeFile {
   @Override
   boolean isUnderConstruction() {
     return true;
+  }
+  
+  @Override
+  public INodeFileUnderConstruction recordModification(final Snapshot latest) {
+    return latest == null? this
+        : parent.replaceChild4INodeFileUcWithSnapshot(this)
+            .recordModification(latest);
   }
 
   DatanodeDescriptor[] getTargets() {

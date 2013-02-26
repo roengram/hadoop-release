@@ -20,6 +20,7 @@ package org.apache.hadoop.hdfs.server.namenode.snapshot;
 import java.util.Comparator;
 
 import org.apache.hadoop.classification.InterfaceAudience;
+import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
@@ -77,11 +78,16 @@ public class Snapshot implements Comparable<byte[]> {
   private final Root root;
 
   Snapshot(int id, String name, INodeDirectorySnapshottable dir) {
+    this(id, DFSUtil.string2Bytes(name), dir, dir);
+  }
+
+  Snapshot(int id, byte[] name, INodeDirectory dir,
+      INodeDirectorySnapshottable parent) {
     this.id = id;
     this.root = new Root(dir);
 
     this.root.setLocalName(name);
-    this.root.setParent(dir);
+    this.root.setParent(parent);
   }
 
   /** @return the root directory of the snapshot. */

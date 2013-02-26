@@ -32,12 +32,10 @@ import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.server.namenode.FSDirectory;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
-import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INodeFile;
 import org.apache.hadoop.hdfs.server.namenode.SnapshotTestHelper;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectoryWithSnapshot.ChildrenDiff;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -77,17 +75,6 @@ public class TestINodeFileUnderConstructionWithSnapshot {
     }
   }
   
-  /**
-   * Check if the given nodes can form a circular list
-   */
-  private void checkCircularList(FileWithSnapshot... nodes) {
-    for (int i = 0; i < nodes.length; i++) {
-      FileWithSnapshot next = nodes[i].getNext();
-      FileWithSnapshot expectedNext = nodes[(i + 1) % nodes.length];
-      Assert.assertTrue(next == expectedNext);
-    }
-  }
-  
   private FSDataOutputStream writeFileWithoutClosing(Path file, int length)
       throws IOException {
     byte[] toWrite = new byte[length];
@@ -116,14 +103,13 @@ public class TestINodeFileUnderConstructionWithSnapshot {
     // check: an INodeFileUnderConstructionSnapshot should be stored into s0's
     // deleted list, with size BLOCKSIZE
     INodeFile fileNode = (INodeFile) fsdir.getINode(file.toString());
-    assertEquals(BLOCKSIZE * 1, ((INodeFile) fileNode).computeFileSize());
+    assertEquals(BLOCKSIZE, fileNode.computeFileSize());
     INodeDirectorySnapshottable dirNode = (INodeDirectorySnapshottable) fsdir
         .getINode(dir.toString());
     ChildrenDiff diff = dirNode.getDiffs().getLast().getChildrenDiff();
-    INode nodeInDeleted_S0 = diff.searchDeleted(fileNode.getLocalNameBytes());
-    assertTrue(nodeInDeleted_S0 instanceof INodeFileUnderConstructionSnapshot);
-    assertEquals(BLOCKSIZE, ((INodeFile) nodeInDeleted_S0).computeFileSize());
-    checkCircularList((INodeFileUnderConstructionSnapshot) nodeInDeleted_S0,
-        (INodeFileWithSnapshot) fileNode);
+    INodeFile nodeInDeleted_S0 = (INodeFile) diff.searchDeleted(fileNode
+        .getLocalNameBytes());
+    assertTrue(nodeInDeleted_S0 instanceof INodeFileUnderConstructionWithSnapshot);
+    assertEquals(BLOCKSIZE, nodeInDeleted_S0.computeFileSize());
   }  
 }

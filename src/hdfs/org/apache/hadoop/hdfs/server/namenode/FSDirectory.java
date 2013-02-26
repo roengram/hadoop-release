@@ -41,6 +41,7 @@ import org.apache.hadoop.hdfs.server.common.HdfsConstants.StartupOption;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotAccessControlException;
@@ -699,27 +700,35 @@ public class FSDirectory implements FSConstants, Closeable {
    */
   int unprotectedDelete(INodesInPath inodesInPath,
       BlocksMapUpdateInfo collectedBlocks, long mtime) {
-    final INode targetNode = removeLastINode(inodesInPath);
+    // check if target node exists
+    INode targetNode = inodesInPath.getLastINode();
     if (targetNode == null) {
       return 0;
     }
-    // set the parent's modification time
-    final INode[] inodes = inodesInPath.getINodes();
-    final Snapshot latestSnapshot = inodesInPath.getLatestSnapshot();
-    final INodeDirectory parent = (INodeDirectory)inodes[inodes.length - 2];
-    parent.updateModificationTime(mtime, latestSnapshot);
     
-    final INode snapshotCopy = parent.getChild(targetNode.getLocalNameBytes(),
-        latestSnapshot);
-    // if snapshotCopy == targetNode, it means that the file is also stored in
-    // a snapshot so that the block should not be removed.
-    final int filesRemoved = snapshotCopy == targetNode ? 0 : targetNode
-        .destroySubtreeAndCollectBlocks(null, collectedBlocks);
+    // check latest snapshot
+    final Snapshot latestSnapshot = inodesInPath.getLatestSnapshot();
+    final INode snapshotCopy = ((INodeDirectory)inodesInPath.getINode(-2))
+        .getChild(targetNode.getLocalNameBytes(), latestSnapshot);
+    if (snapshotCopy == targetNode) {
+      // it is also in a snapshot, record modification before delete it
+      targetNode = targetNode.recordModification(latestSnapshot);
+    }
+
+    // Remove the node from the namespace
+    removeLastINode(inodesInPath);
+    
+    // set the parent's modification time
+    targetNode.getParent().updateModificationTime(mtime, latestSnapshot);
+
+    final int inodesRemoved = targetNode.destroySubtreeAndCollectBlocks(
+        null, collectedBlocks);
     if (NameNode.stateChangeLog.isDebugEnabled()) {
       NameNode.stateChangeLog.debug("DIR* FSDirectory.unprotectedDelete: "
           + targetNode.getFullPathName() + " is removed");
     }
-    return filesRemoved;
+    return inodesRemoved;
+
   }
     
   /**
@@ -759,23 +768,33 @@ public class FSDirectory implements FSConstants, Closeable {
   /**
    * Replaces the specified INodeFile with the specified one.
    */
-  public void replaceINodeFile(String path, INodeFile oldnode,
+  void replaceINodeFile(String path, INodeFile oldnode,
       INodeFile newnode, Snapshot latest) throws IOException {
     synchronized (rootDir) {
       unprotectedReplaceINodeFile(path, oldnode, newnode, latest);
     }
   }
 
+  /** Replace an INodeFile and record modification for the latest snapshot. */
   void unprotectedReplaceINodeFile(final String path, final INodeFile oldnode,
       final INodeFile newnode, Snapshot latest) {
-    final INodeDirectory parent = oldnode.getParent();
+    INodeDirectory parent = oldnode.getParent();
     final INode removed = parent.removeChild(oldnode, latest);
     if (removed != oldnode) {
       throw new IllegalStateException("removed != oldnode=" + oldnode
           + ", removed=" + removed);
     }
     
-    oldnode.setParent(null);
+    // cleanup the removed object
+    parent = removed.getParent(); //parent could be replaced.
+    removed.clearReferences();
+    if (removed instanceof FileWithSnapshot) {
+      final FileWithSnapshot withSnapshot = (FileWithSnapshot)removed;
+      if (withSnapshot.isEverythingDeleted()) {
+        withSnapshot.removeSelf();
+      }
+    }
+
     parent.addChild(newnode, false, latest);
 
     /* Currently oldnode and newnode are assumed to contain the same
@@ -812,8 +831,7 @@ public class FSDirectory implements FSConstants, Closeable {
       }
       
       INodeDirectory dirInode = (INodeDirectory)targetNode; 
-      final ReadOnlyList<INode> contents = dirInode
-          .getChildrenList(inodesInPath.getPathSnapshot());
+      final ReadOnlyList<INode> contents = dirInode.getChildrenList(snapshot);
       int startChild = INodeDirectory.nextChild(contents, startAfter);
       int totalNumChildren = contents.size();
       int numOfListing = Math.min(totalNumChildren-startChild, this.lsLimit);
@@ -1492,9 +1510,9 @@ public class FSDirectory implements FSConstants, Closeable {
       Snapshot snapshot) {
     // length is zero for directories
     return new HdfsFileStatus(
-        node.isDirectory() ? 0 : ((INodeFile)node).computeContentSummary().getLength(), 
+        node.isDirectory() ? 0 : ((INodeFile)node).computeFileSize(snapshot), 
         node.isDirectory(), 
-        node.isDirectory() ? 0 : ((INodeFile)node).getFileReplication(), 
+        node.isDirectory() ? 0 : ((INodeFile)node).getFileReplication(snapshot), 
         node.isDirectory() ? 0 : ((INodeFile)node).getPreferredBlockSize(),
         node.getModificationTime(snapshot),
         node.getAccessTime(snapshot),

@@ -17,9 +17,9 @@
  */
 package org.apache.hadoop.hdfs.server.namenode.snapshot;
 
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.IOException;
@@ -30,6 +30,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.DFSTestUtil;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
+import org.apache.hadoop.hdfs.server.namenode.FSDirectory;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.INodeFile;
 import org.apache.hadoop.hdfs.server.namenode.SnapshotTestHelper;
@@ -53,6 +54,7 @@ public class TestSnapshotDeletion {
   protected Configuration conf;
   protected MiniDFSCluster cluster;
   protected FSNamesystem fsn;
+  protected FSDirectory fsdir;
   protected DistributedFileSystem hdfs;
 
   @Before
@@ -62,6 +64,7 @@ public class TestSnapshotDeletion {
     cluster.waitActive();
 
     fsn = cluster.getNameNode().getNamesystem();
+    fsdir = fsn.dir;
     hdfs = (DistributedFileSystem) cluster.getFileSystem();
   }
 
@@ -222,14 +225,12 @@ public class TestSnapshotDeletion {
     Path file13 = new Path(modDir, "file13");
     Path file14 = new Path(modDir, "file14");
     Path file15 = new Path(modDir, "file15");
-    DFSTestUtil.createFile(hdfs, file10, BLOCKSIZE, (short) (REPLICATION - 1),
-        seed);
-    DFSTestUtil.createFile(hdfs, file11, BLOCKSIZE, (short) (REPLICATION - 1),
-        seed);
-    DFSTestUtil.createFile(hdfs, file12, BLOCKSIZE, (short) (REPLICATION - 1),
-        seed);
-    DFSTestUtil.createFile(hdfs, file13, BLOCKSIZE, (short) (REPLICATION - 1),
-        seed);
+    final short REP_1 = REPLICATION - 1;
+    DFSTestUtil.createFile(hdfs, file10, BLOCKSIZE, REP_1, seed);
+    DFSTestUtil.createFile(hdfs, file11, BLOCKSIZE, REP_1, seed);
+    DFSTestUtil.createFile(hdfs, file12, BLOCKSIZE, REP_1, seed);
+    DFSTestUtil.createFile(hdfs, file13, BLOCKSIZE, REP_1, seed);
+
     // create snapshot s1 for snapshotRoot
     hdfs.allowSnapshot(snapshotRoot.toString());
     hdfs.createSnapshot(snapshotRoot, "s1");
@@ -257,12 +258,12 @@ public class TestSnapshotDeletion {
     // delete file14: (c, 0) + (0, d)
     hdfs.delete(file14, true);
     // modify file15: (c, 0) + (c, d)
-    hdfs.setReplication(file15, (short) (REPLICATION - 1));
+    hdfs.setReplication(file15, REP_1);
     
     // create snapshot s3 for snapshotRoot
     hdfs.createSnapshot(snapshotRoot, "s3");
     // modify file10, to check if the posterior diff was set correctly
-    hdfs.setReplication(file10, (short) (REPLICATION - 1));
+    hdfs.setReplication(file10, REP_1);
     
     Path file10_s1 = SnapshotTestHelper.getSnapshotPath(snapshotRoot, "s1",
         modDirStr + "file10");
@@ -301,17 +302,14 @@ public class TestSnapshotDeletion {
         modDirStr + "file15");
     assertFalse(hdfs.exists(file15_s1));
     
-    // call INodeFileWithLink#getBlockReplication, check the correctness of the
-    // circular list after snapshot deletion
-    INodeFile nodeFile13 = INodeFile.valueOf(
-        fsn.getFSDirectory().getINode(file13.toString()), file13.toString());
-    short blockReplicationFile13 = nodeFile13.getBlockReplication();
-    assertEquals(REPLICATION - 1, blockReplicationFile13);
-    INodeFile nodeFile12 = INodeFile.valueOf(
-        fsn.getFSDirectory().getINode(file12_s1.toString()),
-        file12_s1.toString());
-    short blockReplicationFile12 = nodeFile12.getBlockReplication();
-    assertEquals(REPLICATION - 1, blockReplicationFile12);
+    // call getBlockReplication, check circular list after snapshot deletion
+    INodeFile nodeFile13 = (INodeFile)fsdir.getINode(file13.toString());
+    SnapshotTestHelper.checkCircularList(nodeFile13);
+    assertEquals(REP_1, nodeFile13.getBlockReplication());
+
+    INodeFile nodeFile12 = (INodeFile)fsdir.getINode(file12_s1.toString());
+    SnapshotTestHelper.checkCircularList(nodeFile12);
+    assertEquals(REP_1, nodeFile12.getBlockReplication());
   }
   
 }

@@ -28,7 +28,6 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
-import org.apache.hadoop.hdfs.util.ReadOnlyList;
 
 /**
  * Directories where taking snapshots is allowed.
@@ -165,13 +164,13 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithSnapshot {
           + "snapshot with the same name \"" + name + "\".");
     }
 
-    getDiffs().addSnapshotDiff(s, this, true);
+    final DirectoryDiff d = getDiffs().addSnapshotDiff(s);
+    d.snapshotINode = s.getRoot();
     snapshotsByNames.add(-i - 1, s);
 
     //set modification time
-    final long timestamp = System.currentTimeMillis();
-    s.getRoot().updateModificationTime(timestamp, null);
-    updateModificationTime(timestamp, null);
+    updateModificationTime(System.currentTimeMillis(), null);
+    s.getRoot().setModificationTime(getModificationTime(), null);
     return s;
   }
   
@@ -210,7 +209,7 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithSnapshot {
       }
       replaceSelf4INodeDirectory();
     } else {
-      replaceSelf4INodeDirectoryWithSnapshot(latest).recordModification(latest);
+      replaceSelf4INodeDirectoryWithSnapshot().recordModification(latest);
     }
   }
 

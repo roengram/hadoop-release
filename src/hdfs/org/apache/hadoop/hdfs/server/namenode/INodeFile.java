@@ -21,11 +21,14 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.Arrays;
+import java.util.List;
 
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.protocol.Block;
+import org.apache.hadoop.hdfs.protocol.LocatedBlock;
+import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
@@ -112,40 +115,41 @@ public class INodeFile extends INode {
     return true;
   }
   
+  @Override
+  public INodeFile recordModification(final Snapshot latest) {
+    return latest == null? this
+        : parent.replaceChild4INodeFileWithSnapshot(this)
+            .recordModification(latest);
+  }
+  
   /**
    * Set the {@link FsPermission} of this {@link INodeFile}.
    * Since this is a file,
    * the {@link FsAction#EXECUTE} action, if any, is ignored.
    */
   @Override
-  INode setPermission(FsPermission permission, Snapshot latest) {
+  final INode setPermission(FsPermission permission, Snapshot latest) {
     return super.setPermission(permission.applyUMask(UMASK), latest);
   }
 
-  protected INodeFile(INodeFile that) {
+  public INodeFile(INodeFile that) {
     super(that);
     this.header = that.header;
     this.blocks = that.blocks;
   }
 
-  @Override
-  INodeFile recordModification(final Snapshot latest) {
-    //TODO: change it to use diff list
-    return (INodeFile)super.recordModification(latest);
-  }
-
-  @Override
-  public Pair<? extends INodeFile, ? extends INodeFile> createSnapshotCopy() {
-    return parent.replaceChild4INodeFileWithSnapshot(this).createSnapshotCopy();
-  }
-
   /** @return the replication factor of the file. */
-  public final short getFileReplication() {
+  public short getFileReplication(Snapshot snapshot) {
     return HeaderFormat.getReplication(header);
+  }
+  
+  /** The same as getFileReplication(null). */
+  public final short getFileReplication() {
+    return getFileReplication(null);
   }
 
   public short getBlockReplication() {
-    return getFileReplication();
+    return getFileReplication(null);
   }
 
   public void setFileReplication(short replication, Snapshot latest) {
@@ -220,7 +224,6 @@ public class INodeFile extends INode {
       return 0;
     }
 
-    parent = null;
     if (blocks != null && collectedBlocks != null) {
       for (BlockInfo blk : blocks) {
         collectedBlocks.addDeleteBlock(blk);
@@ -228,21 +231,33 @@ public class INodeFile extends INode {
       }
     }
     setBlocks(null);
+    clearReferences();
     return 1;
   }
 
+  LocatedBlocks createLocatedBlocks(List<LocatedBlock> blocks, 
+      Snapshot snapshot) {
+    return new LocatedBlocks(computeFileSize(snapshot), blocks,
+        isUnderConstruction());
+  }
+  
   @Override
   long[] computeContentSummary(long[] summary) {
-    summary[0] += computeFileSize();
+    summary[0] += computeFileSize(null);
     summary[1]++;
     summary[3] += diskspaceConsumed();
     return summary;
   }
   
+  /** The same as computeFileSize(null). */
+  public final long computeFileSize() {
+    return computeFileSize(null);
+  }
+  
   /** 
    * Compute file size.
    */
-  public long computeFileSize() {
+  public long computeFileSize(Snapshot snapshot) {
     if (blocks == null || blocks.length == 0) {
       return 0;
     }
@@ -316,7 +331,7 @@ public class INodeFile extends INode {
   public void dumpTreeRecursively(PrintWriter out, StringBuilder prefix,
       final Snapshot snapshot) {
     super.dumpTreeRecursively(out, prefix, snapshot);
-    out.print(", fileSize=" + computeFileSize());
+    out.print(", fileSize=" + computeFileSize(null));
     out.print(", blocks=" + (blocks == null? null: Arrays.asList(blocks)));
     if (this instanceof FileWithSnapshot) {
       final FileWithSnapshot withSnapshot = (FileWithSnapshot) this;

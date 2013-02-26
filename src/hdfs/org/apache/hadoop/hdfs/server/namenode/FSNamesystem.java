@@ -1142,10 +1142,9 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     }
     if (blocks.length == 0) {
       return inode.createLocatedBlocks(new ArrayList<LocatedBlock>(
-          blocks.length));
+          blocks.length), iip.getPathSnapshot());
     }
-    List<LocatedBlock> results;
-    results = new ArrayList<LocatedBlock>(blocks.length);
+    List<LocatedBlock> results = new ArrayList<LocatedBlock>(blocks.length);
 
     int curBlk = 0;
     long curPos = 0, blkSize = 0;
@@ -1212,7 +1211,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
           && curBlk < blocks.length 
           && results.size() < nrBlocksToReturn);
     
-    return inode.createLocatedBlocks(results);
+    return inode.createLocatedBlocks(results, iip.getPathSnapshot());
   }
 
   /**
@@ -2523,8 +2522,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
         dir.replaceINodeFile(src, pendingFile, pendingFileWithSnaphsot, null);
         pendingFile = pendingFileWithSnaphsot;
       }
-      pendingFile = (INodeFileUnderConstruction) pendingFile
-          .recordModification(latestSnapshot);
+      pendingFile = pendingFile.recordModification(latestSnapshot);
     }
 
     // The file is no longer pending.

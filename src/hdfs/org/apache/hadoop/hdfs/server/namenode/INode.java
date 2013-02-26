@@ -22,7 +22,6 @@ import java.io.StringWriter;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.logging.Log;
@@ -33,8 +32,6 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.protocol.Block;
-import org.apache.hadoop.hdfs.protocol.LocatedBlock;
-import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.diff.Diff;
 
@@ -159,20 +156,6 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
     this(other.name, other.permission, other.parent, 
         other.modificationTime, other.accessTime);
   }
-
-  /**
-   * Create a copy of this inode for snapshot.
-   * 
-   * @return a pair of inodes, where the left inode is the current inode and
-   *         the right inode is the snapshot copy. The current inode usually is
-   *         the same object of this inode. However, in some cases, the inode
-   *         may be replaced with a new inode for maintaining snapshot data.
-   *         Then, the current inode is the new inode.
-   */
-  public Pair<? extends INode, ? extends INode> createSnapshotCopy() {
-    throw new UnsupportedOperationException(getClass().getSimpleName()
-        + " does not support createSnapshotCopy().");
-  }
   
   /**
    * Check whether this is the root inode.
@@ -282,12 +265,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
    *         However, in some cases, this inode may be replaced with a new inode
    *         for maintaining snapshots. The current inode is then the new inode. 
    */
-  INode recordModification(final Snapshot latest) {
-    if (isDirectory()) {
-      throw new IllegalStateException("this is an INodeDirectory, this=" + this);
-    }
-    return parent.saveChild2Snapshot(this, latest);
-  }
+  abstract INode recordModification(final Snapshot latest);
   
   /**
    * Check whether it's a file.
@@ -313,7 +291,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
    * @param snapshot the snapshot to be deleted; null means the current state.
    * @param collectedBlocks blocks collected from the descents for further block
    *                        deletion/update will be added to the given map.
-   * @return the number of deleted files in the subtree.
+   * @return the number of deleted inodes in the subtree.
    */
   abstract int destroySubtreeAndCollectBlocks(Snapshot snapshot,
       BlocksMapUpdateInfo collectedBlocks);
@@ -395,7 +373,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
 
   @Override
   public String toString() {
-    return name == null? "<name==null>": getFullPathName();
+    return getLocalName();
   }
   
   public String getObjectString() {
@@ -436,16 +414,17 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
   }
 
   /** The same as getModificationTime(null). */
-  public long getModificationTime() {
+  public final long getModificationTime() {
     return getModificationTime(null);
   }
 
   /** Update modification time if it is larger than the current value. */
-  public void updateModificationTime(long mtime, Snapshot latest) {
+  public final INode updateModificationTime(long mtime, Snapshot latest) {
     assert isDirectory();
-    if (mtime > modificationTime) {
-      setModificationTime(mtime, latest);
+    if (mtime <= modificationTime) {
+      return this;
     }
+    return setModificationTime(mtime, latest);
   }
   
   void cloneModificationTime(INode that) {
@@ -455,7 +434,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
   /**
    * Always set the last modification time of inode.
    */
-  public INode setModificationTime(long modtime, Snapshot latest) {
+  public final INode setModificationTime(long modtime, Snapshot latest) {
     final INode nodeToUpdate = recordModification(latest);
     nodeToUpdate.modificationTime = modtime;
     return nodeToUpdate;
@@ -567,12 +546,6 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
     }
     return len1 - len2;
   }
-  
-  
-  LocatedBlocks createLocatedBlocks(List<LocatedBlock> blocks) {
-    return new LocatedBlocks(computeContentSummary().getLength(), blocks,
-        isUnderConstruction());
-  }
 
   /**
    * Dump the subtree starting from this inode.
@@ -602,7 +575,12 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
     out.print(", group=" + getGroupName(snapshot));
     out.print(", user=" + getUserName(snapshot));
   }
-  
+
+  /** Clear references to other objects. */
+  public void clearReferences() {
+    setParent(null);
+  }
+
   /**
    * Information used for updating the blocksMap when deleting files.
    */

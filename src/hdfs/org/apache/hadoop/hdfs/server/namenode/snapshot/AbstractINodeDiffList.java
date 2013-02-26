@@ -37,6 +37,12 @@ abstract class AbstractINodeDiffList<N extends INode,
   /** Diff list sorted by snapshot IDs, i.e. in chronological order. */
   private final List<D> diffs = new ArrayList<D>();
 
+  AbstractINodeDiffList(final List<D> diffs) {
+    if (diffs != null) {
+      this.diffs.addAll(diffs);
+    }
+  }
+
   /** @return this list as a unmodifiable {@link List}. */
   final List<D> asList() {
     return Collections.unmodifiableList(diffs);
@@ -46,7 +52,7 @@ abstract class AbstractINodeDiffList<N extends INode,
   abstract N getCurrentINode();
   
   /** Add a {@link AbstractINodeDiff} for the given snapshot and inode. */
-  abstract D addSnapshotDiff(Snapshot snapshot, N inode, boolean isSnapshotCreation); 
+  abstract D addSnapshotDiff(Snapshot snapshot); 
 
   /**
    * Delete the snapshot with the given name. The synchronization of the diff
@@ -67,10 +73,20 @@ abstract class AbstractINodeDiffList<N extends INode,
       return null;
     } else {
       final D removed = diffs.remove(snapshotIndex);
-      if (snapshotIndex > 0) {
+      if (snapshotIndex == 0) {
+        if (removed.snapshotINode != null) {
+          removed.snapshotINode.clearReferences();
+        }
+      } else {
         // combine the to-be-removed diff with its previous diff
         final AbstractINodeDiff<N, D> previous = diffs.get(snapshotIndex - 1);
-        previous.combinePosteriorAndCollectBlocks(removed, collectedBlocks);
+        if (previous.snapshotINode == null) {
+          previous.snapshotINode = removed.snapshotINode;
+        } else if (removed.snapshotINode != null) {
+          removed.snapshotINode.clearReferences();
+        }
+        previous.combinePosteriorAndCollectBlocks(getCurrentINode(), removed,
+            collectedBlocks);
         previous.setPosterior(removed.getPosterior());
       }
       removed.setPosterior(null);
@@ -79,8 +95,8 @@ abstract class AbstractINodeDiffList<N extends INode,
   }
 
   /** Append the diff at the end of the list. */
-  final D append(D diff) {
-    final AbstractINodeDiff<N, D> last = getLast();
+  final D addLast(D diff) {
+    final D last = getLast();
     diffs.add(diff);
     if (last != null) {
       last.setPosterior(diff);
@@ -88,11 +104,13 @@ abstract class AbstractINodeDiffList<N extends INode,
     return diff;
   }
   
-  /** Insert the diff to the beginning of the list. */
-  final void insert(D diff) {
+  /** Add the diff to the beginning of the list. */
+  final void addFirst(D diff) {
+    final D first = diffs.isEmpty()? null: diffs.get(0);
     diffs.add(0, diff);
+    diff.setPosterior(first);
   }
-  
+
   /** @return the last diff. */
   final D getLast() {
     final int n = diffs.size();
@@ -127,7 +145,12 @@ abstract class AbstractINodeDiffList<N extends INode,
       return j < diffs.size()? diffs.get(j): null;
     }
   }
-  
+
+  N getSnapshotINode(Snapshot snapshot) {
+    final D diff = getDiff(snapshot);
+    return diff == null? null: diff.getSnapshotINode();
+  }
+
   /**
    * Check if the latest snapshot diff exists.  If not, add it.
    * @return the latest snapshot diff, which is never null.
@@ -135,7 +158,15 @@ abstract class AbstractINodeDiffList<N extends INode,
   final D checkAndAddLatestSnapshotDiff(Snapshot latest) {
     final D last = getLast();
     return last != null && last.snapshot.equals(latest)? last
-        : addSnapshotDiff(latest, getCurrentINode(), false);
+        : addSnapshotDiff(latest);
+  }
+
+  /** Save the snapshot copy to the latest snapshot. */
+  void saveSelf2Snapshot(Snapshot latest, N snapshotCopy) {
+    if (latest != null) {
+      checkAndAddLatestSnapshotDiff(latest).checkAndInitINode(
+          getCurrentINode(), snapshotCopy);
+    }
   }
   
   @Override
@@ -145,6 +176,6 @@ abstract class AbstractINodeDiffList<N extends INode,
 
   @Override
   public String toString() {
-    return "diffs=" + diffs;
+    return getClass().getSimpleName() + ": " + diffs;
   }
 }
