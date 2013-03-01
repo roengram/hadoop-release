@@ -53,9 +53,11 @@ public interface FileWithSnapshot {
     }
 
     @Override
-    void combinePosteriorAndCollectBlocks(INodeFile currentINode,
+    int combinePosteriorAndCollectBlocks(INodeFile currentINode,
         FileDiff posterior, BlocksMapUpdateInfo collectedBlocks) {
-      Util.collectBlocksAndClear((FileWithSnapshot)currentINode, collectedBlocks);
+      Util.collectBlocksAndClear((FileWithSnapshot) currentINode,
+          collectedBlocks);
+      return 0;
     }
     
     @Override
@@ -76,6 +78,14 @@ public interface FileWithSnapshot {
       } else {
         out.writeBoolean(false);
       }
+    }
+
+    @Override
+    int destroyAndCollectBlocks(INodeFile currentINode,
+        BlocksMapUpdateInfo collectedBlocks) {
+      Util.collectBlocksAndClear((FileWithSnapshot) currentINode,
+          collectedBlocks);
+      return 0;
     }
   }
 
@@ -141,7 +151,7 @@ public interface FileWithSnapshot {
       // check if everything is deleted.
       if (file.isCurrentFileDeleted()
           && file.getDiffs().asList().isEmpty()) {
-        file.asINodeFile().destroySelfAndCollectBlocks(info);
+        file.asINodeFile().destroyAndCollectBlocks(info);
         return;
       }
 

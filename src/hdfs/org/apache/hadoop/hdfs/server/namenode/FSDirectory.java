@@ -717,8 +717,8 @@ public class FSDirectory implements FSConstants, Closeable {
     targetNode.getParent().updateModificationTime(mtime, latestSnapshot);
 
     // collect block
-    final int inodesRemoved = targetNode.destroySubtreeAndCollectBlocks(
-        null, collectedBlocks);
+    final int inodesRemoved = targetNode.cleanSubtree(null, latestSnapshot,
+        collectedBlocks);
     if (NameNode.stateChangeLog.isDebugEnabled()) {
       NameNode.stateChangeLog.debug("DIR* FSDirectory.unprotectedDelete: "
           + targetNode.getFullPathName() + " is removed");

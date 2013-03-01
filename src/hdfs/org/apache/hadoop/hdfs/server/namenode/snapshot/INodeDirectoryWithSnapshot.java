@@ -54,6 +54,32 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
       return getCreatedList().set(c, newChild);
     }
     
+    /** clear the created list */
+    private int destroyCreatedList(
+        final INodeDirectoryWithSnapshot currentINode,
+        final BlocksMapUpdateInfo collectedBlocks) {
+      int removedNum = 0;
+      List<INode> createdList = getCreatedList();
+      for (INode c : createdList) {
+        removedNum += c.destroyAndCollectBlocks(collectedBlocks);
+        // if c is also contained in the children list, remove it
+        currentINode.removeChild(c, null);
+      }
+      createdList.clear();
+      return removedNum;
+    }
+
+    /** clear the deleted list */
+    private int destroyDeletedList(final BlocksMapUpdateInfo collectedBlocks) {
+      int removedNum  = 0;
+      List<INode> deletedList = getDeletedList();
+      for (INode d : deletedList) {
+        removedNum += d.destroyAndCollectBlocks(collectedBlocks);
+      }
+      deletedList.clear();
+      return removedNum;
+    }
+
     /** Serialize {@link #created} */
     private void writeCreated(DataOutputStream out) throws IOException {
       final List<INode> created = getCreatedList();
@@ -65,7 +91,7 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
         out.write(name);
       }
     }
-    
+
     /** Serialize {@link #deleted} */
     private void writeDeleted(DataOutputStream out) throws IOException {
       final List<INode> deleted = getDeletedList();
@@ -96,7 +122,8 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
   /**
    * The difference of an {@link INodeDirectory} between two snapshots.
    */
-  static class DirectoryDiff extends AbstractINodeDiff<INodeDirectory, DirectoryDiff> {
+  static class DirectoryDiff extends
+      AbstractINodeDiff<INodeDirectory, DirectoryDiff> {
     /** The size of the children list at snapshot creation time. */
     private final int childrenSize;
     /** The children list diff. */
@@ -126,18 +153,18 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
     boolean isSnapshotRoot() {
       return snapshotINode == snapshot.getRoot();
     }
-
+    
     @Override
-    void combinePosteriorAndCollectBlocks(final INodeDirectory currentDir,
+    int combinePosteriorAndCollectBlocks(final INodeDirectory currentDir,
         final DirectoryDiff posterior, final BlocksMapUpdateInfo collectedBlocks) {
-      diff.combinePosterior(posterior.diff, new Diff.Processor<INode>() {
+      return diff.combinePosterior(posterior.diff, new Diff.Processor<INode>() {
         /** Collect blocks for deleted files. */
         @Override
-        public void process(INode inode) {
+        public int process(INode inode) {
           if (inode != null) {
-            inode.destroySubtreeAndCollectBlocks(posterior.snapshot,
-                collectedBlocks);
+            return inode.destroyAndCollectBlocks(collectedBlocks);
           }
+          return 0;
         }
       });
     }
@@ -230,6 +257,12 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
 
     ChildrenDiff getDiff() {
       return diff;
+    }
+
+    @Override
+    int destroyAndCollectBlocks(INodeDirectory currentINode,
+        BlocksMapUpdateInfo collectedBlocks) {
+      return diff.destroyDeletedList(collectedBlocks);      
     }
   }
   
@@ -421,16 +454,41 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
   }
   
   @Override
-  public int destroySubtreeAndCollectBlocks(final Snapshot snapshot,
+  public int cleanSubtree(final Snapshot snapshot, Snapshot prior,
       final BlocksMapUpdateInfo collectedBlocks) {
-    int n = destroySubtreeAndCollectBlocksRecursively(snapshot, collectedBlocks);
-    if (snapshot != null) {
-      final DirectoryDiff removed = getDiffs().deleteSnapshotDiff(snapshot,
-          this, collectedBlocks);
-      if (removed != null) {
-        n++; //count this dir only if a snapshot diff is removed.
+    int n = 0;
+    if (snapshot == null) { // delete the current directory
+      recordModification(prior);
+      // delete everything in created list
+      DirectoryDiff lastDiff = diffs.getLast();
+      if (lastDiff != null) {
+        n += lastDiff.diff.destroyCreatedList(this, collectedBlocks);
       }
+    } else {
+      // update prior
+      Snapshot s = getDiffs().getPrior(snapshot);
+      if (s != null && 
+          (prior == null || Snapshot.ID_COMPARATOR.compare(s, prior) > 0)) {
+        prior = s;
+      }
+      n += getDiffs().deleteSnapshotDiff(snapshot, prior, this, 
+          collectedBlocks);
     }
+    
+    n += cleanSubtreeRecursively(snapshot, prior, collectedBlocks);
     return n;
+  }
+
+  @Override
+  public int destroyAndCollectBlocks(
+      final BlocksMapUpdateInfo collectedBlocks) {
+    int total = 0;
+    // destroy its diff list
+    for (DirectoryDiff diff : diffs) {
+      total += diff.destroyAndCollectBlocks(this, collectedBlocks);
+    }
+    diffs.clear();
+    total += super.destroyAndCollectBlocks(collectedBlocks);
+    return total;
   }
 }

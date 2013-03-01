@@ -2576,7 +2576,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     
       // remove lease, close file
       finalizeINodeFileUnderConstruction(src, pendingFile,
-          Snapshot.findLatestSnapshot(pendingFile));
+          Snapshot.findLatestSnapshot(pendingFile, null));
     } // end of synchronized section
 
     getEditLog().logSync();

@@ -57,7 +57,7 @@ abstract class AbstractINodeDiff<N extends INode,
   }
 
   /** The snapshot will be obtained after this diff is applied. */
-  final Snapshot snapshot;
+  Snapshot snapshot;
   /** The snapshot inode data.  It is null when there is no change. */
   N snapshotINode;
   /**
@@ -87,6 +87,10 @@ abstract class AbstractINodeDiff<N extends INode,
   /** @return the snapshot object of this diff. */
   final Snapshot getSnapshot() {
     return snapshot;
+  }
+  
+  final void setSnapshot(Snapshot snapshot) {
+    this.snapshot = snapshot;
   }
 
   /** @return the posterior diff. */
@@ -123,8 +127,16 @@ abstract class AbstractINodeDiff<N extends INode,
   }
 
   /** Combine the posterior diff and collect blocks for deletion. */
-  abstract void combinePosteriorAndCollectBlocks(final N currentINode,
+  abstract int combinePosteriorAndCollectBlocks(final N currentINode,
       final D posterior, final BlocksMapUpdateInfo collectedBlocks);
+  
+  /**
+   * Delete and clear self.
+   * @param collectedBlocks Used to collect blocks for deletion.
+   * @return number of inodes/diff destroyed.
+   */
+  abstract int destroyAndCollectBlocks(final N currentINode,
+      final BlocksMapUpdateInfo collectedBlocks);
 
   @Override
   public String toString() {
