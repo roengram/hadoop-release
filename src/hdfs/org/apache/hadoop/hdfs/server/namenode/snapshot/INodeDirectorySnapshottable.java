@@ -275,6 +275,11 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithSnapshot {
       }
     }
   }
+  
+  /** @return {@link #snapshotsByNames} as a {@link ReadOnlyList} */
+  public ReadOnlyList<Snapshot> getSnapshotList() {
+    return ReadOnlyList.Util.asReadOnlyList(snapshotsByNames);
+  }
 
   /**
    * Rename a snapshot
