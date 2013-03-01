@@ -21,6 +21,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,6 +38,7 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.DFSTestUtil;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
+import org.apache.hadoop.hdfs.protocol.FSConstants.SafeModeAction;
 import org.apache.hadoop.hdfs.server.namenode.FSDirectory;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.INode;
@@ -72,6 +74,9 @@ public class TestSnapshot {
   protected static FSDirectory fsdir;
   protected DistributedFileSystem hdfs;
 
+  private static String testDir =
+      System.getProperty("test.build.data", "build/test/data");
+  
   private static Random random = new Random(seed);
   
   /**
@@ -151,6 +156,43 @@ public class TestSnapshot {
     return nodes;
   }
 
+  private File getDumpTreeFile(String dir, String suffix) {
+    return new File(dir, String.format("dumptree_%s", suffix));
+  }
+
+  /**
+   * Restart the cluster to check edit log applying and fsimage saving/loading
+   */
+  private void checkFSImage() throws Exception {
+    File fsnBefore = getDumpTreeFile(testDir, "before");
+    File fsnMiddle = getDumpTreeFile(testDir, "middle");
+    File fsnAfter = getDumpTreeFile(testDir, "after");
+    
+    SnapshotTestHelper.dumpTree2File(fsdir, fsnBefore);
+    
+    cluster.shutdown();
+    cluster = new MiniDFSCluster(conf, REPLICATION, false, null);
+    cluster.waitActive();
+    fsn = cluster.getNameNode().getNamesystem();
+    hdfs = (DistributedFileSystem) cluster.getFileSystem();
+    // later check fsnMiddle to see if the edit log is applied correctly 
+    SnapshotTestHelper.dumpTree2File(fsdir, fsnMiddle);
+   
+    // save namespace and restart cluster
+    hdfs.setSafeMode(SafeModeAction.SAFEMODE_ENTER);
+    hdfs.saveNamespace();
+    hdfs.setSafeMode(SafeModeAction.SAFEMODE_LEAVE);
+    cluster.shutdown();
+    cluster = new MiniDFSCluster(conf, REPLICATION, false, null);
+    cluster.waitActive();
+    fsn = cluster.getNameNode().getNamesystem();
+    hdfs = (DistributedFileSystem) cluster.getFileSystem();
+    // dump the namespace loaded from fsimage
+    SnapshotTestHelper.dumpTree2File(fsdir, fsnAfter);
+    
+    SnapshotTestHelper.compareDumpedTreeInFile(fsnBefore, fsnMiddle);
+    SnapshotTestHelper.compareDumpedTreeInFile(fsnBefore, fsnAfter);
+  }
   
   /**
    * Main test, where we will go in the following loop:
@@ -202,9 +244,10 @@ public class TestSnapshot {
       Modification chown = new FileChown(chownDir.nodePath, hdfs, userGroup[0],
           userGroup[1]);
       modifyCurrentDirAndCheckSnapshots(new Modification[]{chmod, chown});
+      
+      // check fsimage saving/loading
+      checkFSImage();
     }
-    System.out.println("XXX done:");
-    SnapshotTestHelper.dumpTreeRecursively(fsn.getFSDirectory().getINode("/"));
   }
   
   /**
@@ -241,7 +284,8 @@ public class TestSnapshot {
     for (TestDirectoryTree.Node node : nodes) {
       // If the node does not have files in it, create files
       if (node.fileList == null) {
-        node.initFileList(node.nodePath.getName(), BLOCKSIZE, REPLICATION, seed, 5);
+        node.initFileList(hdfs, node.nodePath.getName(), BLOCKSIZE,
+            REPLICATION, seed, 5);
       }
       
       //
@@ -556,7 +600,7 @@ public class TestSnapshot {
   /**
    * Directory creation or deletion.
    */
-  static class DirCreationOrDeletion extends Modification {
+  class DirCreationOrDeletion extends Modification {
     private final TestDirectoryTree.Node node;
     private final boolean isCreation;
     private final Path changedPath;
@@ -606,15 +650,16 @@ public class TestSnapshot {
       if (isCreation) {
         // creation
         TestDirectoryTree.Node newChild = new TestDirectoryTree.Node(
-            changedPath, node.level + 1, node, node.fs);
+            changedPath, node.level + 1, node, hdfs);
         // create file under the new non-snapshottable directory
-        newChild.initFileList(node.nodePath.getName(), BLOCKSIZE, REPLICATION, seed, 2);
+        newChild.initFileList(hdfs, node.nodePath.getName(), BLOCKSIZE,
+            REPLICATION, seed, 2);
         node.nonSnapshotChildren.add(newChild);
       } else {
         // deletion
         TestDirectoryTree.Node childToDelete = node.nonSnapshotChildren
             .remove(node.nonSnapshotChildren.size() - 1);
-        node.fs.delete(childToDelete.nodePath, true);
+        hdfs.delete(childToDelete.nodePath, true);
       }
     }
 

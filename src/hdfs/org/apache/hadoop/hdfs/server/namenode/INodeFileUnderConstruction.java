@@ -52,11 +52,8 @@ public class INodeFileUnderConstruction extends INodeFile {
                              String clientName,
                              String clientMachine,
                              DatanodeDescriptor clientNode) {
-    super(permissions.applyUMask(UMASK), 0, replication, modTime, modTime,
-        preferredBlockSize);
-    this.clientName = clientName;
-    this.clientMachine = clientMachine;
-    this.clientNode = clientNode;
+    this(null, replication, modTime, preferredBlockSize, BlockInfo.EMPTY_ARRAY,
+        permissions.applyUMask(UMASK), clientName, clientMachine, clientNode);
   }
 
   public INodeFileUnderConstruction(byte[] name,
@@ -111,9 +108,9 @@ public class INodeFileUnderConstruction extends INodeFile {
   
   @Override
   public INodeFileUnderConstruction recordModification(final Snapshot latest) {
-    return latest == null? this
-        : parent.replaceChild4INodeFileUcWithSnapshot(this)
-            .recordModification(latest);
+    return isInLatestSnapshot(latest) ? parent
+        .replaceChild4INodeFileUcWithSnapshot(this).recordModification(latest)
+        : this;
   }
 
   DatanodeDescriptor[] getTargets() {

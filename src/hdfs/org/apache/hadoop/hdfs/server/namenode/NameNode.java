@@ -1132,8 +1132,12 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
    */
   public void verifyRequest(DatanodeRegistration nodeReg) throws IOException {
     verifyVersion(nodeReg.getVersion());
-    if (!namesystem.getRegistrationID().equals(nodeReg.getRegistrationID()))
+    if (!namesystem.getRegistrationID().equals(nodeReg.getRegistrationID())) {
+      LOG.warn("Invalid registrationID - expected: "
+          + namesystem.getRegistrationID() + " received: "
+          + nodeReg.getRegistrationID());
       throw new UnregisteredDatanodeException(nodeReg);
+    }
   }
     
   /**

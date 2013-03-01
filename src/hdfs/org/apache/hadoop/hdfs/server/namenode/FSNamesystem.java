@@ -98,7 +98,6 @@ import org.apache.hadoop.hdfs.server.namenode.LeaseManager.Lease;
 import org.apache.hadoop.hdfs.server.namenode.UnderReplicatedBlocks.BlockIterator;
 import org.apache.hadoop.hdfs.server.namenode.metrics.FSNamesystemMBean;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable;
-import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeFileUnderConstructionWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotManager;
 import org.apache.hadoop.hdfs.server.protocol.BalancerBandwidthCommand;
@@ -221,7 +220,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   // Stores the correct file name hierarchy
   //
   public FSDirectory dir;
-  private final SnapshotManager snapshotManager;
+  private SnapshotManager snapshotManager;
 
   //
   // Mapping: Block -> { INode, datanodes, self ref } 
@@ -395,7 +394,6 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   FSNamesystem(NameNode nn, Configuration conf) throws IOException {
     try {
       initialize(nn, conf);
-      snapshotManager = new SnapshotManager(dir);
     } catch (IOException e) {
       LOG.error(getClass().getSimpleName() + " initialization failed.", e);
       close();
@@ -426,6 +424,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     this.nameNodeAddress = nn.getNameNodeAddress();
     this.registerMBean(conf); // register the MBean for the FSNamesystemStutus
     this.dir = new FSDirectory(this, conf);
+    snapshotManager = new SnapshotManager(dir);
     StartupOption startOpt = NameNode.getStartupOption(conf);
     this.dir.loadFSImage(getNamespaceDirs(conf),
                          getNamespaceEditsDirs(conf), startOpt);
@@ -1458,12 +1457,10 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
         //
         INodeFile node = (INodeFile) myFile;
         Snapshot latestSnapshot = iip.getLatestSnapshot();
-        if (latestSnapshot != null) {
-          node = node.recordModification(latestSnapshot);
-        }
+        node = node.recordModification(latestSnapshot);
         final INodeFileUnderConstruction cons = node.toUnderConstruction(
             holder, clientMachine, clientNode);
-        dir.unprotectedReplaceINodeFile(src, node, cons, latestSnapshot);
+        dir.unprotectedReplaceINodeFile(src, node, cons);
         leaseManager.addLease(cons.clientName, src);
 
       } else {
@@ -2482,23 +2479,11 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
                                  " from client " + pendingFile.clientName);
     leaseManager.removeLease(pendingFile.clientName, src);
     
-    if (latestSnapshot != null) {
-      if (!(pendingFile instanceof INodeFileUnderConstructionWithSnapshot)) {
-        // replace INodeFileUnderConstruction with
-        // INodeFileUnderConstructionWithSnapshot. This replacement does not
-        // need to be recorded in snapshot.
-        INodeFileUnderConstructionWithSnapshot pendingFileWithSnaphsot = 
-            new INodeFileUnderConstructionWithSnapshot(pendingFile);
-        dir.replaceINodeFile(src, pendingFile, pendingFileWithSnaphsot, null);
-        pendingFile = pendingFileWithSnaphsot;
-      }
-      pendingFile = pendingFile.recordModification(latestSnapshot);
-    }
-
+    pendingFile = pendingFile.recordModification(latestSnapshot);
     // The file is no longer pending.
     // Create permanent INode, update blockmap
     INodeFile newFile = pendingFile.toINodeFile(now());
-    dir.unprotectedReplaceINodeFile(src, pendingFile, newFile, latestSnapshot);
+    dir.unprotectedReplaceINodeFile(src, pendingFile, newFile);
 
     // close file and persist block allocations for this file
     dir.closeFile(src, newFile);
@@ -5871,7 +5856,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
                                   " but is not under construction.");
           }
           INodeFileUnderConstruction cons = (INodeFileUnderConstruction) node;
-          FSImage.writeINodeUnderConstruction(out, cons, path);
+          FSImageSerialization.writeINodeUnderConstruction(out, cons, path);
         }
       }
     }
@@ -6422,6 +6407,10 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       throws AccessControlException, IOException {
     checkSuperuserPrivilege();
     return getCorruptFileBlocks();
+  }
+  
+  public SnapshotManager getSnapshotManager() {
+    return snapshotManager;
   }
     
   /** Allow snapshot on a directroy. */

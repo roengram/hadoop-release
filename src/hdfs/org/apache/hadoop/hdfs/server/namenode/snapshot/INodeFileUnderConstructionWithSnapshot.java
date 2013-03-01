@@ -17,8 +17,6 @@
  */
 package org.apache.hadoop.hdfs.server.namenode.snapshot;
 
-import java.util.List;
-
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.hdfs.server.namenode.DatanodeDescriptor;
 import org.apache.hadoop.hdfs.server.namenode.INodeFile;
@@ -33,15 +31,13 @@ import org.apache.hadoop.hdfs.server.namenode.INodeFileUnderConstruction;
 public class INodeFileUnderConstructionWithSnapshot
     extends INodeFileUnderConstruction implements FileWithSnapshot {
   /**
-   * The difference of an {@link INodeFileUnderConstruction} between two snapshots.
+   * Factory for {@link INodeFileUnderConstruction} diff.
    */
-  static class FileUcDiff extends FileDiff {
-    private FileUcDiff(Snapshot snapshot, INodeFile file) {
-      super(snapshot, file);
-    }
+  static class FileUcDiffFactory extends FileDiffFactory {
+    static final FileUcDiffFactory INSTANCE = new FileUcDiffFactory();
 
     @Override
-    INodeFileUnderConstruction createSnapshotCopyOfCurrentINode(INodeFile file) {
+    INodeFileUnderConstruction createSnapshotCopy(INodeFile file) {
       final INodeFileUnderConstruction uc = (INodeFileUnderConstruction)file;
       final INodeFileUnderConstruction copy = new INodeFileUnderConstruction(
           uc, uc.getClientName(), uc.getClientMachine(), uc.getClientNode());
@@ -50,29 +46,17 @@ public class INodeFileUnderConstructionWithSnapshot
     }
   }
 
-  /**
-   * A list of file diffs.
-   */
-  static class FileUcDiffList extends FileDiffList {
-    private FileUcDiffList(INodeFile currentINode, final List<FileDiff> diffs) {
-      super(currentINode, diffs);
-    }
-
-    @Override
-    FileDiff addSnapshotDiff(Snapshot snapshot) {
-      return addLast(new FileUcDiff(snapshot, getCurrentINode()));
-    }
-  }
-
-  private final FileUcDiffList diffs;
+  private final FileDiffList diffs;
+  private boolean isCurrentFileDeleted = false;
 
   INodeFileUnderConstructionWithSnapshot(final INodeFile f,
       final String clientName,
       final String clientMachine,
-      final DatanodeDescriptor clientNode) {
+      final DatanodeDescriptor clientNode,
+      final FileDiffList diffs) {
     super(f, clientName, clientMachine, clientNode);
-    this.diffs = new FileUcDiffList(this, f instanceof FileWithSnapshot?
-        ((FileWithSnapshot)f).getFileDiffList().asList(): null);
+    this.diffs = diffs != null? diffs: new FileDiffList();
+    this.diffs.setFactory(FileUcDiffFactory.INSTANCE);
   }
 
   /**
@@ -81,14 +65,15 @@ public class INodeFileUnderConstructionWithSnapshot
    * 
    * @param f The given {@link INodeFileUnderConstruction} instance
    */
-  public INodeFileUnderConstructionWithSnapshot(INodeFileUnderConstruction f) {
-    this(f, f.getClientName(), f.getClientMachine(), f.getClientNode());
+  public INodeFileUnderConstructionWithSnapshot(INodeFileUnderConstruction f,
+      final FileDiffList diffs) {
+    this(f, f.getClientName(), f.getClientMachine(), f.getClientNode(), diffs);
   }
   
   @Override
   protected INodeFileWithSnapshot toINodeFile(final long mtime) {
     final long atime = getModificationTime();
-    final INodeFileWithSnapshot f = new INodeFileWithSnapshot(this);
+    final INodeFileWithSnapshot f = new INodeFileWithSnapshot(this, getDiffs());
     f.setModificationTime(mtime, null);
     f.setAccessTime(atime, null);
     return f;
@@ -96,7 +81,7 @@ public class INodeFileUnderConstructionWithSnapshot
 
   @Override
   public boolean isCurrentFileDeleted() {
-    return getParent() == null;
+    return isCurrentFileDeleted;
   }
 
   @Override
@@ -107,10 +92,8 @@ public class INodeFileUnderConstructionWithSnapshot
   @Override
   public INodeFileUnderConstructionWithSnapshot recordModification(
       final Snapshot latest) {
-    // if this object is NOT the latest snapshot copy, this object is created
-    // after the latest snapshot, then do NOT record modification.
-    if (this == getParent().getChild(getLocalNameBytes(), latest)) {
-      diffs.saveSelf2Snapshot(latest, null);
+    if (isInLatestSnapshot(latest)) {
+      diffs.saveSelf2Snapshot(latest, this, null);
     }
     return this;
   }
@@ -121,7 +104,7 @@ public class INodeFileUnderConstructionWithSnapshot
   }
   
   @Override
-  public FileDiffList getFileDiffList() {
+  public FileDiffList getDiffs() {
     return diffs;
   }
   
@@ -141,9 +124,9 @@ public class INodeFileUnderConstructionWithSnapshot
   public int destroySubtreeAndCollectBlocks(final Snapshot snapshot,
       final BlocksMapUpdateInfo collectedBlocks) {
     if (snapshot == null) {
-      clearReferences();
+      isCurrentFileDeleted = true;
     } else {
-      if (diffs.deleteSnapshotDiff(snapshot, collectedBlocks) == null) {
+      if (diffs.deleteSnapshotDiff(snapshot, this, collectedBlocks) == null) {
         //snapshot diff not found and nothing is deleted.
         return 0;
       }

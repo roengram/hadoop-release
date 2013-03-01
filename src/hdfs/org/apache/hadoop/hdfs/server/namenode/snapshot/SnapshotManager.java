@@ -17,6 +17,8 @@
  */
 package org.apache.hadoop.hdfs.server.namenode.snapshot;
 
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -50,7 +52,7 @@ public class SnapshotManager implements SnapshotStats {
   private AtomicInteger numSnapshottableDirs = new AtomicInteger();
   private AtomicInteger numSnapshots = new AtomicInteger();
   
-  private int snapshotID = 0;
+  private int snapshotCounter = 0;
 
   /** All snapshottable directories in the namesystem. */
   private final List<INodeDirectorySnapshottable> snapshottables
@@ -78,6 +80,15 @@ public class SnapshotManager implements SnapshotStats {
         .replaceSelf4INodeDirectorySnapshottable(iip.getLatestSnapshot());
     snapshottables.add(s);
     numSnapshottableDirs.getAndIncrement();
+  }
+  
+  /**
+   * Add a snapshottable dir into {@link #snapshottables}. Called when loading
+   * fsimage.
+   * @param dir The snapshottable dir to be added.
+   */
+  public void addSnapshottable(INodeDirectorySnapshottable dir) {
+    snapshottables.add(dir);
   }
 
   /**
@@ -119,10 +130,10 @@ public class SnapshotManager implements SnapshotStats {
     final INodesInPath i = fsdir.getINodesInPath4Write(path);
     final INodeDirectorySnapshottable srcRoot
          = INodeDirectorySnapshottable.valueOf(i.getLastINode(), path);
-    srcRoot.addSnapshot(snapshotID, snapshotName);
+    srcRoot.addSnapshot(snapshotCounter, snapshotName);
     
     //create success, update id
-    snapshotID++;
+    snapshotCounter++;
     numSnapshots.getAndIncrement();
   }
   
@@ -181,6 +192,26 @@ public class SnapshotManager implements SnapshotStats {
   @Override
   public long getNumSnapshots() {
     return numSnapshots.get();
+  }
+  
+  /**
+   * Write {@link #snapshotCounter}, {@link #numSnapshots}, and
+   * {@link #numSnapshottableDirs} to the DataOutput.
+   */
+  public void write(DataOutput out) throws IOException {
+    out.writeInt(snapshotCounter);
+    out.writeInt(numSnapshots.get());
+    out.writeInt(numSnapshottableDirs.get());
+  }
+  
+  /**
+   * Read values of {@link #snapshotCounter}, {@link #numSnapshots}, and
+   * {@link #numSnapshottableDirs} from the DataInput
+   */
+  public void read(DataInput in) throws IOException {
+    snapshotCounter = in.readInt();
+    numSnapshots.set(in.readInt());
+    numSnapshottableDirs.set(in.readInt());
   }
   
   /**

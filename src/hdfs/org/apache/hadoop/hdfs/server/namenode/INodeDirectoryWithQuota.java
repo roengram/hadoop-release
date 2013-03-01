@@ -54,19 +54,16 @@ public class INodeDirectoryWithQuota extends INodeDirectory {
   }
   
   /** constructor with no quota verification */
-  INodeDirectoryWithQuota(
-      PermissionStatus permissions, long modificationTime, 
-      long nsQuota, long dsQuota)
-  {
-    super(permissions, modificationTime);
+  INodeDirectoryWithQuota(byte[] name, PermissionStatus permissions,
+      long modificationTime, long nsQuota, long dsQuota) {
+    super(name, permissions, modificationTime);
     this.nsQuota = nsQuota;
     this.dsQuota = dsQuota;
   }
   
   /** constructor with no quota verification */
-  INodeDirectoryWithQuota(String name, PermissionStatus permissions)
-  {
-    super(name, permissions);
+  INodeDirectoryWithQuota(byte[] name, PermissionStatus permissions) {
+    super(name, permissions, 0L);
   }
   
   /** Get this directory's namespace quota
@@ -90,9 +87,10 @@ public class INodeDirectoryWithQuota extends INodeDirectory {
    * @param latest Latest snapshot                               
    */
   public void setQuota(long newNsQuota, long newDsQuota, Snapshot latest) {
-    recordModification(latest);
-    nsQuota = newNsQuota;
-    dsQuota = newDsQuota;
+    final INodeDirectoryWithQuota nodeToUpdate 
+        = (INodeDirectoryWithQuota) recordModification(latest);
+    nodeToUpdate.nsQuota = nsQuota;
+    nodeToUpdate.dsQuota = dsQuota;
   }
   
   

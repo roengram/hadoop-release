@@ -125,18 +125,10 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
     this.accessTime = accessTime;
   }
 
-  INode(byte[] name, PermissionStatus permissions, INodeDirectory parent,
-      long modificationTime, long accessTime) {
-    this(name, PermissionStatusFormat.toLong(permissions), parent,
+  INode(byte[] name, PermissionStatus permissions, long modificationTime,
+      long accessTime) {
+    this(name, PermissionStatusFormat.toLong(permissions), null,
         modificationTime, accessTime);
-  }
-
-  INode(PermissionStatus permissions, long mtime, long atime) {
-    this(null, permissions, null, mtime, atime);
-  }
-
-  protected INode(String name, PermissionStatus permissions) {
-    this(DFSUtil.string2Bytes(name), permissions, null, 0L, 0L);
   }
   
   /** @param other Other node to be copied */
@@ -265,6 +257,14 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
     return updatePermissionStatus(PermissionStatusFormat.MODE, mode, latest);
   }
 
+  /** Is this inode in the latest snapshot? */
+  public final boolean isInLatestSnapshot(final Snapshot latest) {
+    return latest != null
+        && (parent == null
+            || (parent.isInLatestSnapshot(latest)
+                && this == parent.getChild(getLocalNameBytes(), latest)));
+  }
+
   /**
    * This inode is being modified.  The previous version of the inode needs to
    * be recorded in the latest snapshot.
@@ -303,7 +303,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
    *                        deletion/update will be added to the given map.
    * @return the number of deleted inodes in the subtree.
    */
-  abstract int destroySubtreeAndCollectBlocks(Snapshot snapshot,
+  public abstract int destroySubtreeAndCollectBlocks(Snapshot snapshot,
       BlocksMapUpdateInfo collectedBlocks);
 
   /** Compute {@link ContentSummary}. */
@@ -404,7 +404,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
    * Get parent directory 
    * @return parent INode
    */
-  public INodeDirectory getParent() {
+  public final INodeDirectory getParent() {
     return this.parent;
   }
   

@@ -63,8 +63,21 @@ public class DFSUtil {
    * Converts a byte array to a string using UTF8 encoding.
    */
   public static String bytes2String(byte[] bytes) {
+    return bytes2String(bytes, 0, bytes.length);
+  }
+  
+  /**
+   * Decode a specific range of bytes of the given byte array to a string
+   * using UTF8.
+   * 
+   * @param bytes The bytes to be decoded into characters
+   * @param offset The index of the first byte to decode
+   * @param length The number of bytes to decode
+   * @return The decoded string
+   */
+  public static String bytes2String(byte[] bytes, int offset, int length) {
     try {
-      return new String(bytes, "UTF8");
+      return new String(bytes, offset, length, "UTF8");
     } catch(UnsupportedEncodingException e) {
       assert false : "UTF8 encoding is not supported ";
     }
@@ -93,6 +106,54 @@ public class DFSUtil {
     } catch (UnsupportedEncodingException ex) {
       throw new AssertionError("UTF-8 encoding is not supported.");
     }
+  }
+  
+  /**
+   * Splits first len bytes in bytes to array of arrays of bytes
+   * on byte separator
+   * @param bytes the byte array to split
+   * @param len the number of bytes to split
+   * @param separator the delimiting byte
+   */
+  public static byte[][] bytes2byteArray(byte[] bytes,
+                                         int len,
+                                         byte separator) {
+    assert len <= bytes.length;
+    int splits = 0;
+    if (len == 0) {
+      return new byte[][]{null};
+    }
+    // Count the splits. Omit multiple separators and the last one
+    for (int i = 0; i < len; i++) {
+      if (bytes[i] == separator) {
+        splits++;
+      }
+    }
+    int last = len - 1;
+    while (last > -1 && bytes[last--] == separator) {
+      splits--;
+    }
+    if (splits == 0 && bytes[0] == separator) {
+      return new byte[][]{null};
+    }
+    splits++;
+    byte[][] result = new byte[splits][];
+    int startIndex = 0;
+    int nextIndex = 0;
+    int index = 0;
+    // Build the splits
+    while (index < splits) {
+      while (nextIndex < len && bytes[nextIndex] != separator) {
+        nextIndex++;
+      }
+      result[index] = new byte[nextIndex - startIndex];
+      System.arraycopy(bytes, startIndex, result[index], 0, nextIndex
+              - startIndex);
+      index++;
+      startIndex = nextIndex + 1;
+      nextIndex = startIndex;
+    }
+    return result;
   }
   
   /** Convert an object representing a path to a string. */

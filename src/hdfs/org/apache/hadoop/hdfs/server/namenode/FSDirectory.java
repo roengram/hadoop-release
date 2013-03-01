@@ -216,10 +216,10 @@ public class FSDirectory implements FSConstants, Closeable {
     final INode newNode;
     long diskspace = -1; // unknown
     if (blocks == null)
-      newNode = new INodeDirectory(permissions, modificationTime);
+      newNode = new INodeDirectory(null, permissions, modificationTime);
     else {
-      newNode = new INodeFile(permissions, blocks.length, replication,
-                              modificationTime, atime, preferredBlockSize);
+      newNode = new INodeFile(null, permissions, modificationTime, atime,
+          new BlockInfo[blocks.length], replication, preferredBlockSize);
       diskspace = ((INodeFile)newNode).diskspaceConsumed(blocks);
     }
     synchronized (rootDir) {
@@ -705,14 +705,10 @@ public class FSDirectory implements FSConstants, Closeable {
       return 0;
     }
     
-    // check latest snapshot
+    // record modification
     final Snapshot latestSnapshot = inodesInPath.getLatestSnapshot();
-    final INode snapshotCopy = ((INodeDirectory)inodesInPath.getINode(-2))
-        .getChild(targetNode.getLocalNameBytes(), latestSnapshot);
-    if (snapshotCopy == targetNode) {
-      // it is also in a snapshot, record modification before delete it
-      targetNode = targetNode.recordModification(latestSnapshot);
-    }
+    targetNode = targetNode.recordModification(latestSnapshot);
+    inodesInPath.setLastINode(targetNode);
 
     // Remove the node from the namespace
     removeLastINode(inodesInPath);
@@ -720,6 +716,7 @@ public class FSDirectory implements FSConstants, Closeable {
     // set the parent's modification time
     targetNode.getParent().updateModificationTime(mtime, latestSnapshot);
 
+    // collect block
     final int inodesRemoved = targetNode.destroySubtreeAndCollectBlocks(
         null, collectedBlocks);
     if (NameNode.stateChangeLog.isDebugEnabled()) {
@@ -768,17 +765,16 @@ public class FSDirectory implements FSConstants, Closeable {
    * Replaces the specified INodeFile with the specified one.
    */
   void replaceINodeFile(String path, INodeFile oldnode,
-      INodeFile newnode, Snapshot latest) throws IOException {
+      INodeFile newnode) throws IOException {
     synchronized (rootDir) {
-      unprotectedReplaceINodeFile(path, oldnode, newnode, latest);
+      unprotectedReplaceINodeFile(path, oldnode, newnode);
     }
   }
 
   /** Replace an INodeFile and record modification for the latest snapshot. */
   void unprotectedReplaceINodeFile(final String path, final INodeFile oldnode,
-      final INodeFile newnode, Snapshot latest) {
-    oldnode.getParent().replaceChild(newnode);
-
+      final INodeFile newnode) {
+    oldnode.getParent().replaceChild(oldnode, newnode);
     /* Currently oldnode and newnode are assumed to contain the same
      * blocks. Otherwise, blocks need to be removed from the blocksMap.
      */
@@ -1258,6 +1254,12 @@ public class FSDirectory implements FSConstants, Closeable {
     INode removedNode = ((INodeDirectory)inodes[pos-1]).removeChild(
         inodes[pos], inodesInPath.getLatestSnapshot());
     if (removedNode != null) {
+      if (removedNode != inodes[pos]) {
+        throw new IllegalStateException("removedNode "
+            + removedNode.toDetailString() + " is not the same with "
+            + inodes[pos].toDetailString());
+      }
+
       inodesInPath.setINode(pos - 1, removedNode.getParent());
       INode.DirCounts counts = new INode.DirCounts();
       removedNode.spaceConsumedInTree(counts);

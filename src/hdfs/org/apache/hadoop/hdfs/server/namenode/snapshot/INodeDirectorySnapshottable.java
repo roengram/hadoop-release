@@ -28,6 +28,7 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
+import org.apache.hadoop.hdfs.util.ReadOnlyList;
 
 /**
  * Directories where taking snapshots is allowed.
@@ -59,10 +60,10 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithSnapshot {
   private final List<Snapshot> snapshotsByNames = new ArrayList<Snapshot>();
 
   /**
-   * @return {@link #snapshotsByNames}. Used only by test.
+   * @return {@link #snapshotsByNames}
    */
-  List<Snapshot> getSnapshotsByNames() {
-    return snapshotsByNames;
+  ReadOnlyList<Snapshot> getSnapshotsByNames() {
+    return ReadOnlyList.Util.asReadOnlyList(this.snapshotsByNames);
   }
 
   /** Number of snapshots allowed. */
@@ -146,6 +147,14 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithSnapshot {
   public boolean isSnapshottable() {
     return true;
   }
+  
+  /**
+   * Simply add a snapshot into the {@link #snapshotsByNames}. Used by FSImage
+   * loading.
+   */
+  void addSnapshot(Snapshot snapshot) {
+    this.snapshotsByNames.add(snapshot);
+  }
 
   /** Add a snapshot. */
   Snapshot addSnapshot(int id, String name) throws SnapshotException {
@@ -164,7 +173,7 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithSnapshot {
           + "snapshot with the same name \"" + name + "\".");
     }
 
-    final DirectoryDiff d = getDiffs().addSnapshotDiff(s);
+    final DirectoryDiff d = getDiffs().addDiff(s, this);
     d.snapshotINode = s.getRoot();
     snapshotsByNames.add(-i - 1, s);
 

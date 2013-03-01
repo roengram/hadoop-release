@@ -55,21 +55,14 @@ public class INodeDirectory extends INode {
   }
 
   protected static final int DEFAULT_FILES_PER_DIRECTORY = 5;
-  final static String ROOT_NAME = "";
+  final static byte[] ROOT_NAME = DFSUtil.string2Bytes("");
 
   private List<INode> children = null;
-
-  public INodeDirectory(String name, PermissionStatus permissions) {
-    super(name, permissions);
-  }
-
-  public INodeDirectory(PermissionStatus permissions, long mTime) {
-    super(permissions, mTime, 0);
-  }
-
+  
   /** constructor */
-  INodeDirectory(byte[] name, PermissionStatus permissions, long mtime) {
-    super(name, permissions, null, mtime, 0L);
+  public INodeDirectory(byte[] name, PermissionStatus permissions,
+      long mtime) {
+    super(name, permissions, mtime, 0L);
   }
   
   /** copy constructor
@@ -117,12 +110,6 @@ public class INodeDirectory extends INode {
     return false;
   }
 
-  INode removeChild(INode node) {
-    assertChildrenNonNull();
-    final int i = searchChildren(node.getLocalNameBytes());
-    return i >= 0? children.remove(i): null;
-  }
-
   /**
    * Remove the specified child from this directory.
    * 
@@ -133,8 +120,9 @@ public class INodeDirectory extends INode {
   public INode removeChild(INode child, Snapshot latest) {
     assertChildrenNonNull();
 
-    if (latest != null) {
-      return recordModification(latest).removeChild(child, latest);
+    if (isInLatestSnapshot(latest)) {
+      return replaceSelf4INodeDirectoryWithSnapshot()
+          .removeChild(child, latest);
     }
 
     final int i = searchChildren(child.getLocalNameBytes());
@@ -200,15 +188,18 @@ public class INodeDirectory extends INode {
     if (parent == null) {
       throw new IllegalStateException("parent is null, this=" + this);
     }
-    return parent.replaceChild(newDir);
+    parent.replaceChild(this, newDir);
+    return newDir;
   }
   
-  final <N extends INode> N replaceChild(final N newChild) {
+  public void replaceChild(final INode oldChild, final INode newChild) {
     assertChildrenNonNull();
     final int i = searchChildrenForExistingINode(newChild);
-    final INode oldChild = children.set(i, newChild);
+    final INode removed = children.set(i, newChild);
+    if (removed != oldChild) {
+      throw new IllegalStateException();
+    }
     oldChild.clearReferences();
-    return newChild;
   }
   
   /** Replace a child {@link INodeFile} with an {@link INodeFileWithSnapshot}. */
@@ -219,7 +210,9 @@ public class INodeDirectory extends INode {
       throw new IllegalStateException(
           "Child file is already an INodeFileWithLink, child=" + child);
     }
-    return replaceChild(new INodeFileWithSnapshot(child));
+    final INodeFileWithSnapshot newChild = new INodeFileWithSnapshot(child);
+    replaceChild(child, newChild);
+    return newChild;
   }
   
   /**
@@ -233,13 +226,17 @@ public class INodeDirectory extends INode {
       "Child file is already an INodeFileUnderConstructionWithSnapshot, child="
           + child);
     }
-    return replaceChild(new INodeFileUnderConstructionWithSnapshot(child));
+    final INodeFileUnderConstructionWithSnapshot newChild
+        = new INodeFileUnderConstructionWithSnapshot(child, null);
+    replaceChild(child, newChild);
+    return newChild;
   }
   
   @Override
   public INodeDirectory recordModification(Snapshot latest) {
-    return latest == null ? this : 
-      replaceSelf4INodeDirectoryWithSnapshot().recordModification(latest);
+    return isInLatestSnapshot(latest)?
+        replaceSelf4INodeDirectoryWithSnapshot().recordModification(latest)
+        : this;
   }
 
   /**
@@ -424,11 +421,11 @@ public class INodeDirectory extends INode {
    * @return  false if the child with this name already exists; 
    *          otherwise, return true
    */
-  public boolean addChild(final INode node, boolean inheritPermission,
+  public boolean addChild(INode node, boolean inheritPermission,
       final Snapshot latest) {
-    if (latest != null) {
-      return recordModification(latest).addChild(node, inheritPermission,
-          latest);
+    if (isInLatestSnapshot(latest)) {
+      return replaceSelf4INodeDirectoryWithSnapshot().addChild(node,
+          inheritPermission, latest);
     }
 
     if (children == null) {
@@ -453,7 +450,7 @@ public class INodeDirectory extends INode {
     // update modification time of the parent directory
     updateModificationTime(node.getModificationTime(), latest);
     if (node.getGroupName() == null) {
-      node.setGroup(getGroupName(), latest);
+      node.setGroup(getGroupName(), null);
     }
     return true;
   }
@@ -704,6 +701,10 @@ public class INodeDirectory extends INode {
         inodes = newNodes;
       }
       return inodes;
+    }
+    
+    void setLastINode(INode last) {
+      inodes[inodes.length - 1] = last;
     }
     
     /**

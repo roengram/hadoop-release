@@ -20,6 +20,11 @@ package org.apache.hadoop.hdfs.server.namenode;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -40,9 +45,14 @@ import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants;
 import org.apache.hadoop.hdfs.server.datanode.DataNode;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot;
+import org.apache.hadoop.http.HttpServer;
 import org.apache.hadoop.ipc.RPC.Server;
+import org.apache.hadoop.metrics2.impl.MetricsSystemImpl;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.log4j.Level;
+import org.apache.tools.ant.DirectoryScanner;
+import org.junit.Assert;
 
 /**
  * Helper for writing snapshot related tests
@@ -60,6 +70,10 @@ public class SnapshotTestHelper {
     setLevel2OFF(NameNode.stateChangeLog);
     setLevel2OFF(DFSClient.LOG);
     setLevel2OFF(Server.LOG);
+    
+    setLevel2OFF(LogFactory.getLog(DirectoryScanner.class));
+    setLevel2OFF(LogFactory.getLog(MetricsSystemImpl.class));
+    setLevel2OFF(HttpServer.LOG);     
   }
 
   static void setLevel2OFF(Object log) {
@@ -115,6 +129,118 @@ public class SnapshotTestHelper {
     assertEquals("snapshottedDir=" + snapshottedDir
         + ", snapshotRoot=" + snapshotRoot,
         currentFiles.length, snapshotFiles.length);
+  }
+  
+  /**
+   * Compare two dumped trees that are stored in two files. The following is an
+   * example of the dumped tree:
+   * 
+   * <pre>
+   * information of root
+   * +- the first child of root (e.g., /foo)
+   *   +- the first child of /foo
+   *   ...
+   *   \- the last child of /foo (e.g., /foo/bar)
+   *     +- the first child of /foo/bar
+   *     ...
+   *   snapshots of /foo
+   *   +- snapshot s_1
+   *   ...
+   *   \- snapshot s_n
+   * +- second child of root
+   *   ...
+   * \- last child of root
+   * 
+   * The following information is dumped for each inode:
+   * localName (className@hashCode) parent permission group user
+   * 
+   * Specific information for different types of INode: 
+   * {@link INodeDirectory}:childrenSize 
+   * {@link INodeFile}: fileSize, block list. Check {@link BlockInfo#toString()} 
+   * and {@link BlockInfoUnderConstruction#toString()} for detailed information.
+   * {@link FileWithSnapshot}: next link
+   * </pre>
+   * @see INode#dumpTreeRecursively()
+   */
+  public static void compareDumpedTreeInFile(File file1, File file2)
+      throws IOException {
+    try {
+      compareDumpedTreeInFile(file1, file2, false);
+    } catch(Throwable t) {
+      LOG.info("FAILED compareDumpedTreeInFile(" + file1 + ", " + file2 + ")", t);
+      compareDumpedTreeInFile(file1, file2, true);
+    }
+  }
+  private static void compareDumpedTreeInFile(File file1, File file2,
+      boolean print) throws IOException {
+    if (print) {
+      printFile(file1);
+      printFile(file2);
+    }
+
+    BufferedReader reader1 = new BufferedReader(new FileReader(file1));
+    BufferedReader reader2 = new BufferedReader(new FileReader(file2));
+    try {
+      String line1 = "";
+      String line2 = "";
+      while ((line1 = reader1.readLine()) != null
+          && (line2 = reader2.readLine()) != null) {
+        if (print) {
+          System.out.println();
+          System.out.println("1) " + line1);
+          System.out.println("2) " + line2);
+        }
+        // skip the hashCode part of the object string during the comparison,
+        // also ignore the difference between INodeFile/INodeFileWithSnapshot
+        line1 = line1.replaceAll("INodeFileWithSnapshot", "INodeFile");
+        line2 = line2.replaceAll("INodeFileWithSnapshot", "INodeFile");
+        line1 = line1.replaceAll("@[\\dabcdef]+", "");
+        line2 = line2.replaceAll("@[\\dabcdef]+", "");
+        
+        // skip the replica field of the last block of an
+        // INodeFileUnderConstruction
+        line1 = line1.replaceAll("replicas=\\[.*\\]", "replicas=[]");
+        line2 = line2.replaceAll("replicas=\\[.*\\]", "replicas=[]");
+        
+        // skip the specific fields of BlockInfoUnderConstruction when the node
+        // is an INodeFileSnapshot or an INodeFileUnderConstructionSnapshot
+        if (line1.contains("(INodeFileSnapshot)")
+            || line1.contains("(INodeFileUnderConstructionSnapshot)")) {
+          line1 = line1.replaceAll(
+           "\\{blockUCState=\\w+, primaryNodeIndex=[-\\d]+, replicas=\\[\\]\\}",
+           "");
+          line2 = line2.replaceAll(
+           "\\{blockUCState=\\w+, primaryNodeIndex=[-\\d]+, replicas=\\[\\]\\}",
+           "");
+        }
+        
+        assertEquals(line1, line2);
+      }
+      Assert.assertNull(reader1.readLine());
+      Assert.assertNull(reader2.readLine());
+    } finally {
+      reader1.close();
+      reader2.close();
+    }
+  }
+
+  static void printFile(File f) throws IOException {
+    System.out.println();
+    System.out.println("File: " + f);
+    BufferedReader in = new BufferedReader(new FileReader(f));
+    try {
+      for(String line; (line = in.readLine()) != null; ) {
+        System.out.println(line);
+      }
+    } finally {
+      in.close();
+    }
+  }
+
+  public static void dumpTree2File(FSDirectory fsdir, File f) throws IOException{
+    final PrintWriter out = new PrintWriter(new FileWriter(f, false), true);
+    fsdir.getINode("/").dumpTreeRecursively(out, new StringBuilder(), null);
+    out.close();
   }
   
   /**
@@ -287,15 +413,13 @@ public class SnapshotTestHelper {
        * directory creation/deletion
        */
       public final ArrayList<Node> nonSnapshotChildren;
-      public final FileSystem fs;
 
-      public Node(Path path, int level, Node parent,
-          FileSystem fs) throws Exception {
+      public Node(Path path, int level, Node parent, FileSystem fs)
+          throws Exception {
         this.nodePath = path;
         this.level = level;
         this.parent = parent;
         this.nonSnapshotChildren = new ArrayList<Node>();
-        this.fs = fs;
         fs.mkdirs(nodePath);
       }
 
@@ -303,7 +427,7 @@ public class SnapshotTestHelper {
        * Create files and add them in the fileList. Initially the last element
        * in the fileList is set to null (where we start file creation).
        */
-      public void initFileList(String namePrefix, long fileLen,
+      public void initFileList(FileSystem fs, String namePrefix, long fileLen,
           short replication, long seed, int numFiles) throws Exception {
         fileList = new ArrayList<Path>(numFiles);
         for (int i = 0; i < numFiles; i++) {

@@ -27,6 +27,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.DFSTestUtil;
+import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
@@ -169,7 +170,8 @@ public class TestNestedSnapshots {
   public void testIdCmp() {
     final PermissionStatus perm = PermissionStatus.createImmutable(
         "user", "group", FsPermission.createImmutable((short)0));
-    final INodeDirectory dir = new INodeDirectory("foo", perm);
+    final INodeDirectory dir = new INodeDirectory(DFSUtil.string2Bytes("foo"),
+        perm, 0L);
     final INodeDirectorySnapshottable snapshottable
         = new INodeDirectorySnapshottable(dir);
     final Snapshot[] snapshots = {

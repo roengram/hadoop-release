@@ -20,7 +20,6 @@ package org.apache.hadoop.hdfs.server.namenode;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.Arrays;
 import java.util.List;
 
 import org.apache.hadoop.fs.permission.FsAction;
@@ -85,27 +84,19 @@ public class INodeFile extends INode {
   protected long header = 0L;
 
   private BlockInfo blocks[] = null;
-
-  INodeFile(PermissionStatus permissions,
-            int nrBlocks, short replication, long modificationTime,
-            long atime, long preferredBlockSize) {
-    this(permissions, new BlockInfo[nrBlocks], replication,
-        modificationTime, atime, preferredBlockSize);
-  }
-
-  protected INodeFile(PermissionStatus permissions, BlockInfo[] blklist,
-                      short replication, long modificationTime,
-                      long atime, long preferredBlockSize) {
-    this(null, permissions, modificationTime, atime, blklist, replication,
-        preferredBlockSize);
-  }
   
   INodeFile(byte[] name, PermissionStatus permissions, long mtime, long atime,
       BlockInfo[] blklist, short replication, long preferredBlockSize) {
-    super(name, permissions, null, mtime, atime);
+    super(name, permissions, mtime, atime);
     header = HeaderFormat.combineReplication(header, replication);
     header = HeaderFormat.combinePreferredBlockSize(header, preferredBlockSize);
     this.blocks = blklist;
+  }
+  
+  public INodeFile(INodeFile that) {
+    super(that);
+    this.header = that.header;
+    this.blocks = that.blocks;
   }
 
   /** @return true unconditionally. */
@@ -121,9 +112,10 @@ public class INodeFile extends INode {
 
   @Override
   public INodeFile recordModification(final Snapshot latest) {
-    return latest == null? this
-        : parent.replaceChild4INodeFileWithSnapshot(this)
-            .recordModification(latest);
+    return isInLatestSnapshot(latest)?
+        parent.replaceChild4INodeFileWithSnapshot(this)
+            .recordModification(latest)
+        : this;
   }
   
   /**
@@ -134,12 +126,6 @@ public class INodeFile extends INode {
   @Override
   final INode setPermission(FsPermission permission, Snapshot latest) {
     return super.setPermission(permission.applyUMask(UMASK), latest);
-  }
-
-  public INodeFile(INodeFile that) {
-    super(that);
-    this.header = that.header;
-    this.blocks = that.blocks;
   }
 
   /** @return the replication factor of the file. */
@@ -161,8 +147,9 @@ public class INodeFile extends INode {
   }
 
   public void setFileReplication(short replication, Snapshot latest) {
-    if (latest != null) {
-      recordModification(latest).setFileReplication(replication, null);
+    final INodeFile nodeToUpdate = recordModification(latest);
+    if (nodeToUpdate != this) {
+      nodeToUpdate.setFileReplication(replication, null);
       return;
     }
 
@@ -229,9 +216,14 @@ public class INodeFile extends INode {
   public int destroySubtreeAndCollectBlocks(final Snapshot snapshot,
       final BlocksMapUpdateInfo collectedBlocks) {
     if (snapshot != null) {
+      // never delete blocks for snapshot since the current file still exists
       return 0;
     }
 
+    return destroySelfAndCollectBlocks(collectedBlocks);
+  }
+
+  public int destroySelfAndCollectBlocks(BlocksMapUpdateInfo collectedBlocks) {
     if (blocks != null && collectedBlocks != null) {
       for (BlockInfo blk : blocks) {
         collectedBlocks.addDeleteBlock(blk);
@@ -339,8 +331,10 @@ public class INodeFile extends INode {
   public void dumpTreeRecursively(PrintWriter out, StringBuilder prefix,
       final Snapshot snapshot) {
     super.dumpTreeRecursively(out, prefix, snapshot);
-    out.print(", fileSize=" + computeFileSize(null));
-    out.print(", blocks=" + (blocks == null? null: Arrays.asList(blocks)));
+    out.print(", fileSize=" + computeFileSize(snapshot));
+    // only compare the first block
+    out.print(", blocks=");
+    out.print(blocks == null || blocks.length == 0 ? null : blocks[0]);
     out.println();
   }
 }

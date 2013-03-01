@@ -22,11 +22,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -79,7 +74,8 @@ public class TestSaveNamespace extends TestCase {
         throw new RuntimeException("Injected fault: saveFSImage second time");
       }
       LOG.info("Not injecting fault for file: " + f);
-      origImage.saveFSImage(f);
+      FSImageFormat.Saver saver = new FSImageFormat.Saver(origImage.namespaceID);
+      saver.save(f);
       return null;
     }
   }
@@ -106,7 +102,7 @@ public class TestSaveNamespace extends TestCase {
     case SAVE_FSIMAGE:
       // The spy throws a RuntimeException when writing to the second directory
       doAnswer(new FaultySaveImage(originalImage)).
-        when(spyImage).saveFSImage((File)anyObject());
+        when(spyImage).saveCurrent((StorageDirectory)anyObject());
       break;
     case MOVE_CURRENT:
       // The spy throws a RuntimeException when calling moveCurrent()

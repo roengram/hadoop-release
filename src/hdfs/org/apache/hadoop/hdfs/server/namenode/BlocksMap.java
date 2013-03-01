@@ -34,6 +34,7 @@ public class BlocksMap {
    * Internal class for block metadata.
    */
   public static class BlockInfo extends Block implements LightWeightGSet.LinkedElement {
+    public static final BlockInfo[] EMPTY_ARRAY = {}; 
     private INodeFile          inode;
 
     /** For implementing {@link LightWeightGSet.LinkedElement} interface */
@@ -49,6 +50,15 @@ public class BlocksMap {
      */
     private Object[] triplets;
 
+    /**
+     * Construct an entry for blocksmap
+     * @param replication the block's replication factor
+     */
+    public BlockInfo(int replication) {
+      this.triplets = new Object[3*replication];
+      this.inode = null;
+    }
+    
     BlockInfo(Block blk, int replication) {
       super(blk);
       this.triplets = new Object[3*replication];
