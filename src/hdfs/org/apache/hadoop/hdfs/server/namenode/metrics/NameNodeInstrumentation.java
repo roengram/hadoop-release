@@ -80,7 +80,10 @@ public class NameNodeInstrumentation implements MetricsSource {
   final MetricMutableCounterInt listSnapshottableDirOps = registry
       .newCounter("ListSnapshottableDirOps",
           "Number of listSnapshottableDir operations", 0);
-
+  final MetricMutableCounterInt snapshotDiffReportOps = registry
+      .newCounter("SnapshotDiffReportOps",
+          "Number of SnapshotDiffReportOps operations", 0);
+  
   NameNodeInstrumentation(Configuration conf) {
     sessionId = conf.get("session.id");
     JvmMetricsSource.create("NameNode", sessionId);
@@ -185,6 +188,10 @@ public class NameNodeInstrumentation implements MetricsSource {
   
   public void incrListSnapshottableDirOps() {
     listSnapshottableDirOps.incr();
+  }
+  
+  public void incrSnapshotDiffReportOps() {
+    snapshotDiffReportOps.incr();
   }
   
   //@Override

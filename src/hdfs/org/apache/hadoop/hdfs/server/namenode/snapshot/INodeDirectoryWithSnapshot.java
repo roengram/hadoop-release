@@ -20,10 +20,13 @@ package org.apache.hadoop.hdfs.server.namenode.snapshot;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.hadoop.hdfs.protocol.SnapshotDiffReport.DiffReportEntry;
+import org.apache.hadoop.hdfs.protocol.SnapshotDiffReport.DiffType;
 import org.apache.hadoop.hdfs.server.namenode.FSImageSerialization;
 import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
@@ -116,6 +119,62 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
         }
       }
       return dirList;
+    }
+    
+    /**
+     * Interpret the diff and generate a list of {@link DiffReportEntry}.
+     * @root The snapshot root of the diff report.
+     * @param parent The directory that the diff belongs to.
+     * @param fromEarlier True indicates {@code diff=later-earlier}, 
+     *                            False indicates {@code diff=earlier-later}
+     * @return A list of {@link DiffReportEntry} as the diff report.
+     */
+    public List<DiffReportEntry> generateReport(
+        INodeDirectorySnapshottable root, INodeDirectoryWithSnapshot parent,
+        boolean fromEarlier) {
+      List<DiffReportEntry> cList = new ArrayList<DiffReportEntry>();
+      List<DiffReportEntry> dList = new ArrayList<DiffReportEntry>();
+      int c = 0, d = 0;
+      List<INode> created = getCreatedList();
+      List<INode> deleted = getDeletedList();
+      byte[][] parentPath = parent.getRelativePathNameBytes(root);
+      byte[][] fullPath = new byte[parentPath.length + 1][];
+      System.arraycopy(parentPath, 0, fullPath, 0, parentPath.length);
+      for (; c < created.size() && d < deleted.size(); ) {
+        INode cnode = created.get(c);
+        INode dnode = deleted.get(d);
+        if (cnode.equals(dnode)) {
+          fullPath[fullPath.length - 1] = cnode.getLocalNameBytes();
+          // must be the case: delete first and then create an inode with the
+          // same name
+          cList.add(new DiffReportEntry(DiffType.CREATE, fullPath));
+          dList.add(new DiffReportEntry(DiffType.DELETE, fullPath));
+          c++;
+          d++;
+        } else if (cnode.compareTo(dnode.getLocalNameBytes()) < 0) {
+          fullPath[fullPath.length - 1] = cnode.getLocalNameBytes();
+          cList.add(new DiffReportEntry(fromEarlier ? DiffType.CREATE
+              : DiffType.DELETE, fullPath));
+          c++;
+        } else {
+          fullPath[fullPath.length - 1] = dnode.getLocalNameBytes();
+          dList.add(new DiffReportEntry(fromEarlier ? DiffType.DELETE
+              : DiffType.CREATE, fullPath));
+          d++;
+        }
+      }
+      for (; d < deleted.size(); d++) {
+        fullPath[fullPath.length - 1] = deleted.get(d).getLocalNameBytes();
+        dList.add(new DiffReportEntry(fromEarlier ? DiffType.DELETE
+            : DiffType.CREATE, fullPath));
+      }
+      for (; c < created.size(); c++) {
+        fullPath[fullPath.length - 1] = created.get(c).getLocalNameBytes();
+        cList.add(new DiffReportEntry(fromEarlier ? DiffType.CREATE
+            : DiffType.DELETE, fullPath));
+      }
+      dList.addAll(cList);
+      return dList;
     }
   }
 
@@ -292,6 +351,72 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
     DirectoryDiffList() {
       setFactory(DirectoryDiffFactory.INSTANCE);
     }
+  }
+  
+  /**
+   * Compute the difference between Snapshots.
+   * 
+   * @param fromSnapshot Start point of the diff computation. Null indicates
+   *          current tree.
+   * @param toSnapshot End point of the diff computation. Null indicates current
+   *          tree.
+   * @param diff Used to capture the changes happening to the children. Note
+   *          that the diff still represents (later_snapshot - earlier_snapshot)
+   *          although toSnapshot can be before fromSnapshot.
+   * @return Whether changes happened between the startSnapshot and endSnaphsot.
+   */
+  boolean computeDiffBetweenSnapshots(Snapshot fromSnapshot,
+      Snapshot toSnapshot, ChildrenDiff diff) {
+    Snapshot earlierSnapshot = fromSnapshot;
+    Snapshot laterSnapshot = toSnapshot;
+    if (Snapshot.ID_COMPARATOR.compare(fromSnapshot, toSnapshot) > 0) {
+      earlierSnapshot = toSnapshot;
+      laterSnapshot = fromSnapshot;
+    }
+    
+    boolean modified = diffs.changedBetweenSnapshots(earlierSnapshot,
+        laterSnapshot);
+    if (!modified) {
+      return false;
+    }
+    
+    final List<DirectoryDiff> difflist = diffs.asList();
+    final int size = difflist.size();
+    int earlierDiffIndex = Collections.binarySearch(difflist, earlierSnapshot);
+    int laterDiffIndex = laterSnapshot == null ? size : Collections
+        .binarySearch(difflist, laterSnapshot);
+    earlierDiffIndex = earlierDiffIndex < 0 ? (-earlierDiffIndex - 1)
+        : earlierDiffIndex;
+    laterDiffIndex = laterDiffIndex < 0 ? (-laterDiffIndex - 1)
+        : laterDiffIndex;
+    
+    boolean dirMetadataChanged = false;
+    INodeDirectory dirCopy = null;
+    for (int i = earlierDiffIndex; i < laterDiffIndex; i++) {
+      DirectoryDiff sdiff = difflist.get(i);
+      diff.combinePosterior(sdiff.diff, null);
+      if (dirMetadataChanged == false && sdiff.snapshotINode != null) {
+        if (dirCopy == null) {
+          dirCopy = sdiff.snapshotINode;
+        } else {
+          if (!dirCopy.metadataEquals(sdiff.snapshotINode)) {
+            dirMetadataChanged = true;
+          }
+        }
+      }
+    }
+
+    if (!diff.isEmpty() || dirMetadataChanged) {
+      return true;
+    } else if (dirCopy != null) {
+      for (int i = laterDiffIndex; i < size; i++) {
+        if (!dirCopy.metadataEquals(difflist.get(i).snapshotINode)) {
+          return true;
+        }
+      }
+      return !dirCopy.metadataEquals(this);
+    }
+    return false;
   }
 
   /** Diff list sorted by snapshot IDs, i.e. in chronological order. */

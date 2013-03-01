@@ -31,6 +31,7 @@ import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable.SnapshotDiffInfo;
 
 /**
  * Manage snapshottable directories and their snapshots.
@@ -45,8 +46,6 @@ import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
  * if necessary.
  */
 public class SnapshotManager implements SnapshotStats {
-  static final byte[] EMPTY_BYTES = {};
-  
   private final FSDirectory fsdir;
   
   private AtomicInteger numSnapshottableDirs = new AtomicInteger();
@@ -235,7 +234,8 @@ public class SnapshotManager implements SnapshotStats {
             dir.getModificationTime(), dir.getAccessTime(),
             dir.getFsPermission(), dir.getUserName(), dir.getGroupName(),
             dir.getLocalNameBytes(), dir.getNumSnapshots(),
-            dir.getSnapshotQuota(), dir.getParent() == null ? EMPTY_BYTES
+            dir.getSnapshotQuota(), 
+            dir.getParent() == null ? DFSUtil.EMPTY_BYTES
                 : DFSUtil.string2Bytes(dir.getParent().getFullPathName()));
         statusList.add(status);
       }
@@ -253,5 +253,30 @@ public class SnapshotManager implements SnapshotStats {
     if (toRemoveList != null) {
       this.snapshottables.removeAll(toRemoveList);
     }
+  }
+  
+  /**
+   * Compute the difference between two snapshots of a directory, or between a
+   * snapshot of the directory and its current tree.
+   */
+  public SnapshotDiffInfo diff(final String path, final String from,
+      final String to) throws IOException {
+    if ((from == null || from.isEmpty())
+        && (to == null || to.isEmpty())) {
+      // both fromSnapshot and toSnapshot indicate the current tree
+      return null;
+    }
+    // if the start point is equal to the end point, return null
+    if (from.equals(to)) {
+      return null;
+    }
+
+    // Find the source root directory path where the snapshots were taken.
+    // All the check for path has been included in the valueOf method.
+    INodesInPath inodesInPath = fsdir.getINodesInPath4Write(path.toString());
+    final INodeDirectorySnapshottable snapshotRoot = INodeDirectorySnapshottable
+        .valueOf(inodesInPath.getLastINode(), path);
+    
+    return snapshotRoot.computeDiff(from, to);
   }
 }

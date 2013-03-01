@@ -76,6 +76,15 @@ public class Snapshot implements Comparable<byte[]> {
     return latest;
   }
 
+  /** 
+   * Get the name of the given snapshot. 
+   * @param s The given snapshot.
+   * @return The name of the snapshot, or an empty string if {@code s} is null
+   */
+  public static String getSnapshotName(Snapshot s) {
+    return s != null ? s.getRoot().getLocalName() : "";
+  }
+  
   /** The root directory of the snapshot. */
   public class Root extends INodeDirectory {
     Root(INodeDirectory other) {

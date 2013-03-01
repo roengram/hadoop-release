@@ -112,6 +112,7 @@ public class SnapshottableDirectoryStatus implements Writable {
   //////////////////////////////////////////////////
   // Writable
   //////////////////////////////////////////////////
+  @Override
   public void write(DataOutput out) throws IOException {
     this.dirStatus.write(out);
     out.writeInt(snapshotNumber);
@@ -120,6 +121,7 @@ public class SnapshottableDirectoryStatus implements Writable {
     out.write(parentFullPath);
   }
 
+  @Override
   public void readFields(DataInput in) throws IOException {
     dirStatus.readFields(in);
     snapshotNumber = in.readInt();

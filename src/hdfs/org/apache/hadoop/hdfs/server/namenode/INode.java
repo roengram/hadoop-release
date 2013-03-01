@@ -31,6 +31,8 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.protocol.Block;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectoryWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.diff.Diff;
 
@@ -438,6 +440,13 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
     return FSDirectory.getFullPathName(this);
   }
 
+  /**
+   * @return The full path name represented in a list of byte array
+   */
+  public byte[][] getRelativePathNameBytes(INode ancestor) {
+    return FSDirectory.getRelativePathNameBytes(this, ancestor);
+  }
+  
   @Override
   public String toString() {
     return getLocalName();
@@ -583,7 +592,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
   // Comparable interface
   //
   public int compareTo(byte[] o) {
-    return compareBytes(name, o);
+    return DFSUtil.compareBytes(name, o);
   }
 
   public boolean equals(Object o) {
@@ -595,31 +604,6 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
 
   public int hashCode() {
     return Arrays.hashCode(this.name);
-  }
-
-  //
-  // static methods
-  //
-  /**
-   * Compare two byte arrays.
-   * 
-   * @return a negative integer, zero, or a positive integer 
-   * as defined by {@link #compareTo(byte[])}.
-   */
-  static int compareBytes(byte[] a1, byte[] a2) {
-    if (a1==a2)
-        return 0;
-    int len1 = (a1==null ? 0 : a1.length);
-    int len2 = (a2==null ? 0 : a2.length);
-    int n = Math.min(len1, len2);
-    byte b1, b2;
-    for (int i=0; i<n; i++) {
-      b1 = a1[i];
-      b2 = a2[i];
-      if (b1 != b2)
-        return b1 - b2;
-    }
-    return len1 - len2;
   }
 
   /**

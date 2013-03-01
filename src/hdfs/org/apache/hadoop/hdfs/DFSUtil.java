@@ -34,6 +34,30 @@ import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
 import org.apache.hadoop.net.NodeBase;
 
 public class DFSUtil {
+  public static final byte[] EMPTY_BYTES = {};
+  
+  /**
+   * Compare two byte arrays.
+   * 
+   * @return a negative integer, zero, or a positive integer 
+   * as defined by {@link #compareTo(byte[])}.
+   */
+  public static int compareBytes(byte[] a1, byte[] a2) {
+    if (a1 == a2)
+      return 0;
+    int len1 = (a1 == null ? 0 : a1.length);
+    int len2 = (a2 == null ? 0 : a2.length);
+    int n = Math.min(len1, len2);
+    byte b1, b2;
+    for (int i = 0; i < n; i++) {
+      b1 = a1[i];
+      b2 = a2[i];
+      if (b1 != b2)
+        return b1 - b2;
+    }
+    return len1 - len2;
+  }
+  
   /**
    * Whether the pathname is valid.  Currently prohibits relative paths, 
    * and names which contain a ":" or "/" 
@@ -154,6 +178,37 @@ public class DFSUtil {
       nextIndex = startIndex;
     }
     return result;
+  }
+  
+  /**
+   * Given a list of path components returns a byte array
+   */
+  public static byte[] byteArray2bytes(byte[][] pathComponents) {
+    if (pathComponents.length == 0) {
+      return EMPTY_BYTES;
+    } else if (pathComponents.length == 1
+        && (pathComponents[0] == null || pathComponents[0].length == 0)) {
+      return new byte[]{(byte) Path.SEPARATOR_CHAR};
+    }
+    int length = 0;
+    for (int i = 0; i < pathComponents.length; i++) {
+      length += pathComponents[i].length;
+      if (i < pathComponents.length - 1) {
+        length++; // for SEPARATOR
+      }
+    }
+    byte[] path = new byte[length];
+    int index = 0;
+    for (int i = 0; i < pathComponents.length; i++) {
+      System.arraycopy(pathComponents[i], 0, path, index,
+          pathComponents[i].length);
+      index += pathComponents[i].length;
+      if (i < pathComponents.length - 1) {
+        path[index] = (byte) Path.SEPARATOR_CHAR;
+        index++;
+      }
+    }
+    return path;
   }
   
   /** Convert an object representing a path to a string. */
