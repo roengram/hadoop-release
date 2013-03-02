@@ -379,7 +379,7 @@ public class DFSAdmin extends FsShell {
   
   /**
    * Allow snapshot on a directory.
-   * Usage: java DFSAdmin -allowSnapshot <snapshotRoot>
+   * Usage: java DFSAdmin -allowSnapshot snapshotRoot
    * @param argv List of of command line parameters.
    * @exception IOException
    */
@@ -391,7 +391,7 @@ public class DFSAdmin extends FsShell {
   
   /**
    * Allow snapshot on a directory.
-   * Usage: java DFSAdmin -disallowSnapshot <snapshotRoot>
+   * Usage: java DFSAdmin -disallowSnapshot snapshotRoot
    * @param argv List of of command line parameters.
    * @exception IOException
    */
@@ -475,6 +475,8 @@ public class DFSAdmin extends FsShell {
       "\t[-refreshUserToGroupsMappings]\n" +
       "\t[refreshSuperUserGroupsConfiguration]\n" +
       "\t[-setBalancerBandwidth <bandwidth>]\n" +
+      "\t[-allowSnapshot <snapshotDir>]\n" +
+      "\t[-disallowSnapshot <snapshotDir>]\n" +
       "\t[-help [cmd]]\n";
 
     String report ="-report: \tReports basic filesystem information and statistics.\n";
@@ -489,12 +491,11 @@ public class DFSAdmin extends FsShell {
       "\t\tcondition.  Safe mode can also be entered manually, but then\n" +
       "\t\tit can only be turned off manually as well.\n";
     
-    String allowSnapshot = "-allowSnapshot <snapshotRoot>: \t" +
-    		"Allow users to take snapshots \n " +
-    		"\t\tfor the directory that is specified by <snapshotRoot>.\n";
+    String allowSnapshot = "-allowSnapshot <snapshotDir>:\n" +
+        "\tAllow snapshots to be taken on a directory.\n";
     
-    String disallowSnapshot = "-disallowSnapshot <snapshotRoot>: \t" +
-      "Reset the directory specified by <snapshotRoot> as non-snapshottable.\n";
+    String disallowSnapshot = "-disallowSnapshot <snapshotDir>:\n" +
+        "\tDo not allow snapshots to be taken on a directory any more.\n";
 
     String saveNamespace = "-saveNamespace:\t" +
     "Save current namespace into storage directories and reset edits log.\n" +
@@ -588,8 +589,6 @@ public class DFSAdmin extends FsShell {
       System.out.println(summary);
       System.out.println(report);
       System.out.println(safemode);
-      System.out.println(allowSnapshot);
-      System.out.println(disallowSnapshot);
       System.out.println(saveNamespace);
       System.out.println(refreshNodes);
       System.out.println(finalizeUpgrade);
@@ -603,6 +602,8 @@ public class DFSAdmin extends FsShell {
       System.out.println(refreshUserToGroupsMappings);
       System.out.println(refreshSuperUserGroupsConfiguration);
       System.out.println(setBalancerBandwidth);
+      System.out.println(allowSnapshot);
+      System.out.println(disallowSnapshot);
       System.out.println(help);
       System.out.println();
       ToolRunner.printGenericCommandUsage(System.out);

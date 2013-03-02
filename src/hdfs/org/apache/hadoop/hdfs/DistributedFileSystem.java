@@ -666,13 +666,7 @@ public class DistributedFileSystem extends FileSystem {
     dfs.createSnapshot(getPathName(path), snapshotName);
   }
   
-  /**
-   * Rename a snapshot
-   * @param path The directory path where the snapshot was taken
-   * @param snapshotOldName Old name of the snapshot
-   * @param snapshotNewName New name of the snapshot
-   * @throws IOException
-   */
+  @Override
   public void renameSnapshot(Path path, String snapshotOldName,
       String snapshotNewName) throws IOException {
     dfs.renameSnapshot(getPathName(path), snapshotOldName, snapshotNewName);
