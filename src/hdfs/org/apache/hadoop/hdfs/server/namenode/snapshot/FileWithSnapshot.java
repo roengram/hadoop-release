@@ -36,13 +36,13 @@ public interface FileWithSnapshot {
   /**
    * The difference of an {@link INodeFile} between two snapshots.
    */
-  static class FileDiff extends AbstractINodeDiff<INodeFile, FileDiff> {
+  public static class FileDiff extends AbstractINodeDiff<INodeFile, FileDiff> {
     /** The file size at snapshot creation time. */
-    final long fileSize;
+    private final long fileSize;
 
     FileDiff(Snapshot snapshot, INodeFile file) {
       super(snapshot, null, null);
-      fileSize = file.computeFileSize(null);
+      fileSize = file.computeFileSize();
     }
 
     /** Constructor used by FSImage loading */
@@ -50,6 +50,11 @@ public interface FileWithSnapshot {
         FileDiff posteriorDiff, long fileSize) {
       super(snapshot, snapshotINode, posteriorDiff);
       this.fileSize = fileSize;
+    }
+
+    /** @return the file size in the snapshot. */
+    public long getFileSize() {
+      return fileSize;
     }
 
     @Override
@@ -128,10 +133,10 @@ public interface FileWithSnapshot {
     * @return block replication, which is the max file replication among
     *         the file and the diff list.
     */
-    static short getBlockReplication(final FileWithSnapshot file) {
+    public static short getBlockReplication(final FileWithSnapshot file) {
       short max = file.isCurrentFileDeleted()? 0
           : file.asINodeFile().getFileReplication();
-      for(FileDiff d : file.getDiffs().asList()) {
+      for(FileDiff d : file.getDiffs()) {
         if (d.snapshotINode != null) {
           final short replication = d.snapshotINode.getFileReplication();
           if (replication > max) {
@@ -161,7 +166,7 @@ public interface FileWithSnapshot {
         final FileDiff last = file.getDiffs().getLast();
         max = last == null? 0: last.fileSize;
       } else { 
-        max = file.asINodeFile().computeFileSize(null);
+        max = file.asINodeFile().computeFileSize();
       }
 
       collectBlocksBeyondMax(file, max, info);

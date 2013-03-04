@@ -33,6 +33,7 @@ import org.apache.hadoop.hdfs.protocol.SnapshotDiffReport;
 import org.apache.hadoop.hdfs.protocol.SnapshotDiffReport.DiffReportEntry;
 import org.apache.hadoop.hdfs.protocol.SnapshotDiffReport.DiffType;
 import org.apache.hadoop.hdfs.server.namenode.INode;
+import org.apache.hadoop.hdfs.server.namenode.INode.Content.CountsMap.Key;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
 import org.apache.hadoop.hdfs.server.namenode.INodeFile;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
@@ -191,6 +192,24 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithSnapshot {
     return i < 0? null: snapshotsByNames.get(i);
   }
   
+  @Override
+  public Content.Counts computeContentSummary(final Content.Counts counts) {
+    super.computeContentSummary(counts);
+    counts.add(Content.SNAPSHOT, snapshotsByNames.size());
+    counts.add(Content.SNAPSHOTTABLE_DIRECTORY, 1);
+    return counts;
+  }
+
+  @Override
+  public Content.CountsMap computeContentSummary(
+      final Content.CountsMap countsMap) {
+    super.computeContentSummary(countsMap);
+    countsMap.getCounts(Key.SNAPSHOT).add(Content.SNAPSHOT,
+        snapshotsByNames.size());
+    countsMap.getCounts(Key.CURRENT).add(Content.SNAPSHOTTABLE_DIRECTORY, 1);
+    return countsMap;
+  }
+
   /**
    * Compute the difference between two snapshots (or a snapshot and the current
    * directory) of the directory.

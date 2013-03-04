@@ -73,18 +73,6 @@ public class INodeFileWithSnapshot extends INodeFile
   public INodeFile asINodeFile() {
     return this;
   }
-
-  @Override
-  public short getBlockReplication() {
-    return Util.getBlockReplication(this);
-  }
-
-  @Override
-  public long computeFileSize(Snapshot snapshot) {
-    final FileDiff diff = diffs.getDiff(snapshot);
-    return diff != null? diff.fileSize
-        : super.computeFileSize(null);
-  }
   
   @Override
   public FileDiffList getDiffs() {
