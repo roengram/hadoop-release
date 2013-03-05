@@ -34,6 +34,7 @@ import org.apache.hadoop.hdfs.tools.DFSAdmin;
 import org.apache.hadoop.hdfs.web.WebHdfsFileSystem;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.junit.Assert;
 
 /** A class for testing quota-related commands */
 public class TestQuota extends TestCase {
@@ -149,15 +150,13 @@ public class TestQuota extends TestCase {
       fout = dfs.create(childFile1, replication);
       
       // 10.s: but writing fileLen bytes should result in an quota exception
-      hasException = false;
       try {
         fout.write(new byte[fileLen]);
         fout.close();
+        Assert.fail();
       } catch (DSQuotaExceededException e) {
-        hasException = true;
         IOUtils.closeStream(fout);
       }
-      assertTrue(hasException);
       
       //delete the file
       dfs.delete(childFile1, false);

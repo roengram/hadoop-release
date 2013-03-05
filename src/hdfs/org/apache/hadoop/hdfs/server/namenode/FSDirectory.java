@@ -1330,25 +1330,21 @@ public class FSDirectory implements FSConstants, Closeable {
    * Count of each ancestor with quota is also updated.
    * @return the removed node; null if the removal fails.
    */
-  private INode removeLastINode(INodesInPath inodesInPath) {
+  private INode removeLastINode(final INodesInPath inodesInPath) {
     final INode[] inodes = inodesInPath.getINodes();
     final int pos = inodes.length - 1;
-    INode removedNode = ((INodeDirectory)inodes[pos-1]).removeChild(
+    final boolean removed = ((INodeDirectory)inodes[pos-1]).removeChild(
         inodes[pos], inodesInPath.getLatestSnapshot());
-    if (removedNode != null) {
-      if (removedNode != inodes[pos]) {
-        throw new IllegalStateException("removedNode "
-            + removedNode.toDetailString() + " is not the same with "
-            + inodes[pos].toDetailString());
-      }
-
-      inodesInPath.setINode(pos - 1, removedNode.getParent());
-      final Quota.Counts counts = removedNode.computeQuotaUsage();
+    if (removed) {
+      inodesInPath.setINode(pos - 1, inodes[pos].getParent());
+      final Quota.Counts counts = inodes[pos].computeQuotaUsage();
       updateCountNoQuotaCheck(inodesInPath, pos,
           -counts.get(Quota.NAMESPACE), -counts.get(Quota.DISKSPACE));
+      return inodes[pos];
     }
-    return removedNode;
+    return null;
   }
+
   
   /**
    */

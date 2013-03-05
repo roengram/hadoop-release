@@ -24,6 +24,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -37,6 +38,7 @@ import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.INodeFile;
 import org.apache.hadoop.hdfs.server.namenode.SnapshotTestHelper;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -44,6 +46,8 @@ import org.junit.Test;
  * Test cases for snapshot-related information in blocksMap.
  */
 public class TestSnapshotBlocksMap {
+  // TODO: fix concat for snapshot
+  private static final boolean runConcatTest = false;
   
   private static final long seed = 0;
   private static final short REPLICATION = 3;
@@ -55,8 +59,9 @@ public class TestSnapshotBlocksMap {
   protected Configuration conf;
   protected MiniDFSCluster cluster;
   protected FSNamesystem fsn;
+  FSDirectory fsdir;
   protected DistributedFileSystem hdfs;
-  
+
   @Before
   public void setUp() throws Exception {
     conf = new Configuration();
@@ -65,6 +70,7 @@ public class TestSnapshotBlocksMap {
     cluster.waitActive();
 
     fsn = cluster.getNameNode().getNamesystem();
+    fsdir = fsn.getFSDirectory();
     hdfs = (DistributedFileSystem) cluster.getFileSystem();
   }
 
@@ -74,7 +80,39 @@ public class TestSnapshotBlocksMap {
       cluster.shutdown();
     }
   }
-  
+
+  void assertAllNull(INodeFile inode, Path path, String[] snapshots) throws Exception { 
+    Assert.assertNull(inode.getBlocks());
+    assertINodeNull(path.toString());
+    assertINodeNullInSnapshots(path, snapshots);
+  }
+
+  void assertINodeNull(String path) throws Exception {
+    Assert.assertNull(fsdir.getINode(path));
+  }
+
+  void assertINodeNullInSnapshots(Path path, String... snapshots) throws Exception {
+    for(String s : snapshots) {
+      assertINodeNull(SnapshotTestHelper.getSnapshotPath(
+          path.getParent(), s, path.getName()).toString());
+    }
+  }
+
+  INodeFile assertBlockCollection(String path, int numBlocks) throws Exception {
+    final INodeFile file = INodeFile.valueOf(fsdir.getINode(path), path);
+    assertEquals(numBlocks, file.getBlocks().length);
+    for(BlockInfo b : file.getBlocks()) {
+      assertBlockCollection(file, b);
+    }
+    return file;
+  }
+
+  void assertBlockCollection(final INodeFile file, final BlockInfo b) { 
+    Assert.assertSame(b, SnapshotTestHelper.getStoredBlock(fsn, b));
+    Assert.assertSame(file, SnapshotTestHelper.getINodeFromBlocksMap(fsn, b));
+    Assert.assertSame(file, b.getINode());
+  }
+
   /**
    * Test deleting a file with snapshots. Need to check the blocksMap to make
    * sure the corresponding record is updated correctly.
@@ -84,89 +122,111 @@ public class TestSnapshotBlocksMap {
     Path file0 = new Path(sub1, "file0");
     Path file1 = new Path(sub1, "file1");
     
-    Path subsub1 = new Path(sub1, "sub1");
-    Path subfile0 = new Path(subsub1, "file0");
+    Path sub2 = new Path(sub1, "sub2");
+    Path file2 = new Path(sub2, "file2");
+
+    Path file3 = new Path(sub1, "file3");
+    Path file4 = new Path(sub1, "file4");
+    Path file5 = new Path(sub1, "file5");
     
     // Create file under sub1
-    DFSTestUtil.createFile(hdfs, file0, BLOCKSIZE, REPLICATION, seed);
-    DFSTestUtil.createFile(hdfs, file1, BLOCKSIZE, REPLICATION, seed);
-    DFSTestUtil.createFile(hdfs, subfile0, BLOCKSIZE, REPLICATION, seed);
+    DFSTestUtil.createFile(hdfs, file0, 4*BLOCKSIZE, REPLICATION, seed);
+    DFSTestUtil.createFile(hdfs, file1, 2*BLOCKSIZE, REPLICATION, seed);
+    DFSTestUtil.createFile(hdfs, file2, 3*BLOCKSIZE, REPLICATION, seed);
     
-    FSDirectory dir = fsn.getFSDirectory();
-    
-    INodeFile inodeForDeletedFile = INodeFile.valueOf(
-        dir.getINode(subfile0.toString()), subfile0.toString());
-    BlockInfo[] blocksForDeletedFile = inodeForDeletedFile.getBlocks();
-    assertEquals(blocksForDeletedFile.length, 1);
-    INodeFile bcForDeletedFile = SnapshotTestHelper.getINodeFromBlocksMap(fsn,
-        blocksForDeletedFile[0]);
-    assertNotNull(bcForDeletedFile);
     // Normal deletion
-    hdfs.delete(subsub1, true);
-    bcForDeletedFile = SnapshotTestHelper.getINodeFromBlocksMap(fsn,
-        blocksForDeletedFile[0]);
-    // The INode should have been removed from the blocksMap
-    assertNull(bcForDeletedFile);
+    {
+      final INodeFile f2 = assertBlockCollection(file2.toString(), 3);
+      BlockInfo[] blocks = f2.getBlocks();
+      hdfs.delete(sub2, true);
+      // The INode should have been removed from the blocksMap
+      for(BlockInfo b : blocks) {
+        assertNull(SnapshotTestHelper.getINodeFromBlocksMap(fsn, b));
+      }
+    }
     
     // Create snapshots for sub1
-    for (int i = 0; i < 2; i++) {
-      SnapshotTestHelper.createSnapshot(hdfs, sub1, "s" + i);
+    final String[] snapshots = {"s0", "s1", "s2"};
+    DFSTestUtil.createFile(hdfs, file3, 5*BLOCKSIZE, REPLICATION, seed);
+    SnapshotTestHelper.createSnapshot(hdfs, sub1, snapshots[0]);
+    DFSTestUtil.createFile(hdfs, file4, 1*BLOCKSIZE, REPLICATION, seed);
+    SnapshotTestHelper.createSnapshot(hdfs, sub1, snapshots[1]);
+    DFSTestUtil.createFile(hdfs, file5, 7*BLOCKSIZE, REPLICATION, seed);
+    SnapshotTestHelper.createSnapshot(hdfs, sub1, snapshots[2]);
+
+    // set replication so that the inode should be replaced for snapshots
+    {
+      INodeFile f1 = assertBlockCollection(file1.toString(), 2);
+      Assert.assertSame(INodeFile.class, f1.getClass());
+      hdfs.setReplication(file1, (short)2);
+      f1 = assertBlockCollection(file1.toString(), 2);
+      Assert.assertSame(INodeFileWithSnapshot.class, f1.getClass());
     }
     
     // Check the block information for file0
-    // Get the INode for file0
-    INodeFile inode = INodeFile.valueOf(dir.getINode(file0.toString()),
-        file0.toString());
-    BlockInfo[] blocks = inode.getBlocks();
-    // Get the INode for the first block from blocksMap 
-    INodeFile bc = SnapshotTestHelper.getINodeFromBlocksMap(fsn,  blocks[0]);
-    // The two INode should be the same one
-    assertTrue(bc == inode);
+    final INodeFile f0 = assertBlockCollection(file0.toString(), 4);
+    BlockInfo[] blocks0 = f0.getBlocks();
     
     // Also check the block information for snapshot of file0
     Path snapshotFile0 = SnapshotTestHelper.getSnapshotPath(sub1, "s0",
         file0.getName());
-    INodeFile ssINode0 = INodeFile.valueOf(dir.getINode(snapshotFile0.toString()),
-        snapshotFile0.toString());
-    BlockInfo[] ssBlocks = ssINode0.getBlocks();
-    // The snapshot of file1 should contain 1 block
-    assertEquals(1, ssBlocks.length);
+    assertBlockCollection(snapshotFile0.toString(), 4);
     
     // Delete file0
     hdfs.delete(file0, true);
-    // Make sure the first block of file0 is still in blocksMap
-    BlockInfo blockInfoAfterDeletion = SnapshotTestHelper.getStoredBlock(fsn,
-        blocks[0]);
-    assertNotNull(blockInfoAfterDeletion);
-    // Check the INode information
-    INodeFile bcAfterDeletion = blockInfoAfterDeletion.getINode();
+    // Make sure the blocks of file0 is still in blocksMap
+    for(BlockInfo b : blocks0) {
+      assertNotNull(SnapshotTestHelper.getINodeFromBlocksMap(fsn, b));
+    }
+    assertBlockCollection(snapshotFile0.toString(), 4);
     
     // Compare the INode in the blocksMap with INodes for snapshots
-    Path snapshot1File0 = SnapshotTestHelper.getSnapshotPath(sub1, "s1",
-        file0.getName());
-    INodeFile ssINode1 = INodeFile.valueOf(
-        dir.getINode(snapshot1File0.toString()), snapshot1File0.toString());
-    assertTrue(bcAfterDeletion == ssINode0 || bcAfterDeletion == ssINode1);
-    assertEquals(1, bcAfterDeletion.getBlocks().length);
+    String s1f0 = SnapshotTestHelper.getSnapshotPath(sub1, "s1",
+        file0.getName()).toString();
+    assertBlockCollection(s1f0, 4);
     
     // Delete snapshot s1
     hdfs.deleteSnapshot(sub1, "s1");
+
     // Make sure the first block of file0 is still in blocksMap
-    BlockInfo blockInfoAfterSnapshotDeletion = SnapshotTestHelper
-        .getStoredBlock(fsn, blocks[0]);
-    assertNotNull(blockInfoAfterSnapshotDeletion);
-    INodeFile fileAfterSnapshotDeletion = blockInfoAfterSnapshotDeletion
-        .getINode();
-    assertTrue(fileAfterSnapshotDeletion == ssINode0);
-    assertEquals(1, fileAfterSnapshotDeletion.getBlocks().length);
+    for(BlockInfo b : blocks0) {
+      assertNotNull(SnapshotTestHelper.getINodeFromBlocksMap(fsn, b));
+    }
+    assertBlockCollection(snapshotFile0.toString(), 4);
+
     try {
-      ssINode1 = INodeFile.valueOf(
-        dir.getINode(snapshot1File0.toString()), snapshot1File0.toString());
+      INodeFile.valueOf(fsdir.getINode(s1f0), s1f0);
       fail("Expect FileNotFoundException when identifying the INode in a deleted Snapshot");
     } catch (IOException e) {
-      assertTrue(e.getMessage().contains(
-          "File does not exist: " + snapshot1File0.toString()));
+      assertTrue(e.getMessage().contains("File does not exist: " + s1f0));
+    }
+    
+    // concat file1, file3 and file5 to file4
+    if (runConcatTest) {
+      final INodeFile f1 = assertBlockCollection(file1.toString(), 2);
+      final BlockInfo[] f1blocks = f1.getBlocks();
+      final INodeFile f3 = assertBlockCollection(file3.toString(), 5);
+      final BlockInfo[] f3blocks = f3.getBlocks();
+      final INodeFile f5 = assertBlockCollection(file5.toString(), 7);
+      final BlockInfo[] f5blocks = f5.getBlocks();
+      assertBlockCollection(file4.toString(), 1);
+
+      // TODO: backport concat
+      //hdfs.concat(file4, new Path[]{file1, file3, file5});
+
+      final INodeFile f4 = assertBlockCollection(file4.toString(), 15);
+      final BlockInfo[] blocks4 = f4.getBlocks();
+      for(BlockInfo[] blocks : Arrays.asList(f1blocks, f3blocks, blocks4, f5blocks)) {
+        for(BlockInfo b : blocks) {
+          assertBlockCollection(f4, b);
+        }
+      }
+      assertAllNull(f1, file1, snapshots);
+      assertAllNull(f3, file3, snapshots);
+      assertAllNull(f5, file5, snapshots);
     }
   }
+
+  // TODO: test for deletion file which was appended after taking snapshots
   
 }

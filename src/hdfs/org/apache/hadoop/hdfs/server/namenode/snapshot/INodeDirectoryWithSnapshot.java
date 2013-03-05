@@ -58,6 +58,20 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
       return getCreatedList().set(c, newChild);
     }
     
+    private final boolean removeCreatedChild(final int c, final INode child) {
+      final List<INode> created = getCreatedList();
+      if (created.get(c) == child) {
+        final INode removed = created.remove(c);
+        if (removed != child) {
+          throw new IllegalStateException("removed != child. removed = "
+              + removed.toDetailString() + ". child = "
+              + child.toDetailString());
+        }
+        return true;
+      }
+      return false;
+    }
+    
     /** clear the created list */
     private int destroyCreatedList(
         final INodeDirectoryWithSnapshot currentINode,
@@ -499,24 +513,42 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
   }
 
   @Override
-  public INode removeChild(INode child, Snapshot latest) {
+  public boolean removeChild(INode child, Snapshot latest) {
     ChildrenDiff diff = null;
     UndoInfo<INode> undoInfo = null;
     if (latest != null) {
       diff = diffs.checkAndAddLatestSnapshotDiff(latest, this).diff;
       undoInfo = diff.delete(child);
     }
-    final INode removed = super.removeChild(child, null);
-    if (removed == null && undoInfo != null) {
-      diff.undoDelete(child, undoInfo);
-    }
+    final boolean removed = removeChild(child);
     if (undoInfo != null) {
-      if (removed == null) {
+      if (!removed) {
         //remove failed, undo
         diff.undoDelete(child, undoInfo);
       }
     }
     return removed;
+  }
+
+  @Override
+  public boolean removeChildAndAllSnapshotCopies(INode child) {
+    if (!removeChild(child)) {
+      return false;
+    }
+
+    // remove same child from the created list, if there is any.
+    final byte[] name = child.getLocalNameBytes();
+    final List<DirectoryDiff> diffList = diffs.asList();
+    for(int i = diffList.size() - 1; i >= 0; i--) {
+      final ChildrenDiff diff = diffList.get(i).diff;
+      final int c = diff.searchCreatedIndex(name);
+      if (c >= 0) {
+        if (diff.removeCreatedChild(c, child)) {
+          return true;
+        }
+      }
+    }
+    return true;
   }
 
   @Override

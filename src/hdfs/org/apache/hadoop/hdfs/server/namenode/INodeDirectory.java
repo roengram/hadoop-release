@@ -116,18 +116,45 @@ public class INodeDirectory extends INode {
    * 
    * @param child the child inode to be removed
    * @param latest See {@link INode#recordModification(Snapshot)}.
-   * @return the removed child inode.
    */
-  public INode removeChild(INode child, Snapshot latest) {
-    assertChildrenNonNull();
-
+  public boolean removeChild(INode child, Snapshot latest) {
     if (isInLatestSnapshot(latest)) {
       return replaceSelf4INodeDirectoryWithSnapshot()
           .removeChild(child, latest);
     }
 
+    return removeChild(child);
+  }
+
+  /** 
+   * Remove the specified child from this directory.
+   * The basic remove method which actually calls children.remove(..).
+   *
+   * @param child the child inode to be removed
+   * 
+   * @return true if the child is removed; false if the child is not found.
+   */
+  protected final boolean removeChild(final INode child) {
+    assertChildrenNonNull();
     final int i = searchChildren(child.getLocalNameBytes());
-    return i >= 0? children.remove(i): null;
+    if (i < 0) {
+      return false;
+    }
+
+    final INode removed = children.remove(i);
+    if (removed != child) {
+      throw new IllegalStateException("removed != child. removed = "
+          + removed.toDetailString() + ". child = "
+          + child.toDetailString());
+    }
+    return true;
+  }
+
+  /**
+   * Remove the specified child and all its snapshot copies from this directory.
+   */
+  public boolean removeChildAndAllSnapshotCopies(INode child) {
+    return removeChild(child);
   }
 
   /**
@@ -203,6 +230,11 @@ public class INodeDirectory extends INode {
     oldChild.clearReferences();
   }
   
+  private void replaceChildFile(final INodeFile oldChild, final INodeFile newChild) {
+    replaceChild(oldChild, newChild);
+    newChild.updateINodeForBlocks();
+  }
+  
   /** Replace a child {@link INodeFile} with an {@link INodeFileWithSnapshot}. */
   INodeFileWithSnapshot replaceChild4INodeFileWithSnapshot(
       final INodeFile child) {
@@ -212,7 +244,7 @@ public class INodeDirectory extends INode {
           "Child file is already an INodeFileWithLink, child=" + child);
     }
     final INodeFileWithSnapshot newChild = new INodeFileWithSnapshot(child);
-    replaceChild(child, newChild);
+    replaceChildFile(child, newChild);
     return newChild;
   }
   
@@ -229,7 +261,7 @@ public class INodeDirectory extends INode {
     }
     final INodeFileUnderConstructionWithSnapshot newChild
         = new INodeFileUnderConstructionWithSnapshot(child, null);
-    replaceChild(child, newChild);
+    replaceChildFile(child, newChild);
     return newChild;
   }
   
@@ -858,7 +890,11 @@ public class INodeDirectory extends INode {
   public void dumpTreeRecursively(PrintWriter out, StringBuilder prefix,
       final Snapshot snapshot) {
     super.dumpTreeRecursively(out, prefix, snapshot);
-    out.println(", childrenSize=" + getChildrenList(snapshot).size());
+    out.print(", childrenSize=" + getChildrenList(snapshot).size());
+    if (this instanceof INodeDirectoryWithQuota) {
+//      out.print(((INodeDirectoryWithQuota)this).quotaString());
+    }
+    out.println();
 
     if (prefix.length() >= 2) {
       prefix.setLength(prefix.length() - 2);

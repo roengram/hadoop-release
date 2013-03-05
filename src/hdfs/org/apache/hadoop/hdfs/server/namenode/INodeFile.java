@@ -196,6 +196,36 @@ public class INodeFile extends INode {
   public BlockInfo[] getBlocks() {
     return this.blocks;
   }
+  
+  void updateINodeForBlocks() {
+    if (blocks != null) {
+      for(BlockInfo b : blocks) {
+        b.setINode(this);
+      }
+    }
+  }
+
+  /**
+   * append array of blocks to this.blocks
+   */
+  void concatBlocks(INodeFile[] inodes) {
+    int size = this.blocks.length;
+    int totalAddedBlocks = 0;
+    for(INodeFile f : inodes) {
+      totalAddedBlocks += f.blocks.length;
+    }
+    
+    BlockInfo[] newlist = new BlockInfo[size + totalAddedBlocks];
+    System.arraycopy(this.blocks, 0, newlist, 0, size);
+    
+    for(INodeFile in: inodes) {
+      System.arraycopy(in.blocks, 0, newlist, size, in.blocks.length);
+      size += in.blocks.length;
+    }
+
+    setBlocks(newlist);
+    updateINodeForBlocks();
+  }
 
   /**
    * add a block to the block list
