@@ -129,6 +129,7 @@ public class SnapshotManager implements SnapshotStats {
     final INodesInPath i = fsdir.getINodesInPath4Write(path);
     final INodeDirectorySnapshottable srcRoot
          = INodeDirectorySnapshottable.valueOf(i.getLastINode(), path);
+    
     srcRoot.addSnapshot(snapshotCounter, snapshotName);
     
     //create success, update id

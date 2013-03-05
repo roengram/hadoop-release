@@ -273,7 +273,7 @@ public class FSImageFormat {
      */
     private void addToParent(INodeDirectory parent, INode child) {
       // NOTE: This does not update space counts for parents
-      if (!parent.addChild(child, false, null)) {
+      if (!parent.addChild(child)) {
         return;
       }
       namesystem.dir.cacheName(child);
@@ -300,7 +300,7 @@ public class FSImageFormat {
       long nsQuota = root.getNsQuota();
       long dsQuota = root.getDsQuota();
       if (nsQuota != -1 || dsQuota != -1) {
-        fsDir.rootDir.setQuota(nsQuota, dsQuota, null);
+        fsDir.rootDir.setQuota(nsQuota, dsQuota);
       }
       fsDir.rootDir.cloneModificationTime(root);
       fsDir.rootDir.clonePermissionStatus(root);    

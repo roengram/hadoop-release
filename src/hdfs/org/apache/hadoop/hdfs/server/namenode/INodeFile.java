@@ -28,6 +28,7 @@ import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
+import org.apache.hadoop.hdfs.protocol.NSQuotaExceededException;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 import org.apache.hadoop.hdfs.server.namenode.INode.Content.CountsMap.Key;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot;
@@ -116,7 +117,8 @@ public class INodeFile extends INode {
   }
 
   @Override
-  public INodeFile recordModification(final Snapshot latest) {
+  public INodeFile recordModification(final Snapshot latest)
+      throws NSQuotaExceededException {
     return isInLatestSnapshot(latest)?
         parent.replaceChild4INodeFileWithSnapshot(this)
             .recordModification(latest)
@@ -129,7 +131,18 @@ public class INodeFile extends INode {
    * the {@link FsAction#EXECUTE} action, if any, is ignored.
    */
   @Override
-  final INode setPermission(FsPermission permission, Snapshot latest) {
+  final void setPermission(FsPermission permission) {
+    super.setPermission(permission.applyUMask(UMASK));
+  }
+
+  /**
+   * Set the {@link FsPermission} of this {@link INodeFile}.
+   * Since this is a file,
+   * the {@link FsAction#EXECUTE} action, if any, is ignored.
+   */
+  @Override
+  final INode setPermission(FsPermission permission, Snapshot latest)
+      throws NSQuotaExceededException {
     return super.setPermission(permission.applyUMask(UMASK), latest);
   }
 
@@ -153,14 +166,17 @@ public class INodeFile extends INode {
         : getFileReplication(null);
   }
 
-  public void setFileReplication(short replication, Snapshot latest) {
-    final INodeFile nodeToUpdate = recordModification(latest);
-    if (nodeToUpdate != this) {
-      nodeToUpdate.setFileReplication(replication, null);
-      return;
-    }
-
+  /** Set the replication factor of this file. */
+  public final void setFileReplication(short replication) {
     header = HeaderFormat.combineReplication(header, replication);
+  }
+
+  /** Set the replication factor of this file. */
+  public final INodeFile setFileReplication(short replication, Snapshot latest)
+      throws NSQuotaExceededException {
+    final INodeFile nodeToUpdate = recordModification(latest);
+    nodeToUpdate.setFileReplication(replication);
+    return nodeToUpdate;
   }
 
   /** Convert this file to an {@link INodeFileUnderConstruction}. */
@@ -256,7 +272,8 @@ public class INodeFile extends INode {
 
   @Override
   public int cleanSubtree(final Snapshot snapshot, Snapshot prior,
-      final BlocksMapUpdateInfo collectedBlocks) {
+      final BlocksMapUpdateInfo collectedBlocks)
+          throws NSQuotaExceededException {
     if (snapshot == null && prior == null) {   
       // this only happens when deleting the current file
       return destroyAndCollectBlocks(collectedBlocks);
@@ -285,7 +302,8 @@ public class INodeFile extends INode {
   }
   
   @Override
-  public final Quota.Counts computeQuotaUsage(Quota.Counts counts) {
+  public final Quota.Counts computeQuotaUsage(Quota.Counts counts,
+      boolean useCache) {
     counts.add(Quota.NAMESPACE, this instanceof FileWithSnapshot?
         ((FileWithSnapshot)this).getDiffs().asList().size() + 1: 1);
     counts.add(Quota.DISKSPACE, diskspaceConsumed());

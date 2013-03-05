@@ -193,7 +193,7 @@ public class TestSnapshot {
     SnapshotTestHelper.compareDumpedTreeInFile(fsnBefore, fsnMiddle);
     SnapshotTestHelper.compareDumpedTreeInFile(fsnBefore, fsnAfter);
   }
-  
+
   /**
    * Main test, where we will go in the following loop:
    * <pre>

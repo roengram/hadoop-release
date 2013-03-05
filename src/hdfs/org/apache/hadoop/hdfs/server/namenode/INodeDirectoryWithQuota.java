@@ -21,7 +21,6 @@ import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.protocol.DSQuotaExceededException;
 import org.apache.hadoop.hdfs.protocol.NSQuotaExceededException;
 import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
-import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 
 /**
  * Directory INode class that has a quota restriction
@@ -85,18 +84,21 @@ public class INodeDirectoryWithQuota extends INodeDirectory {
    * @param dsQuota diskspace quota to be set
    * @param latest Latest snapshot                               
    */
-  public void setQuota(long newNsQuota, long newDsQuota, Snapshot latest) {
-    final INodeDirectoryWithQuota nodeToUpdate 
-        = (INodeDirectoryWithQuota) recordModification(latest);
-    nodeToUpdate.nsQuota = nsQuota;
-    nodeToUpdate.dsQuota = dsQuota;
+  public void setQuota(long nsQuota, long dsQuota) {
+    this.nsQuota = nsQuota;
+    this.dsQuota = dsQuota;
   }
-  
+
   @Override
-  public final Quota.Counts computeQuotaUsage(Quota.Counts counts) {
-    // use cache value
-    counts.add(Quota.NAMESPACE, namespace);
-    counts.add(Quota.DISKSPACE, diskspace);
+  public final Quota.Counts computeQuotaUsage(Quota.Counts counts,
+      boolean useCache) {
+    if (useCache) {
+      // use cache value
+      counts.add(Quota.NAMESPACE, namespace);
+      counts.add(Quota.DISKSPACE, diskspace);
+    } else {
+      super.computeQuotaUsage(counts, false);
+    }
     return counts;
   }
 
@@ -119,9 +121,9 @@ public class INodeDirectoryWithQuota extends INodeDirectory {
   }
   
   private void checkDiskspace(final long computed) {
-    if (-1 != getDsQuota() && diskspaceConsumed() != computed) {
+    if (-1 != getDsQuota() && diskspace != computed) {
       NameNode.LOG.error("BUG: Inconsistent diskspace for directory "
-          + getFullPathName() + ". Cached = " + diskspaceConsumed()
+          + getFullPathName() + ". Cached = " + diskspace
           + " != Computed = " + computed);
     }
   }
@@ -133,10 +135,25 @@ public class INodeDirectoryWithQuota extends INodeDirectory {
     return namespace;
   }
   
-  long diskspaceConsumed() {
-    return diskspace;
+  @Override
+  public final void addNamespaceConsumed(final int delta)
+      throws NSQuotaExceededException {
+    if (isQuotaSet()) { 
+      // The following steps are important: 
+      // check quotas in this inode and all ancestors before changing counts
+      // so that no change is made if there is any quota violation.
+
+      // (1) verify quota in this inode  
+      verifyNamespaceQuota(delta);
+      // (2) verify quota and then add count in ancestors 
+      super.addNamespaceConsumed(delta);
+      // (3) add count in this inode
+      namespace += delta;
+    } else {
+      super.addNamespaceConsumed(delta);
+    }
   }
-  
+
   /** Update the size of the tree
    * 
    * @param nsDelta the change of the tree size
@@ -160,13 +177,19 @@ public class INodeDirectoryWithQuota extends INodeDirectory {
     this.diskspace = diskspace;
   }
   
+  /** Verify if the namespace quota is violated after applying delta. */
+  void verifyNamespaceQuota(long delta) throws NSQuotaExceededException {
+    if (Quota.isViolated(nsQuota, namespace, delta)) {
+      throw new NSQuotaExceededException(nsQuota, namespace + delta);
+    }
+  }
+
   /** Verify if the namespace count disk space satisfies the quota restriction 
    * @throws QuotaExceededException if the given quota is less than the count
    */
   void verifyQuota(long nsDelta, long dsDelta) throws QuotaExceededException {
-    if (Quota.isViolated(nsQuota, namespace, nsDelta)) {
-      throw new NSQuotaExceededException(nsQuota, namespace + nsDelta);
-    }
+    verifyNamespaceQuota(nsDelta);
+
     if (Quota.isViolated(dsQuota, diskspace, dsDelta)) {
       throw new DSQuotaExceededException(dsQuota, diskspace + dsDelta);
     }

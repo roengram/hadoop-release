@@ -36,6 +36,7 @@ import org.apache.hadoop.hdfs.protocol.ClientProtocol;
 import org.apache.hadoop.hdfs.protocol.DirectoryListing;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
+import org.apache.hadoop.hdfs.protocol.NSQuotaExceededException;
 import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants.StartupOption;
@@ -535,7 +536,8 @@ public class FSDirectory implements FSConstants, Closeable {
   }
 
   void unprotectedSetPermission(String src, FsPermission permissions)
-      throws FileNotFoundException, SnapshotAccessControlException {
+      throws FileNotFoundException, NSQuotaExceededException,
+      SnapshotAccessControlException {
     synchronized (rootDir) {
       final INodesInPath inodesInPath = rootDir.getINodesInPath4Write(src);
       final INode inode = inodesInPath.getLastINode();
@@ -553,7 +555,8 @@ public class FSDirectory implements FSConstants, Closeable {
   }
 
   void unprotectedSetOwner(String src, String username, String groupname)
-      throws FileNotFoundException, SnapshotAccessControlException {
+      throws FileNotFoundException, NSQuotaExceededException,
+      SnapshotAccessControlException {
     synchronized(rootDir) {
       final INodesInPath inodesInPath = rootDir.getINodesInPath4Write(src);
       INode inode = inodesInPath.getLastINode();
@@ -672,7 +675,8 @@ public class FSDirectory implements FSConstants, Closeable {
    * @throws FileNotFoundException
    */
   void unprotectedDelete(String src, long mtime)
-      throws SnapshotAccessControlException, FileNotFoundException {
+      throws SnapshotAccessControlException, NSQuotaExceededException,
+      FileNotFoundException {
     BlocksMapUpdateInfo collectedBlocks = new BlocksMapUpdateInfo();
     
     final INodesInPath inodesInPath = rootDir
@@ -694,7 +698,8 @@ public class FSDirectory implements FSConstants, Closeable {
    * @return the number of inodes deleted; 0 if no inodes are deleted.
    */
   int unprotectedDelete(INodesInPath inodesInPath,
-      BlocksMapUpdateInfo collectedBlocks, long mtime) {
+      BlocksMapUpdateInfo collectedBlocks, long mtime)
+      throws NSQuotaExceededException {
     // check if target node exists
     INode targetNode = inodesInPath.getLastINode();
     if (targetNode == null) {
@@ -1329,20 +1334,22 @@ public class FSDirectory implements FSConstants, Closeable {
    * Its ancestors are stored at [0, pos-1].
    * Count of each ancestor with quota is also updated.
    * @return the removed node; null if the removal fails.
+   * @throws NSQuotaExceededException 
    */
-  private INode removeLastINode(final INodesInPath inodesInPath) {
+  private INode removeLastINode(final INodesInPath inodesInPath)
+      throws NSQuotaExceededException {
+    final Snapshot latestSnapshot = inodesInPath.getLatestSnapshot();
     final INode[] inodes = inodesInPath.getINodes();
     final int pos = inodes.length - 1;
     final boolean removed = ((INodeDirectory)inodes[pos-1]).removeChild(
-        inodes[pos], inodesInPath.getLatestSnapshot());
-    if (removed) {
+        inodes[pos], latestSnapshot);
+    if (removed && latestSnapshot == null) {
       inodesInPath.setINode(pos - 1, inodes[pos].getParent());
       final Quota.Counts counts = inodes[pos].computeQuotaUsage();
       updateCountNoQuotaCheck(inodesInPath, pos,
           -counts.get(Quota.NAMESPACE), -counts.get(Quota.DISKSPACE));
-      return inodes[pos];
     }
-    return null;
+    return removed? inodes[pos]: null;
   }
 
   
@@ -1409,7 +1416,7 @@ public class FSDirectory implements FSConstants, Closeable {
       final Snapshot latest = iip.getLatestSnapshot();
       if (dirNode instanceof INodeDirectoryWithQuota) {
         // a directory with quota; so set the quota to the new value
-        ((INodeDirectoryWithQuota) dirNode).setQuota(nsQuota, dsQuota, latest);
+        ((INodeDirectoryWithQuota) dirNode).setQuota(nsQuota, dsQuota);
         if (!dirNode.isQuotaSet() && latest == null) {
           // will not come here for root because root's nsQuota is always set
           return dirNode.replaceSelf4INodeDirectory();
@@ -1450,7 +1457,7 @@ public class FSDirectory implements FSConstants, Closeable {
    * Sets the access time on the file. Logs it in the transaction log
    */
   void setTimes(String src, INodeFile inode, long mtime, long atime,
-      boolean force, Snapshot latest) {
+      boolean force, Snapshot latest) throws NSQuotaExceededException {
     boolean status = false;
     synchronized (rootDir) {
       status = unprotectedSetTimes(src, inode, mtime, atime, force, latest);
@@ -1460,14 +1467,16 @@ public class FSDirectory implements FSConstants, Closeable {
     }
   }
 
-  boolean unprotectedSetTimes(String src, long mtime, long atime, boolean force) {
+  boolean unprotectedSetTimes(String src, long mtime, long atime, boolean force)
+      throws NSQuotaExceededException {
     final INodesInPath i = getLastINodeInPath(src);
     return unprotectedSetTimes(src, i.getLastINode(), mtime, atime, force,
         i.getLatestSnapshot());
   }
 
   private boolean unprotectedSetTimes(String src, INode inode, long mtime,
-      long atime, boolean force, Snapshot latest) {
+      long atime, boolean force, Snapshot latest)
+      throws NSQuotaExceededException {
     boolean status = false;
     if (mtime != -1) {
       inode = inode.setModificationTime(mtime, latest);

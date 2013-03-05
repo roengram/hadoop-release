@@ -18,6 +18,7 @@
 package org.apache.hadoop.hdfs.server.namenode.snapshot;
 
 import org.apache.hadoop.classification.InterfaceAudience;
+import org.apache.hadoop.hdfs.protocol.NSQuotaExceededException;
 import org.apache.hadoop.hdfs.server.namenode.DatanodeDescriptor;
 import org.apache.hadoop.hdfs.server.namenode.INodeFile;
 
@@ -62,7 +63,8 @@ public class INodeFileWithSnapshot extends INodeFile
   }
 
   @Override
-  public INodeFileWithSnapshot recordModification(final Snapshot latest) {
+  public INodeFileWithSnapshot recordModification(final Snapshot latest)
+      throws NSQuotaExceededException {
     if (isInLatestSnapshot(latest)) {
       diffs.saveSelf2Snapshot(latest, this, null);
     }
@@ -81,7 +83,8 @@ public class INodeFileWithSnapshot extends INodeFile
 
   @Override
   public int cleanSubtree(final Snapshot snapshot, Snapshot prior, 
-      final BlocksMapUpdateInfo collectedBlocks) {
+      final BlocksMapUpdateInfo collectedBlocks)
+          throws NSQuotaExceededException {
     if (snapshot == null) { // delete the current file
       recordModification(prior);
       isCurrentFileDeleted = true;
@@ -99,8 +102,8 @@ public class INodeFileWithSnapshot extends INodeFile
       throw new IllegalStateException("should be a deleted file: "
           + this.toDetailString());
     }
-    diffs.clear();
-    return super.destroyAndCollectBlocks(collectedBlocks);
+    final int n = diffs.clear();
+    return n + super.destroyAndCollectBlocks(collectedBlocks);
   }
 
   @Override

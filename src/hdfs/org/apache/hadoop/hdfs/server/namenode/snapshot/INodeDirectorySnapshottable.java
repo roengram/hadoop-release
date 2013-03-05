@@ -29,6 +29,7 @@ import java.util.Map;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.hdfs.DFSUtil;
+import org.apache.hadoop.hdfs.protocol.NSQuotaExceededException;
 import org.apache.hadoop.hdfs.protocol.SnapshotDiffReport;
 import org.apache.hadoop.hdfs.protocol.SnapshotDiffReport.DiffReportEntry;
 import org.apache.hadoop.hdfs.protocol.SnapshotDiffReport.DiffType;
@@ -368,7 +369,8 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithSnapshot {
   }
 
   /** Add a snapshot. */
-  Snapshot addSnapshot(int id, String name) throws SnapshotException {
+  Snapshot addSnapshot(int id, String name)
+      throws SnapshotException, NSQuotaExceededException {
     //check snapshot quota
     final int n = getNumSnapshots();
     if (n + 1 > snapshotQuota) {
@@ -413,7 +415,11 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithSnapshot {
     } else {
       final Snapshot snapshot = snapshotsByNames.remove(i);
       Snapshot prior = Snapshot.findLatestSnapshot(this, snapshot);
-      cleanSubtree(snapshot, prior, collectedBlocks);
+      try {
+        cleanSubtree(snapshot, prior, collectedBlocks);
+      } catch(NSQuotaExceededException e) {
+        LOG.error("BUG: removeSnapshot increases namespace usage.", e);
+      }
       return snapshot;
     }
   }
@@ -422,7 +428,7 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithSnapshot {
    * Replace itself with {@link INodeDirectoryWithSnapshot} or
    * {@link INodeDirectory} depending on the latest snapshot.
    */
-  void replaceSelf(final Snapshot latest) {
+  void replaceSelf(final Snapshot latest) throws NSQuotaExceededException {
     if (latest == null) {
       if (getLastSnapshot() != null) {
         throw new IllegalStateException(
