@@ -388,8 +388,17 @@ public class INodeFile extends INode {
   }
 
   final long diskspaceConsumed() {
+    long size = computeFileSize();
+    /* If the last block is being written to, use prefferedBlockSize
+     * rather than the actual block size.
+     */
+    if (blocks != null && blocks.length > 0
+        && blocks[blocks.length - 1] != null && isUnderConstruction()) {
+      size += getPreferredBlockSize() - blocks[blocks.length-1].getNumBytes();
+    }
+    
     // use preferred block size for the last block if it is under construction
-    return computeFileSize() * getBlockReplication();
+    return size * getBlockReplication();
   }
   
   /**

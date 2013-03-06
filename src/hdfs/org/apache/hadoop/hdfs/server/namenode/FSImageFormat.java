@@ -83,7 +83,7 @@ public class FSImageFormat {
      * Load in the filesystem imagefrom file. It's a big list of filenames and
      * blocks. Return whether we should "re-save" and consolidate the edit-logs.
      */
-    boolean load(File curFile) throws IOException {
+    boolean load(File curFile, boolean loadNamespaceId) throws IOException {
       assert storage.getLayoutVersion() < 0 : "Negative layout version is expected.";
       assert curFile != null : "curFile is null";
 
@@ -107,8 +107,10 @@ public class FSImageFormat {
         // read image version: first appeared in version -1
         int imgVersion = in.readInt();
         // read namespaceID: first appeared in version -2
-        // Note: we do not assign the value back  
-        in.readInt();
+        int namespaceId = in.readInt();
+        if (loadNamespaceId) {
+          storage.namespaceID = namespaceId;
+        }
 
         // read number of files
         long numFiles;

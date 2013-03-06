@@ -220,8 +220,12 @@ public class FSDirectory implements FSConstants, Closeable {
     if (blocks == null) {
       newNode = new INodeDirectory(null, permissions, modificationTime);
     } else {
+      // since this function is only called by FSEditLog#loadFSEdits, and at
+      // the end of edit log loading, FSImage#updateCountForQuota will be called
+      // to update the quota for the whole file system, we do not need to update
+      // the quota here. Thus for newNode we first pass in an empty block array.
       newNode = new INodeFile(null, permissions, modificationTime, atime,
-          new BlockInfo[blocks.length], replication, preferredBlockSize);
+          BlockInfo.EMPTY_ARRAY, replication, preferredBlockSize);
     }
     synchronized (rootDir) {
       try {
@@ -230,7 +234,7 @@ public class FSDirectory implements FSConstants, Closeable {
           // Add file->block mapping
           INodeFile newF = (INodeFile) newNode;
           for (int i = 0; i < nrBlocks; i++) {
-            newF.setBlock(i, namesystem.blocksMap.addINode(blocks[i], newF));
+            newF.addBlock(namesystem.blocksMap.addINode(blocks[i], newF));
           }
         }
       } catch (IOException e) {
@@ -593,7 +597,7 @@ public class FSDirectory implements FSConstants, Closeable {
       final INodesInPath inodesInPath = rootDir
           .getINodesInPath4Write(normalizePath(src));
       if (!deleteAllowed(inodesInPath, src) ) {
-        filesRemoved = 0;
+        filesRemoved = -1;
       } else {
         // Before removing the node, first check if the targetNode is for a
         // snapshottable dir with snapshots, or its descendants have
@@ -615,13 +619,13 @@ public class FSDirectory implements FSConstants, Closeable {
         }
       }
     }
-    if (filesRemoved <= 0) {
+    if (filesRemoved < 0) {
       return false;
     }
+    fsImage.getEditLog().logDelete(src, now);
     incrDeletedFileCount(filesRemoved);
     // Blocks will be deleted later by the caller of this method
     FSNamesystem.getFSNamesystem().removePathAndBlocks(src, null);
-    fsImage.getEditLog().logDelete(src, now);
     return true;
   }
   
@@ -682,8 +686,8 @@ public class FSDirectory implements FSConstants, Closeable {
     final INodesInPath inodesInPath = rootDir
         .getINodesInPath4Write(normalizePath(src));
     final int filesRemoved = deleteAllowed(inodesInPath, src)?
-        unprotectedDelete(inodesInPath, collectedBlocks, mtime): 0;
-    if (filesRemoved > 0) {
+        unprotectedDelete(inodesInPath, collectedBlocks, mtime): -1;
+    if (filesRemoved >= 0) {
       namesystem.removePathAndBlocks(src, collectedBlocks);
     }
   }
@@ -703,7 +707,7 @@ public class FSDirectory implements FSConstants, Closeable {
     // check if target node exists
     INode targetNode = inodesInPath.getLastINode();
     if (targetNode == null) {
-      return 0;
+      return -1;
     }
     
     // record modification

@@ -815,7 +815,7 @@ public class FSImage extends Storage {
     latestNameSD.read();
     FSImageFormat.Loader loader = new FSImageFormat.Loader(this);
     needToSave |= loader.load(getImageFile(latestNameSD,
-        NameNodeFile.IMAGE));
+        NameNodeFile.IMAGE), true);
     LOG.info("Image file of size " + imageSize + " loaded in " 
         + (FSNamesystem.now() - startTime)/1000 + " seconds.");
     

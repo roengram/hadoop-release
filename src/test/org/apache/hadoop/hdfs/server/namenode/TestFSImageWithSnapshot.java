@@ -127,7 +127,7 @@ public class TestFSImageWithSnapshot {
     FSImageFormat.Loader loader = new FSImageFormat.Loader(fsn.getFSImage());
     synchronized (fsn) {
       synchronized (fsn.dir) {
-        loader.load(imageFile);
+        loader.load(imageFile, false);
         FSImage.updateCountForQuota(fsn.dir.rootDir);
       }
     }
@@ -149,7 +149,9 @@ public class TestFSImageWithSnapshot {
     int s = 0;
     // make changes to the namesystem
     hdfs.mkdirs(dir);
-    SnapshotTestHelper.createSnapshot(hdfs, dir, "s" + ++s);
+    hdfs.allowSnapshot(dir.toString());
+
+    hdfs.createSnapshot(dir, "s" + ++s);
     Path sub1 = new Path(dir, "sub1");
     hdfs.mkdirs(sub1);
     hdfs.setPermission(sub1, new FsPermission((short)0777));
@@ -158,7 +160,7 @@ public class TestFSImageWithSnapshot {
     checkImage(s);
 
     hdfs.mkdirs(dir);
-    SnapshotTestHelper.createSnapshot(hdfs, dir, "s" + ++s);
+    hdfs.createSnapshot(dir, "s" + ++s);
     //hdfs.createSnapshot(dir, "s" + ++s);
     Path sub1file1 = new Path(sub1, "sub1file1");
     Path sub1file2 = new Path(sub1, "sub1file2");
@@ -219,14 +221,18 @@ public class TestFSImageWithSnapshot {
 
     Assert.assertEquals(numSdirBefore, numSdirAfter);
     Assert.assertEquals(numSnapshotBefore, numSnapshotAfter);
-    Assert.assertEquals(dirBefore.length, dirAfter.length);
-    List<String> pathListBefore = new ArrayList<String>();
-    for (SnapshottableDirectoryStatus sBefore : dirBefore) {
-      pathListBefore.add(sBefore.getFullPath().toString());
-    }
-    for (SnapshottableDirectoryStatus sAfter : dirAfter) {
-      Assert.assertTrue(pathListBefore
-          .contains(sAfter.getFullPath().toString()));
+    if (dirBefore != null && dirAfter != null) {
+      Assert.assertEquals(dirBefore.length, dirAfter.length);
+      List<String> pathListBefore = new ArrayList<String>();
+      for (SnapshottableDirectoryStatus sBefore : dirBefore) {
+        pathListBefore.add(sBefore.getFullPath().toString());
+      }
+      for (SnapshottableDirectoryStatus sAfter : dirAfter) {
+        Assert.assertTrue(pathListBefore
+            .contains(sAfter.getFullPath().toString()));
+      }
+    } else {
+      Assert.assertTrue(dirBefore == null && dirAfter == null);
     }
   }
   
@@ -256,7 +262,8 @@ public class TestFSImageWithSnapshot {
     out.sync();
     
     // create snapshot s0
-    SnapshotTestHelper.createSnapshot(hdfs, dir, "s0");
+    hdfs.allowSnapshot(dir.toString());
+    hdfs.createSnapshot(dir, "s0");
     out.close();
     out = writeFileWithoutClosing(sub1file3, BLOCKSIZE);
     ((DFSOutputStream) out.getWrappedStream()).sync(true);
