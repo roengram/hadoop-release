@@ -108,8 +108,9 @@ public class INodeFileUnderConstruction extends INodeFile {
   @Override
   public INodeFileUnderConstruction recordModification(final Snapshot latest)
       throws NSQuotaExceededException {
-    return isInLatestSnapshot(latest) ? parent
-        .replaceChild4INodeFileUcWithSnapshot(this).recordModification(latest)
+    return isInLatestSnapshot(latest) ?
+        getParent().replaceChild4INodeFileUcWithSnapshot(this)
+            .recordModification(latest)
         : this;
   }
 

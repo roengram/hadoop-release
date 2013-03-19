@@ -36,7 +36,7 @@ import org.apache.hadoop.hdfs.server.namenode.INode.Content.CountsMap.Key;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectoryWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
-import org.apache.hadoop.hdfs.server.namenode.snapshot.diff.Diff;
+import org.apache.hadoop.hdfs.util.Diff;
 
 /**
  * We keep an in-memory representation of the file/block hierarchy.
@@ -99,7 +99,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
    * should not modify it.
    */
   private long permission = 0L;
-  INodeDirectory parent = null;
+  private INodeDirectory parent = null;
   protected long modificationTime = 0L;
   private long accessTime = 0L;
 
@@ -509,13 +509,6 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
   @Override
   public byte[] getKey() {
     return getLocalNameBytes();
-  }
-
-  /**
-   * Set local file name
-   */
-  public void setLocalName(String name) {
-    setLocalName(DFSUtil.string2Bytes(name));
   }
 
   /**

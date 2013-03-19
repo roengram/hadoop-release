@@ -1173,7 +1173,7 @@ public class FSDirectory implements FSConstants, Closeable {
   private static INode[] getRelativePathINodes(INode inode, INode ancestor) {
     // calculate the depth of this inode from the ancestor
     int depth = 0;
-    for (INode i = inode; i != null && !i.equals(ancestor); i = i.parent) {
+    for (INode i = inode; i != null && !i.equals(ancestor); i = i.getParent()) {
       depth++;
     }
     INode[] inodes = new INode[depth];
@@ -1186,7 +1186,7 @@ public class FSDirectory implements FSConstants, Closeable {
         return null;
       }
       inodes[depth-i-1] = inode;
-      inode = inode.parent;
+      inode = inode.getParent();
     }
     return inodes;
   }

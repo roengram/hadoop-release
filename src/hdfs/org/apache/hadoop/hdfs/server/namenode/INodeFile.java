@@ -130,7 +130,7 @@ public class INodeFile extends INode {
   public INodeFile recordModification(final Snapshot latest)
       throws NSQuotaExceededException {
     return isInLatestSnapshot(latest)?
-        parent.replaceChild4INodeFileWithSnapshot(this)
+        getParent().replaceChild4INodeFileWithSnapshot(this)
             .recordModification(latest)
         : this;
   }
