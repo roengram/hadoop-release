@@ -22,7 +22,7 @@ import java.io.IOException;
 
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.protocol.Block;
-import org.apache.hadoop.hdfs.protocol.NSQuotaExceededException;
+import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 
@@ -107,7 +107,7 @@ public class INodeFileUnderConstruction extends INodeFile {
   
   @Override
   public INodeFileUnderConstruction recordModification(final Snapshot latest)
-      throws NSQuotaExceededException {
+      throws QuotaExceededException {
     return isInLatestSnapshot(latest) ?
         getParent().replaceChild4INodeFileUcWithSnapshot(this)
             .recordModification(latest)

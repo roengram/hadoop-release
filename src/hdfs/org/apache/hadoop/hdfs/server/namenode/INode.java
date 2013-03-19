@@ -31,8 +31,8 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.protocol.Block;
-import org.apache.hadoop.hdfs.protocol.NSQuotaExceededException;
-import org.apache.hadoop.hdfs.server.namenode.INode.Content.CountsMap.Key;
+import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
+import org.apache.hadoop.hdfs.server.namenode.Content.CountsMap.Key;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectoryWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
@@ -184,7 +184,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
   }
   /** Set user */
   final INode setUser(String user, Snapshot latest)
-      throws NSQuotaExceededException {
+      throws QuotaExceededException {
     final INode nodeToUpdate = recordModification(latest);
     nodeToUpdate.setUser(user);
     return nodeToUpdate;
@@ -214,7 +214,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
   }
   /** Set group */
   final INode setGroup(String group, Snapshot latest)
-      throws NSQuotaExceededException {
+      throws QuotaExceededException {
     final INode nodeToUpdate = recordModification(latest);
     nodeToUpdate.setGroup(group);
     return nodeToUpdate;
@@ -247,7 +247,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
   }
   /** Set the {@link FsPermission} of this {@link INode} */
   INode setPermission(FsPermission permission, Snapshot latest)
-      throws NSQuotaExceededException {
+      throws QuotaExceededException {
     final INode nodeToUpdate = recordModification(latest);
     nodeToUpdate.setPermission(permission);
     return nodeToUpdate;
@@ -278,7 +278,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
    *         for maintaining snapshots. The current inode is then the new inode. 
    */
   abstract INode recordModification(final Snapshot latest)
-      throws NSQuotaExceededException;
+      throws QuotaExceededException;
 
   
   /**
@@ -348,10 +348,11 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
    * @param collectedBlocks
    *          blocks collected from the descents for further block
    *          deletion/update will be added to the given map.
-   * @return the number of deleted inodes in the subtree.
+   * @return quota usage delta when deleting a snapshot
    */
-  public abstract int cleanSubtree(final Snapshot snapshot, Snapshot prior,
-      BlocksMapUpdateInfo collectedBlocks) throws NSQuotaExceededException;
+  public abstract Quota.Counts cleanSubtree(final Snapshot snapshot,
+      Snapshot prior, BlocksMapUpdateInfo collectedBlocks)
+      throws QuotaExceededException;
   
   /**
    * Destroy self and clear everything! If the INode is a file, this method
@@ -362,64 +363,14 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
    * 
    * @param collectedBlocks blocks collected from the descents for further block
    *                        deletion/update will be added to this map.
-   * @return the number of deleted inodes in the subtree.
    */
-  public abstract int destroyAndCollectBlocks(
+  public abstract void destroyAndCollectBlocks(
       BlocksMapUpdateInfo collectedBlocks);
 
   /** Cast this inode to an {@link INodeDirectory}.  */
   public INodeDirectory asDirectory() {
     throw new IllegalStateException("Current inode is not a directory: "
         + this.toDetailString());
-  }
-
-  /**
-   * The content types such as file, directory and symlink to be computed
-   * in {@link INode#computeContentSummary(CountsMap)}.
-   */
-  public enum Content {
-    /** The number of files. */
-    FILE,
-    /** The number of directories. */
-    DIRECTORY,
-    /** The number of symlinks. */
-    SYMLINK,
-
-    /** The total of file length in bytes. */
-    LENGTH,
-    /** The total of disk space usage in bytes including replication. */
-    DISKSPACE,
-
-    /** The number of snapshots. */
-    SNAPSHOT,
-    /** The number of snapshottable directories. */
-    SNAPSHOTTABLE_DIRECTORY;
-
-    /** Content counts. */
-    public static class Counts extends EnumCounters<Content> {
-      private Counts() {
-        super(Content.values());
-      }
-    }
-
-    private static final EnumCounters.Factory<Content, Counts> FACTORY
-        = new EnumCounters.Factory<Content, Counts>() {
-      @Override
-      public Counts newInstance() {
-        return new Counts();
-      }
-    };
-
-    /** A map of counters for the current state and the snapshots. */
-    public static class CountsMap
-        extends EnumCounters.Map<CountsMap.Key, Content, Counts> {
-      /** The key type of the map. */
-      public static enum Key { CURRENT, SNAPSHOT }
-
-      private CountsMap() {
-        super(FACTORY);
-      }
-    }
   }
 
   /** Compute {@link ContentSummary}. */
@@ -450,12 +401,13 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
   public abstract Content.Counts computeContentSummary(Content.Counts counts);
   
   /**
-   * Check and add namespace consumed to itself and the ancestors.
-   * @throws NSQuotaExceededException if quote is violated.
+   * Check and add namespace/diskspace consumed to itself and the ancestors.
+   * @throws QuotaExceededException if quote is violated.
    */
-  public void addNamespaceConsumed(int delta) throws NSQuotaExceededException {
+  public void addSpaceConsumed(long nsDelta, long dsDelta)
+      throws QuotaExceededException {
     if (parent != null) {
-      parent.addNamespaceConsumed(delta);
+      parent.addSpaceConsumed(nsDelta, dsDelta);
     }
   }
 
@@ -584,7 +536,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
 
   /** Update modification time if it is larger than the current value. */
   public final INode updateModificationTime(long mtime, Snapshot latest)
-      throws NSQuotaExceededException {
+      throws QuotaExceededException {
     if (!isDirectory()) {
       throw new IllegalStateException("this is not a directory: "
           + this.toDetailString());
@@ -605,7 +557,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
   }
   /** Set the last modification time of inode. */
   public final INode setModificationTime(long modificationTime, Snapshot latest)
-      throws NSQuotaExceededException {
+      throws QuotaExceededException {
     final INode nodeToUpdate = recordModification(latest);
     nodeToUpdate.setModificationTime(modificationTime);
     return nodeToUpdate;
@@ -640,7 +592,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
    * Set last access time of inode.
    */
   public INode setAccessTime(long accessTime, Snapshot latest)
-      throws NSQuotaExceededException {
+      throws QuotaExceededException {
     final INode nodeToUpdate = recordModification(latest);
     nodeToUpdate.setAccessTime(accessTime);
     return nodeToUpdate;

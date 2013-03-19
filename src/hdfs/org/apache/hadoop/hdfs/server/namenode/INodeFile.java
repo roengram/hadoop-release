@@ -28,9 +28,9 @@ import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
-import org.apache.hadoop.hdfs.protocol.NSQuotaExceededException;
+import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
-import org.apache.hadoop.hdfs.server.namenode.INode.Content.CountsMap.Key;
+import org.apache.hadoop.hdfs.server.namenode.Content.CountsMap.Key;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot.FileDiff;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot.FileDiffList;
@@ -128,7 +128,7 @@ public class INodeFile extends INode {
 
   @Override
   public INodeFile recordModification(final Snapshot latest)
-      throws NSQuotaExceededException {
+      throws QuotaExceededException {
     return isInLatestSnapshot(latest)?
         getParent().replaceChild4INodeFileWithSnapshot(this)
             .recordModification(latest)
@@ -152,7 +152,7 @@ public class INodeFile extends INode {
    */
   @Override
   final INode setPermission(FsPermission permission, Snapshot latest)
-      throws NSQuotaExceededException {
+      throws QuotaExceededException {
     return super.setPermission(permission.applyUMask(UMASK), latest);
   }
 
@@ -183,7 +183,7 @@ public class INodeFile extends INode {
 
   /** Set the replication factor of this file. */
   public final INodeFile setFileReplication(short replication, Snapshot latest)
-      throws NSQuotaExceededException {
+      throws QuotaExceededException {
     final INodeFile nodeToUpdate = recordModification(latest);
     nodeToUpdate.setFileReplication(replication);
     return nodeToUpdate;
@@ -312,20 +312,18 @@ public class INodeFile extends INode {
   }
 
   @Override
-  public int cleanSubtree(final Snapshot snapshot, Snapshot prior,
+  public Quota.Counts cleanSubtree(final Snapshot snapshot, Snapshot prior,
       final BlocksMapUpdateInfo collectedBlocks)
-          throws NSQuotaExceededException {
+      throws QuotaExceededException {
     if (snapshot == null && prior == null) {   
       // this only happens when deleting the current file
-      return destroyAndCollectBlocks(collectedBlocks);
-    } else {
-      return 0;
+      destroyAndCollectBlocks(collectedBlocks);
     }
+    return Quota.Counts.newInstance();
   }
 
   @Override
-  public int destroyAndCollectBlocks(BlocksMapUpdateInfo collectedBlocks) {
-    int total = 1;
+  public void destroyAndCollectBlocks(BlocksMapUpdateInfo collectedBlocks) {
     if (blocks != null && collectedBlocks != null) {
       for (BlockInfo blk : blocks) {
         collectedBlocks.addDeleteBlock(blk);
@@ -335,9 +333,8 @@ public class INodeFile extends INode {
     setBlocks(null);
     clearReferences();
     if (this instanceof FileWithSnapshot) {
-      total += ((FileWithSnapshot) this).getDiffs().clear();
+      ((FileWithSnapshot) this).getDiffs().clear();
     }
-    return total;
   }
 
   LocatedBlocks createLocatedBlocks(List<LocatedBlock> blocks, 
@@ -432,7 +429,7 @@ public class INodeFile extends INode {
     return size;
   }
 
-  final long diskspaceConsumed() {
+  public final long diskspaceConsumed() {
     long size = computeFileSize();
     /* If the last block is being written to, use prefferedBlockSize
      * rather than the actual block size.

@@ -92,7 +92,7 @@ public class INodeDirectoryWithQuota extends INodeDirectory {
   @Override
   public final Quota.Counts computeQuotaUsage(Quota.Counts counts,
       boolean useCache) {
-    if (useCache) {
+    if (useCache && isQuotaSet()) {
       // use cache value
       counts.add(Quota.NAMESPACE, namespace);
       counts.add(Quota.DISKSPACE, diskspace);
@@ -136,30 +136,30 @@ public class INodeDirectoryWithQuota extends INodeDirectory {
   }
   
   @Override
-  public final void addNamespaceConsumed(final int delta)
-      throws NSQuotaExceededException {
+  public final void addSpaceConsumed(final long nsDelta, final long dsDelta)
+      throws QuotaExceededException {
     if (isQuotaSet()) { 
       // The following steps are important: 
       // check quotas in this inode and all ancestors before changing counts
       // so that no change is made if there is any quota violation.
 
       // (1) verify quota in this inode  
-      verifyNamespaceQuota(delta);
+      verifyQuota(nsDelta, dsDelta);
       // (2) verify quota and then add count in ancestors 
-      super.addNamespaceConsumed(delta);
+      super.addSpaceConsumed(nsDelta, dsDelta);
       // (3) add count in this inode
-      namespace += delta;
+      addSpaceConsumed2Cache(nsDelta, dsDelta);
     } else {
-      super.addNamespaceConsumed(delta);
+      super.addSpaceConsumed(nsDelta, dsDelta);
     }
   }
-
+  
   /** Update the size of the tree
    * 
    * @param nsDelta the change of the tree size
    * @param dsDelta change to disk space occupied
    */
-  void addSpaceConsumed(long nsDelta, long dsDelta) {
+  protected void addSpaceConsumed2Cache(long nsDelta, long dsDelta) {
     namespace += nsDelta;
     diskspace += dsDelta;
   }
@@ -203,5 +203,19 @@ public class INodeDirectoryWithQuota extends INodeDirectory {
   }
   String quotaString() {
     return ", Quota[" + namespaceString() + ", " + diskspaceString() + "]";
+  }
+  
+  /**
+   * @return {@link #namespace}. Used for testing.
+   */
+  public long getNamespace() {
+    return this.namespace;
+  }
+  
+  /**
+   * @return {@link #diskspace}. Used for testing.
+   */
+  public long getDiskspace() {
+    return this.diskspace;
   }
 }

@@ -18,14 +18,15 @@
 
 package org.apache.hadoop.hdfs.server.namenode.metrics;
 
-import org.apache.commons.logging.LogFactory;
 import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.metrics2.MetricsBuilder;
 import org.apache.hadoop.metrics2.MetricsSource;
 import org.apache.hadoop.metrics2.MetricsSystem;
 import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.metrics2.lib.MetricMutableCounterInt;
+import org.apache.hadoop.metrics2.lib.MetricMutableCounterLong;
 import org.apache.hadoop.metrics2.lib.MetricMutableGaugeInt;
 import org.apache.hadoop.metrics2.lib.MetricMutableStat;
 import org.apache.hadoop.metrics2.lib.MetricsRegistry;
@@ -48,8 +49,8 @@ public class NameNodeInstrumentation implements MetricsSource {
       registry.newCounter("GetListingOps", "", 0);
   final MetricMutableCounterInt numCreateFileOps =
       registry.newCounter("CreateFileOps", "", 0);
-  final MetricMutableCounterInt numFilesDeleted =
-      registry.newCounter("FilesDeleted", "Files deleted (inc. rename)", 0);
+  final MetricMutableCounterLong numFilesDeleted =
+      registry.newCounter("FilesDeleted", "Files deleted (inc. rename)", 0L);
   final MetricMutableCounterInt numDeleteFileOps =
       registry.newCounter("DeleteFileOps", "", 0);
   final MetricMutableCounterInt numFileInfoOps =
@@ -142,7 +143,7 @@ public class NameNodeInstrumentation implements MetricsSource {
   }
 
   //@Override
-  public void incrFilesDeleted(int delta) {
+  public void incrFilesDeleted(long delta) {
     numFilesDeleted.incr(delta);
   }
 
