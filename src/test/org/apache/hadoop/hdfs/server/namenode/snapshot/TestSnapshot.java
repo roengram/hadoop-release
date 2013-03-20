@@ -254,9 +254,6 @@ public class TestSnapshot {
   
   /**
    * Creating snapshots for a directory that is not snapshottable must fail.
-   * 
-   * TODO: Listing/Deleting snapshots for a directory that is not snapshottable
-   * should also fail.
    */
   @Test
   public void testSnapshottableDirectory() throws Exception {
@@ -268,10 +265,26 @@ public class TestSnapshot {
 
     try {
       hdfs.createSnapshot(dir, "s1");
-      fail("Did not throw IOException when creating snapshots for a non-snapshottable directory");
+      fail("Exception expected: " + dir + " is not snapshottable");
     } catch (IOException e) {
       assertTrue(e.getMessage().contains(
-          "Directory is not a snapshottable directory: " + dir.toString()));
+          "Directory is not a snapshottable directory: " + dir));
+    }
+
+    try {
+      hdfs.deleteSnapshot(dir, "s1");
+      fail("Exception expected: " + dir + " is not a snapshottale dir");
+    } catch (Exception e) {
+      assertTrue(e.getMessage().contains(
+          "Directory is not a snapshottable directory: " + dir));
+    }
+
+    try {
+      hdfs.renameSnapshot(dir, "s1", "s2");
+      fail("Exception expected: " + dir + " is not a snapshottale dir");
+    } catch (Exception e) {
+      assertTrue(e.getMessage().contains(
+          "Directory is not a snapshottable directory: " + dir));
     }
   }
 
