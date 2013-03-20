@@ -632,8 +632,10 @@ public class INodeDirectory extends INode {
       throws QuotaExceededException {
     if (prior == null && snapshot == null) {
       // destroy the whole subtree and collect blocks that should be deleted
+      Quota.Counts counts = Quota.Counts.newInstance();
+      this.computeQuotaUsage(counts, true);
       destroyAndCollectBlocks(collectedBlocks);
-      return Quota.Counts.newInstance();
+      return counts;
     } else {
       // process recursively down the subtree
       Quota.Counts counts = cleanSubtreeRecursively(snapshot, prior,

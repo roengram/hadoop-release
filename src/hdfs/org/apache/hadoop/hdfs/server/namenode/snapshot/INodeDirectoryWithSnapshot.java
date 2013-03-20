@@ -76,16 +76,19 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
     }
     
     /** clear the created list */
-    private void destroyCreatedList(
+    private Quota.Counts destroyCreatedList(
         final INodeDirectoryWithSnapshot currentINode,
         final BlocksMapUpdateInfo collectedBlocks) {
+      Quota.Counts counts = Quota.Counts.newInstance();
       List<INode> createdList = getCreatedList();
       for (INode c : createdList) {
+        c.computeQuotaUsage(counts, true);
         c.destroyAndCollectBlocks(collectedBlocks);
         // c should be contained in the children list, remove it
         currentINode.removeChild(c);
       }
       createdList.clear();
+      return counts;
     }
 
     /** clear the deleted list */

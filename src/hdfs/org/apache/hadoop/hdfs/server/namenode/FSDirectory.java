@@ -142,7 +142,7 @@ public class FSDirectory implements FSConstants, Closeable {
     }
   }
 
-  private void incrDeletedFileCount(int count) {
+  private void incrDeletedFileCount(long count) {
     if (namesystem != null)
       NameNode.getNameNodeMetrics().incrFilesDeleted(count);
   }
@@ -665,7 +665,7 @@ public class FSDirectory implements FSConstants, Closeable {
     }
     waitForReady();
     long now = FSNamesystem.now();
-    final int filesRemoved;
+    final long filesRemoved;
     synchronized (rootDir) {
       final INodesInPath inodesInPath = rootDir
           .getINodesInPath4Write(normalizePath(src));
@@ -774,7 +774,7 @@ public class FSDirectory implements FSConstants, Closeable {
    * @param mtime the time the inode is removed
    * @return the number of inodes deleted; 0 if no inodes are deleted.
    */
-  int unprotectedDelete(INodesInPath iip, BlocksMapUpdateInfo collectedBlocks,
+  long unprotectedDelete(INodesInPath iip, BlocksMapUpdateInfo collectedBlocks,
       long mtime) throws QuotaExceededException {
     // check if target node exists
     INode targetNode = iip.getLastINode();
@@ -794,7 +794,7 @@ public class FSDirectory implements FSConstants, Closeable {
     targetNode.getParent().updateModificationTime(mtime, latestSnapshot);
 
     // collect block
-    final int inodesRemoved = (int) targetNode.cleanSubtree(null,
+    final long inodesRemoved = targetNode.cleanSubtree(null,
         latestSnapshot, collectedBlocks).get(Quota.NAMESPACE);
     if (NameNode.stateChangeLog.isDebugEnabled()) {
       NameNode.stateChangeLog.debug("DIR* FSDirectory.unprotectedDelete: "
