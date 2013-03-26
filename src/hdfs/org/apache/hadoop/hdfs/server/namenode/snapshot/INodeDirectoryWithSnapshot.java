@@ -635,7 +635,7 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
       // delete everything in created list
       DirectoryDiff lastDiff = diffs.getLast();
       if (lastDiff != null) {
-        lastDiff.diff.destroyCreatedList(this, collectedBlocks);
+        counts.add(lastDiff.diff.destroyCreatedList(this, collectedBlocks));
       }
     } else {
       // update prior

@@ -473,7 +473,7 @@ public class FSImageFormat {
               ((INodeFileWithSnapshot)oldnode).getDiffs());
         }
         
-        fsDir.unprotectedReplaceINodeFile(path, oldnode, cons);
+        fsDir.replaceINodeFile(path, oldnode, cons);
         namesystem.leaseManager.addLease(cons.clientName, path);
       }
     }
