@@ -467,6 +467,13 @@ abstract public class Task implements Writable, Configurable {
     conf.set("mapred.job.id", taskId.getJobID().toString());
   }
   
+  /**
+   * Write files that the IsolationRunner will need to rerun the task.
+   */
+  public void writeFilesRequiredForRerun(JobConf conf) throws IOException {
+    // Do nothing in the general case
+  }
+  
   /** Run this task as a part of the named job.  This method is executed in the
    * child process and is what invokes user-supplied map, reduce, etc. methods.
    * @param umbilical for progress reports
@@ -1256,7 +1263,8 @@ abstract public class Task implements Writable, Configurable {
       more = in.next();
       if (more) {
         DataInputBuffer nextKeyBytes = in.getKey();
-        keyIn.reset(nextKeyBytes.getData(), nextKeyBytes.getPosition(), nextKeyBytes.getLength());
+        keyIn.reset(nextKeyBytes.getData(), nextKeyBytes.getPosition(),
+            nextKeyBytes.getLength() - nextKeyBytes.getPosition());
         nextKey = keyDeserializer.deserialize(nextKey);
         hasNext = key != null && (comparator.compare(key, nextKey) == 0);
       } else {
@@ -1270,7 +1278,8 @@ abstract public class Task implements Writable, Configurable {
      */
     private void readNextValue() throws IOException {
       DataInputBuffer nextValueBytes = in.getValue();
-      valueIn.reset(nextValueBytes.getData(), nextValueBytes.getPosition(), nextValueBytes.getLength());
+      valueIn.reset(nextValueBytes.getData(), nextValueBytes.getPosition(),
+          nextValueBytes.getLength() - nextValueBytes.getPosition());
       value = valDeserializer.deserialize(value);
     }
   }

@@ -1,5 +1,36 @@
 Hadoop Change Log
 
+Release 1.3.0 - unreleased
+
+  INCOMPATIBLE CHANGES
+
+  NEW FEATURES
+
+  IMPROVEMENTS
+
+  BUG FIXES
+
+    MAPREDUCE-5047. keep.failed.task.files=true causes job failure on 
+    secure clusters. (sandyr via tucu)
+
+    MAPREDUCE-5070. TestClusterStatus.testClusterMetrics fails on JDK7. 
+    (sandyr via tucu)
+
+    MAPREDUCE-5072. TestDelegationTokenRenewal.testDTRenewal fails in MR1 
+    on jdk7. (sandyr via tucu)
+
+    MAPREDUCE-5073. TestJobStatusPersistency.testPersistency fails on 
+    JDK7. (sandyr via tucu)
+
+    MAPREDUCE-5038. old API CombineFileInputFormat missing fixes that are
+    in new API. (sandyr via tucu)
+
+    HDFS-4622. Remove redundant synchronized from 
+    FSNamesystem#rollEditLog in branch-1. (Jing Zhao via suresh)
+
+    HDFS-4581. DataNode.checkDiskError should not be called on network errors.
+    (Rohit Kochar via kihwal)
+
 Release 1.2.0 - unreleased
 
   INCOMPATIBLE CHANGES
@@ -11,9 +42,6 @@ Release 1.2.0 - unreleased
 
     MAPREDUCE-4660. Update task placement policy for network topology
     with node group. (Junping Du via llu)
-
-    HADOOP-8561. Introduce HADOOP_PROXY_USER for secure impersonation in child
-    hadoop client processes. (Yu Gao via llu)
 
     HADOOP-8023. Add unset() method to Configuration (tucu)
 
@@ -64,7 +92,14 @@ Release 1.2.0 - unreleased
     HDFS-4256 Backport concatenation of files into a single file to branch-1
     (sanjay Radia)
 
+    HDFS-4597. Backport WebHDFS concat.  (szetszwo)
+
+    MAPREDUCE-5081. Backport DistCpV2.  (szetszwo)
+
   IMPROVEMENTS
+
+    HADOOP-9434. Backport HADOOP-9267: hadoop -h|-{0,2}help should print usage.
+    (Yu Li via llu)
 
     HDFS-3515. Port HDFS-1457 to branch-1. (eli)
 
@@ -137,9 +172,6 @@ Release 1.2.0 - unreleased
     HDFS-3062. Print logs outside the namesystem lock invalidateWorkForOneNode
     and computeReplicationWorkForBlock. (Jing Zhao via suresh)
 
-    HADOOP-8567. Port conf servlet to dump running configuration to branch 1.x.
-    (Jing Zhao via suresh)
-
     HADOOP-8968. Add a flag to completely disable the worker version check.
     (tucu via eli)
 
@@ -171,7 +203,17 @@ Release 1.2.0 - unreleased
     HADOOP-9253. Capture ulimit info in the logs at service start time.
     (Arpit Gupta via suresh)
 
-  OPTIMIZATIONS
+    HDFS-4222. NN is unresponsive and loses heartbeats from DNs when 
+    configured to use LDAP and LDAP has issues. (Xiaobo Peng, suresh)
+
+    HDFS-4518. Finer grained metrics for HDFS capacity.
+    (Arpit Agarwal via suresh)
+
+    HDFS-4519. Support overriding jsvc binary and log file locations when
+    launching secure datanode. (Chris Nauroth via suresh)
+
+    HDFS-4551. When copying bytes in DatanodeWebHdfsMethods OPEN, use 4096
+    buffer size to improve performance.  (Mark Wagner via szetszwo)
 
     HDFS-2533. Backport: Remove needless synchronization on some FSDataSet
     methods.  (Brandon Li via szetszwo)
@@ -181,24 +223,11 @@ Release 1.2.0 - unreleased
 
   BUG FIXES
 
-    HADOOP-8419. Fixed GzipCode NPE reset for IBM JDK. (Yu Li via eyang)
-
     MAPREDUCE-4904. OTHER_LOCAL_MAPS counter is not correct.
     (Junping Du via llu)
 
-    MAPREDUCE-4272. SortedRanges.Range#compareTo is not spec compliant.
-    (Yu Gao via llu)
-
-    HADOOP-9051 Fix ant clean/test with circular symlinks in build dir. (llu)
-
-    MAPREDUCE-4396. Port support private distributed cache to 
-    LocalJobRunner from branch-1-win. (Yu Gao via eyang)
-
     MAPREDUCE-4798. Updated TestJobHistoryServer test case for startup
     race conditions.  (Sam Liu via eyang)
-
-    HADOOP-8418. Update UGI Principal classes name for running with
-    IBM JDK on 64 bits Windows.  (Yu Gao via eyang)
 
     HADOOP-8460. Document proper setting of HADOOP_PID_DIR and
     HADOOP_SECURE_DN_PID_DIR (bobby)
@@ -493,21 +522,77 @@ Release 1.2.0 - unreleased
     HADOOP-9154. SortedMapWritable#putAll() doesn't add key/value classes to
     the map. (Karthik Kambatla via tomwhite)
 
-Release 1.1.2 - Unreleased
+    HDFS-4479. logSync() with the FSNamesystem lock held in
+    commitBlockSynchronization. (Jing Zhao via suresh)
+
+    HADOOP-8917. add LOCALE.US to toLowerCase in SecurityUtil.replacePattern.
+    (Arpit Gupta via suresh)
+
+    MAPREDUCE-5008. Merger progress miscounts with respect to EOF_MARKER.
+    (Sandy Ryza via tomwhite)
+
+    MAPREDUCE-5035. Update MR1 memory configuration docs. (tomwhite)
+
+    HADOOP-9349. Confusing output when running hadoop version from one hadoop 
+    installation when HADOOP_HOME points to another. (sandyr via tucu)
+
+    MAPREDUCE-5028. Maps fail when io.sort.mb is set to high value.
+    (kkambatl via tucu)
+
+    HDFS-4544. Error in deleting blocks should not do check disk, for
+    all types of errors. (Arpit Agarwal via suresh)
+
+    HADOOP-9375. Port HADOOP-7290 to branch-1 to fix TestUserGroupInformation
+    failure. (Xiaobo Peng via suresh)
+
+    MAPREDUCE-5049. CombineFileInputFormat counts all compressed files 
+    non-splitable. (sandyr via tucu)
+
+    HADOOP-9369. DNS#reverseDns() can return hostname with . appended at the
+    end. (Karthik Kambatla via atm)
+
+    HDFS-4558. Fix the NPE thrown when starting balancer.  (Junping Du via szetszwo)
+
+    HADOOP-9379. capture the ulimit info after printing the log to the console.
+    (Arpit Gupta via suresh)
+
+    HADOOP-7101. UserGroupInformation.getCurrentUser() fails when called from
+    non-Hadoop JAAS context. (todd, backported by suresh)
+
+Release 1.1.2 - 2013.01.30
 
   INCOMPATIBLE CHANGES
 
   NEW FEATURES
 
-  IMPROVEMENTS
-
     MAPREDUCE-4397. Introduce HADOOP_SECURITY_CONF_DIR for task-controller.
     (Yu Gao via llu)
+
+    HADOOP-8561. Introduce HADOOP_PROXY_USER for secure impersonation in child
+    hadoop client processes. (Yu Gao via llu)
+
+  IMPROVEMENTS
 
     HDFS-4252. Improve confusing log message that prints exception when editlog 
     read is completed. (Jing Zhao via suresh)
 
+    HADOOP-8567. Port conf servlet to dump running configuration to branch 1.x.
+    (Jing Zhao via suresh)
+
   BUG FIXES
+
+    HADOOP-8419. Fixed GzipCode NPE reset for IBM JDK. (Yu Li via eyang)
+
+    MAPREDUCE-4272. SortedRanges.Range#compareTo is not spec compliant.
+    (Yu Gao via llu)
+
+    HADOOP-9051 Fix ant clean/test with circular symlinks in build dir. (llu)
+
+    MAPREDUCE-4396. Port support private distributed cache to
+    LocalJobRunner from branch-1-win. (Yu Gao via eyang)
+
+    HADOOP-8418. Update UGI Principal classes name for running with
+    IBM JDK on 64 bits Windows.  (Yu Gao via eyang)
 
     MAPREDUCE-4798. Updated TestJobHistoryServer test case for startup
     race conditions.  (Sam Liu via eyang)
