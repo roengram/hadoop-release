@@ -1486,7 +1486,7 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
   public void createSnapshot(String snapshotRoot, String snapshotName)
       throws IOException {
     myMetrics.incrCreateSnapshotOps();
-    namesystem.createSnapshot(snapshotName, snapshotRoot);
+    namesystem.createSnapshot(snapshotRoot, snapshotName);
   }
   
   @Override
