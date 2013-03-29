@@ -304,6 +304,7 @@ public class INodeFile extends INode {
 
   @Override
   public int destroyAndCollectBlocks(BlocksMapUpdateInfo collectedBlocks) {
+    int total = 1;
     if (blocks != null && collectedBlocks != null) {
       for (BlockInfo blk : blocks) {
         collectedBlocks.addDeleteBlock(blk);
@@ -312,7 +313,10 @@ public class INodeFile extends INode {
     }
     setBlocks(null);
     clearReferences();
-    return 1;
+    if (this instanceof FileWithSnapshot) {
+      total += ((FileWithSnapshot) this).getDiffs().clear();
+    }
+    return total;
   }
 
   LocatedBlocks createLocatedBlocks(List<LocatedBlock> blocks, 

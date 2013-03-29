@@ -92,18 +92,7 @@ public class INodeFileWithSnapshot extends INodeFile
     } else { // delete a snapshot
       return diffs.deleteSnapshotDiff(snapshot, prior, this, collectedBlocks);
     }
-    return 1;
-  }
-  
-  @Override
-  public int destroyAndCollectBlocks(
-      final BlocksMapUpdateInfo collectedBlocks) {
-    if (!this.isCurrentFileDeleted) {
-      throw new IllegalStateException("should be a deleted file: "
-          + this.toDetailString());
-    }
-    final int n = diffs.clear();
-    return n + super.destroyAndCollectBlocks(collectedBlocks);
+    return prior == null ? 1 : 0;
   }
 
   @Override
