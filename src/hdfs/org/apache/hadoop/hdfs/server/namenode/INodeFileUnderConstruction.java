@@ -54,7 +54,7 @@ public class INodeFileUnderConstruction extends INodeFile {
                              String clientMachine,
                              DatanodeDescriptor clientNode) {
     this(null, replication, modTime, preferredBlockSize, BlockInfo.EMPTY_ARRAY,
-        permissions.applyUMask(UMASK), clientName, clientMachine, clientNode);
+        permissions, clientName, clientMachine, clientNode);
   }
 
   public INodeFileUnderConstruction(byte[] name,

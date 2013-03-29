@@ -18,3 +18,7 @@ Condor release branched from Apache @ https://svn.apache.org/repos/asf/hadoop/co
       Merge is done from the branch condor-1-snap-merge
 
   NFS related chanages
+      
+    No Apache Jira created yet
+        
+        Support execution bit for regular files
