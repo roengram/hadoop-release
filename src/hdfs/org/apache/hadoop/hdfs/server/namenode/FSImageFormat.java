@@ -129,7 +129,7 @@ public class FSImageFormat {
 
         needToSave = (imgVersion != FSConstants.LAYOUT_VERSION);
 
-        if (storage.layoutVersion <= -42) {
+        if (storage.layoutVersion <= -41) {
           namesystem.getSnapshotManager().read(in);
           loadLocalNameINodesWithSnapshot(in);
         } else {
@@ -389,7 +389,7 @@ public class FSImageFormat {
         String clientMachine = "";
         boolean underConstruction = false;
         FileDiffList fileDiffs = null;
-        if (layoutVersion <= -42) { // support snapshot
+        if (layoutVersion <= -41) { // support snapshot
           // read diffs
           fileDiffs = SnapshotFSImageFormat.loadFileDiffList(in, this);
 
@@ -427,7 +427,7 @@ public class FSImageFormat {
         // read snapshot info
         boolean snapshottable = false;
         boolean withSnapshot = false;
-        if (layoutVersion <= -42) {
+        if (layoutVersion <= -41) {
           snapshottable = in.readBoolean();
           if (!snapshottable) {
             withSnapshot = in.readBoolean();

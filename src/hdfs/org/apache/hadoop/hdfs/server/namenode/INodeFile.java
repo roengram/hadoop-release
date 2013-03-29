@@ -99,7 +99,7 @@ public class INodeFile extends INode {
 
   protected long header = 0L;
 
-  BlockInfo blocks[] = null;
+  private BlockInfo blocks[] = null;
   
   INodeFile(byte[] name, PermissionStatus permissions, long mtime, long atime,
       BlockInfo[] blklist, short replication, long preferredBlockSize) {
@@ -234,6 +234,10 @@ public class INodeFile extends INode {
     return this.blocks;
   }
   
+  public int numBlocks() {
+    return blocks == null ? 0 : blocks.length;
+  }
+  
   void updateINodeForBlocks() {
     if (blocks != null) {
       for(BlockInfo b : blocks) {
@@ -262,26 +266,6 @@ public class INodeFile extends INode {
 
     setBlocks(newlist);
     updateINodeForBlocks();
-  }
-
-  /**
-   * append array of blocks to this.blocks
-   */
-  void appendBlocks(INodeFile [] inodes, int totalAddedBlocks) {
-    int size = this.blocks.length;
-    
-    BlockInfo[] newlist = new BlockInfo[size + totalAddedBlocks];
-    System.arraycopy(this.blocks, 0, newlist, 0, size);
-    
-    for(INodeFile in: inodes) {
-      System.arraycopy(in.blocks, 0, newlist, size, in.blocks.length);
-      size += in.blocks.length;
-    }
-    
-    for(BlockInfo bi: this.blocks) {
-      bi.setINode(this);
-    }
-    this.blocks = newlist;
   }
   
   /**
@@ -470,7 +454,7 @@ public class INodeFile extends INode {
   /**
    * Return the last block in this file, or null if there are no blocks.
    */
-  Block getLastBlock() {
+  BlockInfo getLastBlock() {
     if (this.blocks == null || this.blocks.length == 0)
       return null;
     return this.blocks[this.blocks.length - 1];

@@ -608,10 +608,9 @@ public class FSDirectory implements FSConstants, Closeable {
    * @param srcs list of file to move the blocks from
    * Must be public because also called from EditLogs
    * NOTE: - it does not update quota since concat is restricted to same dir.
-   * @throws SnapshotAccessControlException 
    */
   public void unprotectedConcat(String target, String[] srcs, long timestamp)
-      throws SnapshotAccessControlException {
+      throws SnapshotAccessControlException, QuotaExceededException {
     if (NameNode.stateChangeLog.isDebugEnabled()) {
       NameNode.stateChangeLog.debug("DIR* FSNamesystem.concat to "+target);
     }
@@ -619,32 +618,28 @@ public class FSDirectory implements FSConstants, Closeable {
     
     final INodesInPath trgIIP = rootDir.getINodesInPath4Write(target);
     final INode[] trgINodes = trgIIP.getINodes();
-    INodeFile trgInode = (INodeFile) trgIIP.getLastINode();
-    INodeDirectory trgParent = (INodeDirectory) trgINodes[trgINodes.length-2];
+    INodeFile trgInode = trgIIP.getLastINode().asFile();
+    INodeDirectory trgParent = trgINodes[trgINodes.length-2].asDirectory();
     final Snapshot trgLatestSnapshot = trgIIP.getLatestSnapshot();
     
     INodeFile [] allSrcInodes = new INodeFile[srcs.length];
-    int i = 0;
-    int totalBlocks = 0;
-    for(String src : srcs) {
-      INodeFile srcInode = (INodeFile) getINode4Write(src);
-      allSrcInodes[i++] = srcInode;
-      totalBlocks += srcInode.blocks.length;  
+    for (int i = 0; i < srcs.length; i++) {
+      allSrcInodes[i] = getINode4Write(srcs[i]).asFile();  
     }
-    trgInode.appendBlocks(allSrcInodes, totalBlocks); // copy the blocks
+    trgInode.concatBlocks(allSrcInodes); // copy the blocks
     
     // since we are in the same dir - we can use same parent to remove files
     int count = 0;
     for(INodeFile nodeToRemove: allSrcInodes) {
       if(nodeToRemove == null) continue;
       
-      nodeToRemove.blocks = null;
-      trgParent.removeChild(nodeToRemove);
+      nodeToRemove.setBlocks(null);
+      trgParent.removeChild(nodeToRemove, trgLatestSnapshot);
       count++;
     }
 
-    trgInode.setModificationTime(timestamp);
-    trgParent.setModificationTime(timestamp);
+    trgInode.setModificationTime(timestamp, trgLatestSnapshot);
+    trgParent.setModificationTime(timestamp, trgLatestSnapshot);
     // update quota on the parent directory ('count' files removed, 0 space)
     unprotectedUpdateCount(trgINodes, trgINodes.length-1, -count, 0);
   }
@@ -1133,19 +1128,15 @@ public class FSDirectory implements FSConstants, Closeable {
   }
   
   /**
-   * updates quota without verification
-   * callers responsibility is to make sure quota is not exceeded
-   * @param inodes
-   * @param numOfINodes
-   * @param nsDelta
-   * @param dsDelta
+   * updates quota without verification callers responsibility is to make sure
+   * quota is not exceeded
    */
    void unprotectedUpdateCount(INode[] inodes, int numOfINodes, 
                                       long nsDelta, long dsDelta) {
     for(int i=0; i < numOfINodes; i++) {
       if (inodes[i].isQuotaSet()) { // a directory with quota
         INodeDirectoryWithQuota node =(INodeDirectoryWithQuota)inodes[i]; 
-        node.addSpaceConsumed(nsDelta, dsDelta);
+        node.addSpaceConsumed2Cache(nsDelta, dsDelta);
       }
     }
   }
