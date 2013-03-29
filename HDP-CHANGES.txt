@@ -1,13 +1,20 @@
 Condor release branched from Apache @ https://svn.apache.org/repos/asf/hadoop/common/branches/branch-1@1446352 13f79535-47bb-0310-9956-ffa450edef68
 
 
- INCOMPATIBLE CHANGES
+  INCOMPATIBLE CHANGES
 
 
- NEW FEATURES
+  NEW FEATURES
 
 
- IMPROVEMENTS
+  IMPROVEMENTS
 
 
- BUG FIXES
+  BUG FIXES
+
+
+  Snapshot feature has been merged to condor branch
+
+      Merge is done from the branch condor-1-snap-merge
+
+  NFS related chanages
