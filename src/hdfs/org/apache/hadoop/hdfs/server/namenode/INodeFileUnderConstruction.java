@@ -17,16 +17,27 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.List;
-import java.util.ArrayList;
 
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.protocol.Block;
+import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 
 
-class INodeFileUnderConstruction extends INodeFile {
+public class INodeFileUnderConstruction extends INodeFile {
+  /** Cast INode to INodeFileUnderConstruction. */
+  public static INodeFileUnderConstruction valueOf(INode inode, String path
+      ) throws FileNotFoundException {
+    final INodeFile file = INodeFile.valueOf(inode, path);
+    if (!file.isUnderConstruction()) {
+      throw new FileNotFoundException("File is not under construction: " + path);
+    }
+    return (INodeFileUnderConstruction)file;
+  }
+
   String clientName;         // lease holder
   private final String clientMachine;
   private final DatanodeDescriptor clientNode; // if client is a cluster node too.
@@ -42,11 +53,8 @@ class INodeFileUnderConstruction extends INodeFile {
                              String clientName,
                              String clientMachine,
                              DatanodeDescriptor clientNode) {
-    super(permissions.applyUMask(UMASK), 0, replication, modTime, modTime,
-        preferredBlockSize);
-    this.clientName = clientName;
-    this.clientMachine = clientMachine;
-    this.clientNode = clientNode;
+    this(null, replication, modTime, preferredBlockSize, BlockInfo.EMPTY_ARRAY,
+        permissions.applyUMask(UMASK), clientName, clientMachine, clientNode);
   }
 
   public INodeFileUnderConstruction(byte[] name,
@@ -58,15 +66,24 @@ class INodeFileUnderConstruction extends INodeFile {
                              String clientName,
                              String clientMachine,
                              DatanodeDescriptor clientNode) {
-    super(perm, blocks, blockReplication, modificationTime, modificationTime,
-          preferredBlockSize);
-    setLocalName(name);
+    super(name, perm, modificationTime, modificationTime, blocks,
+        blockReplication, preferredBlockSize);
+    this.clientName = clientName;
+    this.clientMachine = clientMachine;
+    this.clientNode = clientNode;
+  }
+  
+  public INodeFileUnderConstruction(final INodeFile that,
+      final String clientName,
+      final String clientMachine,
+      final DatanodeDescriptor clientNode) {
+    super(that);
     this.clientName = clientName;
     this.clientMachine = clientMachine;
     this.clientNode = clientNode;
   }
 
-  String getClientName() {
+  public String getClientName() {
     return clientName;
   }
 
@@ -74,20 +91,27 @@ class INodeFileUnderConstruction extends INodeFile {
     clientName = newName;
   }
 
-  String getClientMachine() {
+  public String getClientMachine() {
     return clientMachine;
   }
 
-  DatanodeDescriptor getClientNode() {
+  public DatanodeDescriptor getClientNode() {
     return clientNode;
   }
 
-  /**
-   * Is this inode being constructed?
-   */
+  /** @return true unconditionally. */
   @Override
-  boolean isUnderConstruction() {
+  public final boolean isUnderConstruction() {
     return true;
+  }
+  
+  @Override
+  public INodeFileUnderConstruction recordModification(final Snapshot latest)
+      throws QuotaExceededException {
+    return isInLatestSnapshot(latest) ?
+        getParent().replaceChild4INodeFileUcWithSnapshot(this)
+            .recordModification(latest)
+        : this;
   }
 
   DatanodeDescriptor[] getTargets() {
@@ -123,19 +147,17 @@ class INodeFileUnderConstruction extends INodeFile {
     this.primaryNodeIndex = -1;
   }
 
-  //
-  // converts a INodeFileUnderConstruction into a INodeFile
-  // use the modification time as the access time
-  //
-  INodeFile convertToInodeFile() {
-    INodeFile obj = new INodeFile(getPermissionStatus(),
-                                  getBlocks(),
-                                  getReplication(),
-                                  getModificationTime(),
-                                  getModificationTime(),
-                                  getPreferredBlockSize());
-    return obj;
-    
+   /**
+    * Converts an INodeFileUnderConstruction to an INodeFile.
+    * The original modification time is used as the access time.
+    * The new modification is the specified mtime.
+    */
+   protected INodeFile toINodeFile(long mtime) {
+    final INodeFile f = new INodeFile(getLocalNameBytes(),
+        getPermissionStatus(), mtime, getModificationTime(), getBlocks(),
+        getFileReplication(), getPreferredBlockSize());
+    f.setParent(getParent());
+    return f;
   }
 
   /**
@@ -143,6 +165,7 @@ class INodeFileUnderConstruction extends INodeFile {
    * the last one on the list.
    */
   void removeBlock(Block oldblock) throws IOException {
+    final BlockInfo[] blocks = getBlocks();
     if (blocks == null) {
       throw new IOException("Trying to delete non-existant block " + oldblock);
     }
@@ -154,14 +177,15 @@ class INodeFileUnderConstruction extends INodeFile {
     //copy to a new list
     BlockInfo[] newlist = new BlockInfo[size_1];
     System.arraycopy(blocks, 0, newlist, 0, size_1);
-    blocks = newlist;
+    setBlocks(newlist);
     
     // Remove the block locations for the last block.
     targets = null;
   }
 
-  synchronized void setLastBlock(BlockInfo newblock, DatanodeDescriptor[] newtargets
-      ) throws IOException {
+  synchronized void setLastBlock(BlockInfo newblock,
+      DatanodeDescriptor[] newtargets) throws IOException {
+    final BlockInfo[] blocks = getBlocks();
     if (blocks == null || blocks.length == 0) {
       throw new IOException("Trying to update non-existant block (newblock="
           + newblock + ")");
@@ -208,6 +232,7 @@ class INodeFileUnderConstruction extends INodeFile {
       int j = (previous + i)%targets.length;
       if (targets[j].isAlive) {
         DatanodeDescriptor primary = targets[primaryNodeIndex = j]; 
+        final BlockInfo[] blocks = getBlocks();
         primary.addBlockToBeRecovered(blocks[blocks.length - 1], targets);
         NameNode.stateChangeLog.info("BLOCK* " + blocks[blocks.length - 1]
           + " recovery started, primary=" + primary);
@@ -226,5 +251,22 @@ class INodeFileUnderConstruction extends INodeFile {
       lastRecoveryTime = now;
     }
     return expired;
+  }
+  
+  /**
+   * Update the length for the last block
+   * 
+   * @param lastBlockLength
+   *          The length of the last block reported from client
+   * @throws IOException
+   */
+  void updateLengthOfLastBlock(long lastBlockLength) throws IOException {
+    final BlockInfo[] blocks = getBlocks();
+    assert blocks != null : "Blocks for path " + this.getFullPathName()
+        + " is null when updating its last block length";
+    BlockInfo lastBlock = blocks[blocks.length - 1];
+    assert (lastBlock != null) : "The last block for path "
+        + this.getFullPathName() + " is null when updating its length";
+    lastBlock.setNumBytes(lastBlockLength);
   }
 }

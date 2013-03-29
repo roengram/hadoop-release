@@ -38,11 +38,13 @@ import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.DirectoryListing;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
+import org.apache.hadoop.hdfs.protocol.SnapshotDiffReport;
 import org.apache.hadoop.hdfs.protocol.FSConstants.DatanodeReportType;
 import org.apache.hadoop.hdfs.protocol.FSConstants.SafeModeAction;
 import org.apache.hadoop.hdfs.protocol.FSConstants.UpgradeAction;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
+import org.apache.hadoop.hdfs.protocol.SnapshottableDirectoryStatus;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hdfs.server.common.UpgradeStatusReport;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
@@ -655,6 +657,38 @@ public class DistributedFileSystem extends FileSystem {
   public void setBalancerBandwidth(long bandwidth) throws IOException {
     dfs.setBalancerBandwidth(bandwidth);
   }
+  
+  /**
+   * Allow snapshot on a directory.
+   * 
+   * @param path of the directory where snapshots are to be taken
+   * @throws IOException
+   */
+  public void allowSnapshot(String path) throws IOException {
+    dfs.allowSnapshot(path);
+  }
+  
+  /**
+   * Disallow snapshot on a directory.
+   * 
+   * @param path the snapshottable directory.
+   * @throws IOException
+   */
+  public void disallowSnapshot(String path) throws IOException {
+    dfs.disallowSnapshot(path);
+  }
+  
+  @Override
+  public void createSnapshot(Path path, String snapshotName) 
+      throws IOException {
+    dfs.createSnapshot(getPathName(path), snapshotName);
+  }
+  
+  @Override
+  public void renameSnapshot(Path path, String snapshotOldName,
+      String snapshotNewName) throws IOException {
+    dfs.renameSnapshot(getPathName(path), snapshotOldName, snapshotNewName);
+  }
 
   /**
    * Is the HDFS healthy?
@@ -696,5 +730,31 @@ public class DistributedFileSystem extends FileSystem {
     } finally {
       IOUtils.cleanup(LOG, fs);
     }
+  }
+  
+  @Override
+  public void deleteSnapshot(Path snapshotDir, String snapshotName)
+      throws IOException {
+    dfs.deleteSnapshot(getPathName(snapshotDir), snapshotName);
+  }
+  
+  /**
+   * @return All the snapshottable directories
+   * @throws IOException
+   */
+  public SnapshottableDirectoryStatus[] getSnapshottableDirListing()
+      throws IOException {
+    return dfs.getSnapshottableDirListing();
+  }
+  
+  /**
+   * Get the difference between two snapshots, or between a snapshot and the
+   * current tree of a directory.
+   * 
+   * @see DFSClient#getSnapshotDiffReport(Path, String, String)
+   */
+  public SnapshotDiffReport getSnapshotDiffReport(Path snapshotDir,
+      String fromSnapshot, String toSnapshot) throws IOException {
+    return dfs.getSnapshotDiffReport(snapshotDir, fromSnapshot, toSnapshot);
   }
 }

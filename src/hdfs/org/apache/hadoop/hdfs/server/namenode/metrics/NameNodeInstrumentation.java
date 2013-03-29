@@ -18,14 +18,15 @@
 
 package org.apache.hadoop.hdfs.server.namenode.metrics;
 
-import org.apache.commons.logging.LogFactory;
 import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.metrics2.MetricsBuilder;
 import org.apache.hadoop.metrics2.MetricsSource;
 import org.apache.hadoop.metrics2.MetricsSystem;
 import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.metrics2.lib.MetricMutableCounterInt;
+import org.apache.hadoop.metrics2.lib.MetricMutableCounterLong;
 import org.apache.hadoop.metrics2.lib.MetricMutableGaugeInt;
 import org.apache.hadoop.metrics2.lib.MetricMutableStat;
 import org.apache.hadoop.metrics2.lib.MetricsRegistry;
@@ -48,8 +49,8 @@ public class NameNodeInstrumentation implements MetricsSource {
       registry.newCounter("GetListingOps", "", 0);
   final MetricMutableCounterInt numCreateFileOps =
       registry.newCounter("CreateFileOps", "", 0);
-  final MetricMutableCounterInt numFilesDeleted =
-      registry.newCounter("FilesDeleted", "Files deleted (inc. rename)", 0);
+  final MetricMutableCounterLong numFilesDeleted =
+      registry.newCounter("FilesDeleted", "Files deleted (inc. rename)", 0L);
   final MetricMutableCounterInt numDeleteFileOps =
       registry.newCounter("DeleteFileOps", "", 0);
   final MetricMutableCounterInt numFileInfoOps =
@@ -67,7 +68,23 @@ public class NameNodeInstrumentation implements MetricsSource {
       registry.newGauge("fsImageLoadTime", "", 0);
   final MetricMutableCounterInt numFilesInGetListingOps =
       registry.newCounter("FilesInGetListingOps", "", 0);
-
+  final MetricMutableCounterInt allowSnapshotOps = registry.newCounter(
+      "AllowSnapshotOps", "Number of allowSnapshot operations", 0);
+  final MetricMutableCounterInt disallowSnapshotOps = registry.newCounter(
+      "DisallowSnapshotOps", "Number of disallowSnapshotOps operations", 0);
+  final MetricMutableCounterInt createSnapshotOps = registry.newCounter(
+      "CreateSnapshotOps", "Number of createSnapshot operations", 0);
+  final MetricMutableCounterInt deleteSnapshotOps = registry.newCounter(
+      "DeleteSnapshotOps", "Number of deleteSnapshotOps operations", 0);
+  final MetricMutableCounterInt renameSnapshotOps = registry.newCounter(
+      "RenameSnapshotOps", "Number of renameSnapshot operations", 0);
+  final MetricMutableCounterInt listSnapshottableDirOps = registry
+      .newCounter("ListSnapshottableDirOps",
+          "Number of listSnapshottableDir operations", 0);
+  final MetricMutableCounterInt snapshotDiffReportOps = registry
+      .newCounter("SnapshotDiffReportOps",
+          "Number of SnapshotDiffReportOps operations", 0);
+  
   NameNodeInstrumentation(Configuration conf) {
     sessionId = conf.get("session.id");
     JvmMetricsSource.create("NameNode", sessionId);
@@ -126,7 +143,7 @@ public class NameNodeInstrumentation implements MetricsSource {
   }
 
   //@Override
-  public void incrFilesDeleted(int delta) {
+  public void incrFilesDeleted(long delta) {
     numFilesDeleted.incr(delta);
   }
 
@@ -150,6 +167,34 @@ public class NameNodeInstrumentation implements MetricsSource {
     numFileInfoOps.incr();
   }
 
+  public void incrAllowSnapshotOps() {
+    allowSnapshotOps.incr();
+  }
+
+  public void incrDisAllowSnapshotOps() {
+    disallowSnapshotOps.incr();
+  }
+
+  public void incrCreateSnapshotOps() {
+    createSnapshotOps.incr();
+  }
+  
+  public void incrDeleteSnapshotOps() {
+    deleteSnapshotOps.incr();
+  }
+  
+  public void incrRenameSnapshotOps() {
+    renameSnapshotOps.incr();
+  }
+  
+  public void incrListSnapshottableDirOps() {
+    listSnapshottableDirOps.incr();
+  }
+  
+  public void incrSnapshotDiffReportOps() {
+    snapshotDiffReportOps.incr();
+  }
+  
   //@Override
   public final void addTransaction(long latency) {
     transactions.add(latency);

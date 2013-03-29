@@ -18,111 +18,334 @@
 package org.apache.hadoop.hdfs.server.namenode;
 
 import java.io.FileNotFoundException;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.DFSUtil;
-import org.apache.hadoop.hdfs.protocol.Block;
+import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
+import org.apache.hadoop.hdfs.server.common.HdfsConstants;
+import org.apache.hadoop.hdfs.server.namenode.Content.CountsMap.Key;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectoryWithSnapshot;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeFileUnderConstructionWithSnapshot;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeFileWithSnapshot;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotAccessControlException;
+import org.apache.hadoop.hdfs.util.ReadOnlyList;
 
 /**
  * Directory INode class.
  */
-class INodeDirectory extends INode {
+public class INodeDirectory extends INode {
+  /** Cast INode to INodeDirectory. */
+  public static INodeDirectory valueOf(INode inode, Object path
+      ) throws FileNotFoundException {
+    if (inode == null) {
+      throw new FileNotFoundException("Directory does not exist: " + path);
+    }
+    if (!inode.isDirectory()) {
+      throw new FileNotFoundException("Is not a directory: "
+          + DFSUtil.path2String(path));
+    }
+    return inode.asDirectory(); 
+  }
+
   protected static final int DEFAULT_FILES_PER_DIRECTORY = 5;
-  final static String ROOT_NAME = "";
+  final static byte[] ROOT_NAME = DFSUtil.string2Bytes("");
 
-  private List<INode> children;
-
-  INodeDirectory(String name, PermissionStatus permissions) {
-    super(name, permissions);
-    this.children = null;
-  }
-
-  public INodeDirectory(PermissionStatus permissions, long mTime) {
-    super(permissions, mTime, 0);
-    this.children = null;
-  }
-
+  private List<INode> children = null;
+  
   /** constructor */
-  INodeDirectory(byte[] localName, PermissionStatus permissions, long mTime) {
-    this(permissions, mTime);
-    this.name = localName;
+  public INodeDirectory(byte[] name, PermissionStatus permissions,
+      long mtime) {
+    super(name, permissions, mtime, 0L);
   }
   
   /** copy constructor
    * 
    * @param other
    */
-  INodeDirectory(INodeDirectory other) {
+  public INodeDirectory(INodeDirectory other, boolean adopt) {
     super(other);
-    this.children = other.getChildren();
+    this.children = other.children;
+    if (adopt && this.children != null) {
+      for (INode child : children) {
+        child.setParent(this);
+      }
+    }
   }
   
-  /**
-   * Check whether it's a directory
-   */
-  public boolean isDirectory() {
+  /** @return true unconditionally. */
+  public final boolean isDirectory() {
     return true;
   }
 
-  INode removeChild(INode node) {
-    assert children != null;
-    int low = Collections.binarySearch(children, node.name);
-    if (low >= 0) {
-      return children.remove(low);
-    } else {
-      return null;
-    }
+  private int searchChildren(byte[] name) {
+    return children == null? -1: Collections.binarySearch(children, name);
   }
 
-  /** Replace a child that has the same name as newChild by newChild.
-   * 
-   * @param newChild Child node to be added
-   */
-  void replaceChild(INode newChild) {
-    if ( children == null ) {
-      throw new IllegalArgumentException("The directory is empty");
+  private int searchChildrenForExistingINode(final INode inode) {
+    if (children == null) {
+      throw new IllegalStateException("children is null");
     }
-    int low = Collections.binarySearch(children, newChild.name);
-    if (low>=0) { // an old child exists so replace by the newChild
-      children.set(low, newChild);
+    final byte[] name = inode.getLocalNameBytes();
+    final int i = searchChildren(name);
+    if (i < 0) {
+      throw new AssertionError("Child not found: name="
+          + DFSUtil.bytes2String(name));
+    }
+    return i;
+  }
+
+  /** @return this object. */
+  @Override
+  public final INodeDirectory asDirectory() {
+    return this;
+  }
+
+  /** Is this a snapshottable directory? */
+  public boolean isSnapshottable() {
+    return false;
+  }
+
+  /**
+   * Remove the specified child from this directory.
+   * 
+   * @param child the child inode to be removed
+   * @param latest See {@link INode#recordModification(Snapshot)}.
+   */
+  public boolean removeChild(INode child, Snapshot latest)
+      throws QuotaExceededException {
+    if (isInLatestSnapshot(latest)) {
+      return replaceSelf4INodeDirectoryWithSnapshot()
+          .removeChild(child, latest);
+    }
+
+    return removeChild(child);
+  }
+
+  /** 
+   * Remove the specified child from this directory.
+   * The basic remove method which actually calls children.remove(..).
+   *
+   * @param child the child inode to be removed
+   * 
+   * @return true if the child is removed; false if the child is not found.
+   */
+  protected final boolean removeChild(final INode child) {
+    if (children == null) {
+      throw new IllegalStateException("children is null");
+    }
+    final int i = searchChildren(child.getLocalNameBytes());
+    if (i < 0) {
+      return false;
+    }
+
+    final INode removed = children.remove(i);
+    if (removed != child) {
+      throw new IllegalStateException("removed != child. removed = "
+          + removed.toDetailString() + ". child = "
+          + child.toDetailString());
+    }
+    return true;
+  }
+
+  /**
+   * Remove the specified child and all its snapshot copies from this directory.
+   */
+  public boolean removeChildAndAllSnapshotCopies(INode child) {
+    return removeChild(child);
+  }
+
+  /**
+   * Replace itself with {@link INodeDirectoryWithQuota} or
+   * {@link INodeDirectoryWithSnapshot} depending on the latest snapshot.
+   */
+  INodeDirectoryWithQuota replaceSelf4Quota(final Snapshot latest,
+      final long nsQuota, final long dsQuota) throws QuotaExceededException {
+    if (this instanceof INodeDirectoryWithQuota) {
+      throw new IllegalStateException(
+          "this is already an INodeDirectoryWithQuota, this=" + this);
+    }
+
+    if (latest == null) {
+      final INodeDirectoryWithQuota q = new INodeDirectoryWithQuota(
+          this, true, nsQuota, dsQuota);
+      replaceSelf(q);
+      return q;
     } else {
-      throw new IllegalArgumentException("No child exists to be replaced");
+      final INodeDirectoryWithSnapshot s = new INodeDirectoryWithSnapshot(this);
+      s.setQuota(nsQuota, dsQuota);
+      return replaceSelf(s).saveSelf2Snapshot(latest, this);
     }
   }
   
-  INode getChild(String name) {
-    return getChildINode(DFSUtil.string2Bytes(name));
+  /** Replace itself with an {@link INodeDirectorySnapshottable}. */
+  public INodeDirectorySnapshottable replaceSelf4INodeDirectorySnapshottable(
+      Snapshot latest) throws QuotaExceededException {
+    if (this instanceof INodeDirectorySnapshottable) {
+      throw new IllegalStateException(
+          "this is already an INodeDirectorySnapshottable, this=" + this);
+    }
+    final INodeDirectorySnapshottable s = new INodeDirectorySnapshottable(this);
+    replaceSelf(s).saveSelf2Snapshot(latest, this);
+    return s;
   }
 
-  private INode getChildINode(byte[] name) {
+  /** Replace itself with an {@link INodeDirectoryWithSnapshot}. */
+  public INodeDirectoryWithSnapshot replaceSelf4INodeDirectoryWithSnapshot() {
+    if (this instanceof INodeDirectoryWithSnapshot) {
+      throw new IllegalStateException(
+          "this is already an INodeDirectoryWithSnapshot, this=" + this);
+    }
+    return replaceSelf(new INodeDirectoryWithSnapshot(this));
+  }
+
+  /** Replace itself with {@link INodeDirectory}. */
+  public INodeDirectory replaceSelf4INodeDirectory() {
+    if (getClass() == INodeDirectory.class) {
+      throw new IllegalStateException(
+          "the class is already INodeDirectory, this=" + this);
+    }
+    return replaceSelf(new INodeDirectory(this, true));
+  }
+
+  /** Replace itself with the given directory. */
+  private final <N extends INodeDirectory> N replaceSelf(final N newDir) {
+    final INodeDirectory parent = getParent();
+    if (parent == null) {
+      throw new IllegalStateException("parent is null, this=" + this);
+    }
+    parent.replaceChild(this, newDir);
+    return newDir;
+  }
+  
+  public void replaceChild(final INode oldChild, final INode newChild) {
     if (children == null) {
-      return null;
+      throw new IllegalStateException("children is null");
     }
-    int low = Collections.binarySearch(children, name);
-    if (low >= 0) {
-      return children.get(low);
+    final int i = searchChildrenForExistingINode(newChild);
+    final INode removed = children.set(i, newChild);
+    if (removed != oldChild) {
+      throw new IllegalStateException();
     }
-    return null;
+    oldChild.clearReferences();
+  }
+  
+  private void replaceChildFile(final INodeFile oldChild, final INodeFile newChild) {
+    replaceChild(oldChild, newChild);
+    newChild.updateINodeForBlocks();
+  }
+  
+  /** Replace a child {@link INodeFile} with an {@link INodeFileWithSnapshot}. */
+  INodeFileWithSnapshot replaceChild4INodeFileWithSnapshot(
+      final INodeFile child) {
+    if (child instanceof INodeFileWithSnapshot) {
+      throw new IllegalStateException(
+          "Child file is already an INodeFileWithLink, child=" + child);
+    }
+    final INodeFileWithSnapshot newChild = new INodeFileWithSnapshot(child);
+    replaceChildFile(child, newChild);
+    return newChild;
+  }
+  
+  /**
+   * Replace a child {@link INodeFile} with an
+   * {@link INodeFileUnderConstructionWithSnapshot}.
+   */
+  INodeFileUnderConstructionWithSnapshot replaceChild4INodeFileUcWithSnapshot(
+      final INodeFileUnderConstruction child) {
+    if (child instanceof INodeFileUnderConstructionWithSnapshot) {
+      throw new IllegalArgumentException(
+      "Child file is already an INodeFileUnderConstructionWithSnapshot, child="
+          + child);
+    }
+    final INodeFileUnderConstructionWithSnapshot newChild
+        = new INodeFileUnderConstructionWithSnapshot(child, null);
+    replaceChildFile(child, newChild);
+    return newChild;
+  }
+  
+  @Override
+  public INodeDirectory recordModification(Snapshot latest)
+      throws QuotaExceededException {
+    return isInLatestSnapshot(latest)?
+        replaceSelf4INodeDirectoryWithSnapshot().recordModification(latest)
+        : this;
   }
 
   /**
+   * Save the child to the latest snapshot.
+   * 
+   * @return the child inode, which may be replaced.
    */
-  private INode getNode(byte[][] components) {
-    INode[] inode  = new INode[1];
-    getExistingPathINodes(components, inode);
-    return inode[0];
+  public INode saveChild2Snapshot(final INode child, final Snapshot latest,
+      final INode snapshotCopy) throws QuotaExceededException {
+    if (latest == null) {
+      return child;
+    }
+    return replaceSelf4INodeDirectoryWithSnapshot()
+        .saveChild2Snapshot(child, latest, snapshotCopy);
   }
 
   /**
-   * This is the external interface
+   * @param name the name of the child
+   * @param snapshot
+   *          if it is not null, get the result from the given snapshot;
+   *          otherwise, get the result from the current directory.
+   * @return the child inode.
    */
+  public INode getChild(byte[] name, Snapshot snapshot) {
+    final ReadOnlyList<INode> c = getChildrenList(snapshot);
+    final int i = ReadOnlyList.Util.binarySearch(c, name);
+    return i < 0 ? null : c.get(i);
+  }
+
+  /** @return the {@link INodesInPath} containing only the last inode. */
+  INodesInPath getLastINodeInPath(String path) {
+    return getExistingPathINodes(getPathComponents(path), 1);
+  }
+
+  /** @return the {@link INodesInPath} containing all inodes in the path. */
+  INodesInPath getINodesInPath(String path) {
+    final byte[][] components = getPathComponents(path);
+    return getExistingPathINodes(components, components.length);
+  }
+  
+  /** @return the last inode in the path. */
   INode getNode(String path) {
-    return getNode(getPathComponents(path));
+    return getLastINodeInPath(path).getINode(0);
+  }
+  
+  /**
+   * @return the INode of the last component in src, or null if the last
+   * component does not exist.
+   * @throws SnapshotAccessControlException if path is in RO snapshot
+   */
+  INode getINode4Write(String src) throws SnapshotAccessControlException {
+    return getINodesInPath4Write(src).getLastINode();
+  }
+
+  /**
+   * @return the INodesInPath of the components in src
+   * @throws SnapshotAccessControlException if path is in RO snapshot
+   */
+  INodesInPath getINodesInPath4Write(String src)
+      throws SnapshotAccessControlException {
+    final byte[][] components = INode.getPathComponents(src);
+    INodesInPath inodesInPath = getExistingPathINodes(components,
+        components.length);
+    if (inodesInPath.isSnapshot()) {
+      throw new SnapshotAccessControlException(
+          "Modification on read-only snapshot is disallowed");
+    }
+    return inodesInPath;
   }
 
   /**
@@ -156,51 +379,80 @@ class INodeDirectory extends INode {
    * <code>getExistingPathINodes(["","c1","c2","c3"], [?,?,?,?])</code> should
    * fill the array with [rootINode,c1,c2,null]
    * @param components array of path component name
-   * @param existing INode array to fill with existing INodes
+   * @param numOfINodes number of INodes to return
    * @return number of existing INodes in the path
    */
-  int getExistingPathINodes(byte[][] components, INode[] existing) {
-    assert compareBytes(this.name, components[0]) == 0 :
-      "Incorrect name " + getLocalName() + " expected " + components[0];
+  INodesInPath getExistingPathINodes(byte[][] components, int numOfINodes) {
+    assert this.compareTo(components[0]) == 0 :
+      "Incorrect name " + getLocalName() + " expected "
+      + (components[0] == null? null: DFSUtil.bytes2String(components[0]));
 
+    INodesInPath existing = new INodesInPath(components, numOfINodes);
     INode curNode = this;
     int count = 0;
-    int index = existing.length - components.length;
+    int index = numOfINodes - components.length;
     if (index > 0)
       index = 0;
     while ((count < components.length) && (curNode != null)) {
-      if (index >= 0)
-        existing[index] = curNode;
-      if (!curNode.isDirectory() || (count == components.length - 1))
+      if (index >= 0) {
+        existing.addNode(curNode);
+      }
+      final boolean isDir = curNode.isDirectory();
+      final INodeDirectory dir = isDir? curNode.asDirectory(): null;  
+      if (isDir && dir instanceof INodeDirectoryWithSnapshot) {
+        //if the path is a non-snapshot path, update the latest snapshot.
+        if (!existing.isSnapshot()) {
+          existing.updateLatestSnapshot(
+              ((INodeDirectoryWithSnapshot)dir).getLastSnapshot());
+        }
+      }
+      if (!isDir || (count == components.length - 1))
         break; // no more child, stop here
-      INodeDirectory parentDir = (INodeDirectory)curNode;
-      curNode = parentDir.getChildINode(components[count + 1]);
+      final byte[] childName = components[count + 1];
+      
+      // check if the next byte[] in components is for ".snapshot"
+      if (isDotSnapshotDir(childName)
+          && isDir && dir instanceof INodeDirectorySnapshottable) {
+        // skip the ".snapshot" in components
+        count++;
+        index++;
+        existing.isSnapshot = true;
+        if (index >= 0) { // decrease the capacity by 1 to account for .snapshot
+          existing.capacity--;
+        }
+        // check if ".snapshot" is the last element of components
+        if (count == components.length - 1) {
+          break;
+        }
+        // Resolve snapshot root
+        final Snapshot s = ((INodeDirectorySnapshottable) dir).getSnapshot(
+            components[count + 1]);
+        if (s == null) {
+          // snapshot not found
+          curNode = null;
+        } else {
+          curNode = s.getRoot();
+          existing.setSnapshot(s);
+        }
+        if (index >= -1) {
+          existing.snapshotRootIndex = existing.numNonNull;
+        }
+      } else {
+        // normal case, and also for resolving file/dir under snapshot root
+        curNode = dir.getChild(childName, existing.getPathSnapshot());
+      }
       count += 1;
       index += 1;
     }
-    return count;
+    return existing;
   }
 
   /**
-   * Retrieve the existing INodes along the given path. The first INode
-   * always exist and is this INode.
-   * 
-   * @param path the path to explore
-   * @return INodes array containing the existing INodes in the order they
-   *         appear when following the path from the root INode to the
-   *         deepest INodes. The array size will be the number of expected
-   *         components in the path, and non existing components will be
-   *         filled with null
-   *         
-   * @see #getExistingPathINodes(byte[][], INode[])
+   * @return true if path component is {@link HdfsConstants#DOT_SNAPSHOT_DIR}
    */
-  INode[] getExistingPathINodes(String path) {
-    byte[][] components = getPathComponents(path);
-    INode[] inodes = new INode[components.length];
-
-    this.getExistingPathINodes(components, inodes);
-    
-    return inodes;
+  private static boolean isDotSnapshotDir(byte[] pathComponent) {
+    return pathComponent == null ? false : HdfsConstants.DOT_SNAPSHOT_DIR
+        .equalsIgnoreCase(DFSUtil.bytes2String(pathComponent));
   }
 
   /**
@@ -208,10 +460,23 @@ class INodeDirectory extends INode {
    * 
    * @param node INode to insert
    * @param inheritPermission inherit permission from parent?
-   * @return  null if the child with this name already exists; 
-   *          node, otherwise
+   * @return  false if the child with this name already exists; 
+   *          otherwise, return true
    */
-  <T extends INode> T addChild(final T node, boolean inheritPermission) {
+  public boolean addChild(INode node, boolean inheritPermission,
+      final Snapshot latest) throws QuotaExceededException {
+    final int low = searchChildren(node.getLocalNameBytes());
+    if (low >= 0) {
+      return false;
+    }
+
+    if (isInLatestSnapshot(latest)) {
+      return replaceSelf4INodeDirectoryWithSnapshot()
+          .addChild(node, inheritPermission, latest);
+    }
+    
+    addChild(node, low);
+    
     if (inheritPermission) {
       FsPermission p = getFsPermission();
       //make sure the  permission has wx for the user
@@ -219,23 +484,38 @@ class INodeDirectory extends INode {
         p = new FsPermission(p.getUserAction().or(FsAction.WRITE_EXECUTE),
             p.getGroupAction(), p.getOtherAction());
       }
-      node.setPermission(p);
+      node.setPermission(p, latest);
     }
+    
+    // update modification time of the parent directory
+    updateModificationTime(node.getModificationTime(), latest);
+    return true;
+  }
 
+  /** The same as addChild(node, false, null, false) */
+  public boolean addChild(INode node) {
+    final int low = searchChildren(node.getLocalNameBytes());
+    if (low >= 0) {
+      return false;
+    }
+    addChild(node, low);
+    return true;
+  }
+
+  /**
+   * Add the node to the children list at the given insertion point.
+   * The basic add method which actually calls children.add(..).
+   */
+  private void addChild(final INode node, final int insertionPoint) {
     if (children == null) {
       children = new ArrayList<INode>(DEFAULT_FILES_PER_DIRECTORY);
     }
-    int low = Collections.binarySearch(children, node.name);
-    if(low >= 0)
-      return null;
-    node.parent = this;
-    children.add(-low - 1, node);
-    // update modification time of the parent directory
-    setModificationTime(node.getModificationTime());
+    node.setParent(this);
+    children.add(-insertionPoint - 1, node);
+
     if (node.getGroupName() == null) {
       node.setGroup(getGroupName());
     }
-    return node;
   }
 
   /**
@@ -244,143 +524,423 @@ class INodeDirectory extends INode {
    * @param name a child's name
    * @return the index of the next child
    */
-  int nextChild(byte[] name) {
+  static int nextChild(ReadOnlyList<INode> children, byte[] name) {
     if (name.length == 0) { // empty name
       return 0;
     }
-    int nextPos = Collections.binarySearch(children, name) + 1;
+    int nextPos = ReadOnlyList.Util.binarySearch(children, name) + 1;
     if (nextPos >= 0) {
       return nextPos;
     }
     return -nextPos;
   }
-  
-  /**
-   * Equivalent to addNode(path, newNode, false).
-   * @see #addNode(String, INode, boolean)
-   */
-  <T extends INode> T addNode(String path, T newNode) throws FileNotFoundException {
-    return addNode(path, newNode, false);
-  }
-  /**
-   * Add new INode to the file tree.
-   * Find the parent and insert 
-   * 
-   * @param path file path
-   * @param newNode INode to be added
-   * @param inheritPermission If true, copy the parent's permission to newNode.
-   * @return null if the node already exists; inserted INode, otherwise
-   * @throws FileNotFoundException if parent does not exist or 
-   * is not a directory.
-   */
-  <T extends INode> T addNode(String path, T newNode, boolean inheritPermission
-      ) throws FileNotFoundException {
-    if(addToParent(path, newNode, null, inheritPermission) == null)
-      return null;
-    return newNode;
-  }
 
-  /**
-   * Add new inode to the parent if specified.
-   * Optimized version of addNode() if parent is not null.
-   * 
-   * @return  parent INode if new inode is inserted
-   *          or null if it already exists.
-   * @throws  FileNotFoundException if parent does not exist or 
-   *          is not a directory.
-   */
-  <T extends INode> INodeDirectory addToParent(
-                                      String path,
-                                      T newNode,
-                                      INodeDirectory parent,
-                                      boolean inheritPermission
-                                    ) throws FileNotFoundException {
-    byte[][] pathComponents = getPathComponents(path);
-    assert pathComponents != null : "Incorrect path " + path;
-    int pathLen = pathComponents.length;
-    if (pathLen < 2)  // add root
-      return null;
-    if(parent == null) {
-      // Gets the parent INode
-      INode[] inodes  = new INode[2];
-      getExistingPathINodes(pathComponents, inodes);
-      INode inode = inodes[0];
-      if (inode == null) {
-        throw new FileNotFoundException("Parent path does not exist: "+path);
-      }
-      if (!inode.isDirectory()) {
-        throw new FileNotFoundException("Parent path is not a directory: "+path);
-      }
-      parent = (INodeDirectory)inode;
-    }
-    // insert into the parent children list
-    newNode.name = pathComponents[pathLen-1];
-    if(parent.addChild(newNode, inheritPermission) == null)
-      return null;
-    return parent;
-  }
-
-  /** {@inheritDoc} */
-  DirCounts spaceConsumedInTree(DirCounts counts) {
-    counts.nsCount += 1;
+  @Override
+  public Quota.Counts computeQuotaUsage(Quota.Counts counts, boolean useCache) {
     if (children != null) {
       for (INode child : children) {
-        child.spaceConsumedInTree(counts);
+        child.computeQuotaUsage(counts, useCache);
       }
     }
+
+    return computeQuotaUsage4CurrentDirectory(counts);    
+  }
+
+  /** Add quota usage for this inode excluding children. */
+  public Quota.Counts computeQuotaUsage4CurrentDirectory(Quota.Counts counts) {
+    counts.add(Quota.NAMESPACE, 1);
     return counts;    
   }
 
-  /** {@inheritDoc} */
-  long[] computeContentSummary(long[] summary) {
-    // Walk through the children of this node, using a new summary array
-    // for the (sub)tree rooted at this node
-    assert 4 == summary.length;
-    long[] subtreeSummary = new long[]{0,0,0,0};
-    if (children != null) {
-      for (INode child : children) {
-        child.computeContentSummary(subtreeSummary);
-      }
+  @Override
+  public Content.Counts computeContentSummary(final Content.Counts counts) {
+    for (INode child : getChildrenList(null)) {
+      child.computeContentSummary(counts);
     }
-    if (this instanceof INodeDirectoryWithQuota) {
-      // Warn if the cached and computed diskspace values differ
-      INodeDirectoryWithQuota node = (INodeDirectoryWithQuota)this;
-      long space = node.diskspaceConsumed();
-      assert -1 == node.getDsQuota() || space == subtreeSummary[3];
-      if (-1 != node.getDsQuota() && space != subtreeSummary[3]) {
-        NameNode.LOG.warn("Inconsistent diskspace for directory "
-          +getLocalName()+". Cached: "+space+" Computed: "+subtreeSummary[3]);
-      }
-    }
+    counts.add(Content.DIRECTORY, 1);
+    return counts;
+  }
 
-    // update the passed summary array with the values for this node's subtree
-    for (int i = 0; i < summary.length; i++) {
-      summary[i] += subtreeSummary[i];
+  @Override
+  public Content.CountsMap computeContentSummary(
+      final Content.CountsMap countsMap) {
+    for (INode child : getChildrenList(null)) {
+      child.computeContentSummary(countsMap);
     }
-
-    summary[2]++;
-    return summary;
+    countsMap.getCounts(Key.CURRENT).add(Content.DIRECTORY, 1);
+    return countsMap;
   }
 
   /**
+   * @param snapshot
+   *          if it is not null, get the result from the given snapshot;
+   *          otherwise, get the result from the current directory.
+   * @return the current children list if the specified snapshot is null;
+   *         otherwise, return the children list corresponding to the snapshot.
+   *         Note that the returned list is never null.
    */
-  List<INode> getChildren() {
-    return children==null ? new ArrayList<INode>() : children;
-  }
-  List<INode> getChildrenRaw() {
-    return children;
+  public ReadOnlyList<INode> getChildrenList(final Snapshot snapshot) {
+    return children == null ? ReadOnlyList.Util.<INode> emptyList()
+        : ReadOnlyList.Util.asReadOnlyList(children);
   }
 
-  int collectSubtreeBlocksAndClear(List<Block> v) {
-    int total = 1;
-    if (children == null) {
-      return total;
+  /** Set the children list to null. */
+  public void clearChildren() {
+    this.children = null;
+  }
+
+  @Override
+  public void clearReferences() {
+    super.clearReferences();
+    clearChildren();
+  }
+
+  /**
+   * Call {@link INode#cleanSubtree(SnapshotDeletionInfo, BlocksMapUpdateInfo)}
+   * recursively down the subtree.
+   */
+  public Quota.Counts cleanSubtreeRecursively(final Snapshot snapshot,
+      Snapshot prior, final BlocksMapUpdateInfo collectedBlocks)
+      throws QuotaExceededException {
+    Quota.Counts counts = Quota.Counts.newInstance();
+    // in case of deletion snapshot, since this call happens after we modify
+    // the diff list, the snapshot to be deleted has been combined or renamed
+    // to its latest previous snapshot. (besides, we also need to consider nodes
+    // created after prior but before snapshot. this will be done in 
+    // INodeDirectoryWithSnapshot#cleanSubtree
+    Snapshot s = snapshot != null && prior != null ? prior : snapshot;
+    for (INode child : getChildrenList(s)) {
+      Quota.Counts childCounts = child.cleanSubtree(snapshot, prior,
+          collectedBlocks);
+      counts.add(childCounts);
     }
-    for (INode child : children) {
-      total += child.collectSubtreeBlocksAndClear(v);
+    return counts;
+  }
+
+  @Override
+  public void destroyAndCollectBlocks(
+      final BlocksMapUpdateInfo collectedBlocks) {
+    for (INode child : getChildrenList(null)) {
+      child.destroyAndCollectBlocks(collectedBlocks);
     }
-    parent = null;
-    children = null;
-    return total;
+    clearReferences();
+  }
+  
+  @Override
+  public Quota.Counts cleanSubtree(final Snapshot snapshot, Snapshot prior,
+      final BlocksMapUpdateInfo collectedBlocks)
+      throws QuotaExceededException {
+    if (prior == null && snapshot == null) {
+      // destroy the whole subtree and collect blocks that should be deleted
+      Quota.Counts counts = Quota.Counts.newInstance();
+      this.computeQuotaUsage(counts, true);
+      destroyAndCollectBlocks(collectedBlocks);
+      return counts;
+    } else {
+      // process recursively down the subtree
+      Quota.Counts counts = cleanSubtreeRecursively(snapshot, prior,
+          collectedBlocks);
+      if (isQuotaSet()) {
+        ((INodeDirectoryWithQuota) this).addSpaceConsumed2Cache(
+            -counts.get(Quota.NAMESPACE), -counts.get(Quota.DISKSPACE));
+      }
+      return counts;
+    }
+  }
+  
+  /**
+   * Compare the metadata with another INodeDirectory
+   */
+  public boolean metadataEquals(INodeDirectory other) {
+    return other != null && getNsQuota() == other.getNsQuota()
+        && getDsQuota() == other.getDsQuota()
+        && getUserName().equals(other.getUserName())
+        && getGroupName().equals(other.getGroupName())
+        && getFsPermission().equals(other.getFsPermission());
+  }
+  
+  /**
+   * Used by
+   * {@link INodeDirectory#getExistingPathINodes(byte[][], int, boolean)}.
+   * Contains INodes information resolved from a given path.
+   */
+  public static class INodesInPath {
+    private final byte[][] path;
+    /**
+     * Array with the specified number of INodes resolved for a given path.
+     */
+    private INode[] inodes;
+    
+    /**
+     * Indicate the number of non-null elements in {@link #inodes}
+     */
+    private int numNonNull;
+    /**
+     * The path for a snapshot file/dir contains the .snapshot thus makes the
+     * length of the path components larger the number of inodes. We use
+     * the capacity to control this special case.
+     */
+    private int capacity;
+    /**
+     * true if this path corresponds to a snapshot
+     */
+    private boolean isSnapshot;
+    /**
+     * Index of {@link INodeDirectoryWithSnapshot} for snapshot path, else -1
+     */
+    private int snapshotRootIndex;
+    /**
+     * For snapshot paths, it is the reference to the snapshot; or null if the
+     * snapshot does not exist. For non-snapshot paths, it is the reference to
+     * the latest snapshot found in the path; or null if no snapshot is found.
+     */
+    private Snapshot snapshot = null; 
+    
+    public INodesInPath(byte[][] path, int number) {
+      this.path = path;
+      assert (number >= 0);
+      inodes = new INode[number];
+      capacity = number;
+      numNonNull = 0;
+      isSnapshot = false;
+      snapshotRootIndex = -1;
+    }
+    
+    /**
+     * For non-snapshot paths, return the latest snapshot found in the path.
+     * For snapshot paths, return null.
+     */
+    public Snapshot getLatestSnapshot() {
+      return isSnapshot? null: snapshot;
+    }
+    
+    /**
+     * For snapshot paths, return the snapshot specified in the path. For
+     * non-snapshot paths, return null.
+     */
+    public Snapshot getPathSnapshot() {
+      return isSnapshot? snapshot: null;
+    }
+
+    private void setSnapshot(Snapshot s) {
+      snapshot = s;
+    }
+
+    private void updateLatestSnapshot(Snapshot s) {
+      if (snapshot == null
+          || (s != null && Snapshot.ID_COMPARATOR.compare(snapshot, s) < 0)) {
+        snapshot = s;
+      }
+    }
+    
+    /**
+     * @return the whole inodes array including the null elements.
+     */
+    INode[] getINodes() {
+      if (capacity < inodes.length) {
+        INode[] newNodes = new INode[capacity];
+        System.arraycopy(inodes, 0, newNodes, 0, capacity);
+        inodes = newNodes;
+      }
+      return inodes;
+    }
+    
+    void setLastINode(INode last) {
+      inodes[inodes.length - 1] = last;
+    }
+    
+    /**
+     * @return the i-th inode if i >= 0;
+     *         otherwise, i < 0, return the (length + i)-th inode.
+     */
+    public INode getINode(int i) {
+      return inodes[i >= 0? i: inodes.length + i];
+    }
+    
+    /** @return the last inode. */
+    public INode getLastINode() {
+      return inodes[inodes.length - 1];
+    }
+    
+    byte[] getLastLocalName() {
+      return path[path.length - 1];
+    }
+    
+    /**
+     * @return index of the {@link INodeDirectoryWithSnapshot} in
+     *         {@link #inodes} for snapshot path, else -1.
+     */
+    int getSnapshotRootIndex() {
+      return this.snapshotRootIndex;
+    }
+
+    /**
+     * @return isSnapshot true for a snapshot path
+     */
+    boolean isSnapshot() {
+      return this.isSnapshot;
+    }
+
+    /**
+     * Add an INode at the end of the array
+     */
+    private void addNode(INode node) {
+      inodes[numNonNull++] = node;
+    }
+
+    /**
+     * @return The number of non-null elements
+     */
+    int getNumNonNull() {
+      return numNonNull;
+    }
+    
+    static String toString(INode inode) {
+      return inode == null ? null : inode.getLocalName();
+    }
+
+    @Override
+    public String toString() {
+      return toString(true);
+    }
+    
+    private String toString(boolean validateObject) {
+      if (validateObject) {
+        validate();
+      }
+      final StringBuilder b = new StringBuilder(getClass().getSimpleName())
+          .append(": path = ").append(DFSUtil.byteArray2PathString(path))
+          .append("\n  inodes = ");
+      if (inodes == null) {
+        b.append("null");
+      } else if (inodes.length == 0) {
+        b.append("[]");
+      } else {
+        b.append("[").append(toString(inodes[0]));
+        for (int i = 1; i < inodes.length; i++) {
+          b.append(", ").append(toString(inodes[i]));
+        }
+        b.append("], length=").append(inodes.length);
+      }
+      b.append("\n  numNonNull = ").append(numNonNull)
+          .append("\n  capacity   = ").append(capacity)
+          .append("\n  isSnapshot        = ").append(isSnapshot)
+          .append("\n  snapshotRootIndex = ").append(snapshotRootIndex)
+          .append("\n  snapshot          = ").append(snapshot);
+      return b.toString();
+    }
+    
+    void validate() {
+      // check parent up to snapshotRootIndex or numNonNull
+      final int n = snapshotRootIndex >= 0? snapshotRootIndex + 1: numNonNull;  
+      int i = 0;
+      if (inodes[i] != null) {
+        for(i++; i < n && inodes[i] != null; i++) {
+          final INodeDirectory parent_i = inodes[i].getParent();
+          final INodeDirectory parent_i_1 = inodes[i-1].getParent();
+          if (parent_i != inodes[i-1] &&
+              (parent_i_1 == null || !parent_i_1.isSnapshottable()
+                  || parent_i != parent_i_1)) {
+            throw new AssertionError(
+                "inodes[" + i + "].getParent() != inodes[" + (i-1)
+                + "]\n  inodes[" + i + "]=" + inodes[i].toDetailString()
+                + "\n  inodes[" + (i-1) + "]=" + inodes[i-1].toDetailString()
+                + "\n this=" + toString(false));
+          }
+        }
+      }
+      if (i != n) {
+        throw new AssertionError("i = " + i + " != " + n
+            + ", this=" + toString(false));
+      }
+    }
+    
+    void setINode(int i, INode inode) {
+      inodes[i] = inode;
+    }
+  }
+
+  /*
+   * The following code is to dump the tree recursively for testing.
+   * 
+   *      \- foo   (INodeDirectory@33dd2717)
+   *        \- sub1   (INodeDirectory@442172)
+   *          +- file1   (INodeFile@78392d4)
+   *          +- file2   (INodeFile@78392d5)
+   *          +- sub11   (INodeDirectory@8400cff)
+   *            \- file3   (INodeFile@78392d6)
+   *          \- z_file4   (INodeFile@45848712)
+   */
+  static final String DUMPTREE_EXCEPT_LAST_ITEM = "+-"; 
+  static final String DUMPTREE_LAST_ITEM = "\\-";
+  @Override
+  public void dumpTreeRecursively(PrintWriter out, StringBuilder prefix,
+      final Snapshot snapshot) {
+    super.dumpTreeRecursively(out, prefix, snapshot);
+    out.print(", childrenSize=" + getChildrenList(snapshot).size());
+    if (this instanceof INodeDirectoryWithQuota) {
+      out.print(((INodeDirectoryWithQuota)this).quotaString());
+    }
+    out.println();
+
+    if (prefix.length() >= 2) {
+      prefix.setLength(prefix.length() - 2);
+      prefix.append("  ");
+    }
+    dumpTreeRecursively(out, prefix, new Iterable<SnapshotAndINode>() {
+      final Iterator<INode> i = getChildrenList(snapshot).iterator();
+      
+      @Override
+      public Iterator<SnapshotAndINode> iterator() {
+        return new Iterator<SnapshotAndINode>() {
+          @Override
+          public boolean hasNext() {
+            return i.hasNext();
+          }
+
+          @Override
+          public SnapshotAndINode next() {
+            return new SnapshotAndINode(snapshot, i.next());
+          }
+
+          @Override
+          public void remove() {
+            throw new UnsupportedOperationException();
+          }
+        };
+      }
+    });
+  }
+
+  /**
+   * Dump the given subtrees.
+   * @param prefix The prefix string that each line should print.
+   * @param subs The subtrees.
+   */
+  protected static void dumpTreeRecursively(PrintWriter out,
+      StringBuilder prefix, Iterable<SnapshotAndINode> subs) {
+    if (subs != null) {
+      for(final Iterator<SnapshotAndINode> i = subs.iterator(); i.hasNext();) {
+        final SnapshotAndINode pair = i.next();
+        prefix.append(i.hasNext()? DUMPTREE_EXCEPT_LAST_ITEM: DUMPTREE_LAST_ITEM);
+        pair.inode.dumpTreeRecursively(out, prefix, pair.snapshot);
+        prefix.setLength(prefix.length() - 2);
+      }
+    }
+  }
+
+  /** A pair of Snapshot and INode objects. */
+  protected static class SnapshotAndINode {
+    public final Snapshot snapshot;
+    public final INode inode;
+
+    public SnapshotAndINode(Snapshot snapshot, INode inode) {
+      this.snapshot = snapshot;
+      this.inode = inode;
+    }
+
+    public SnapshotAndINode(Snapshot snapshot) {
+      this(snapshot, snapshot.getRoot());
+    }
   }
 }

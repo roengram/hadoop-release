@@ -538,8 +538,10 @@ public interface ClientProtocol extends VersionedProtocol {
    * The file must be currently open for writing.
    * @param src The string representation of the path
    * @param client The string representation of the client
+   * @param lastBlockLength The length of the last block (under construction) to
+   *        be reported to NameNode
    */
-  public void fsync(String src, String client) throws IOException;
+  public void fsync(String src, String client, long lastBlockLength) throws IOException;
 
   /**
    * Sets the modification and access time of the file to the specified time.
@@ -580,4 +582,74 @@ public interface ClientProtocol extends VersionedProtocol {
    */
   public void cancelDelegationToken(Token<DelegationTokenIdentifier> token)
       throws IOException;
+  
+  /**
+   * Create a snapshot
+   * @param snapshotRoot the path that is being snapshotted
+   * @param snapshotName name of the snapshot created
+   * @throws IOException
+   */
+  public void createSnapshot(String snapshotRoot, String snapshotName)
+      throws IOException;
+
+  /**
+   * Delete a specific snapshot of a snapshottable directory
+   * @param snapshotRoot  The snapshottable directory
+   * @param snapshotName Name of the snapshot for the snapshottable directory
+   * @throws IOException
+   */
+  public void deleteSnapshot(String snapshotRoot, String snapshotName)
+      throws IOException;
+  
+  /**
+   * Rename a snapshot
+   * @param snapshotRoot the directory path where the snapshot was taken 
+   * @param snapshotOldName old name of the snapshot
+   * @param snapshotNewName new name of the snapshot
+   * @throws IOException
+   */
+  public void renameSnapshot(String snapshotRoot, String snapshotOldName,
+      String snapshotNewName) throws IOException;
+  
+  /**
+   * Allow snapshot on a directory.
+   * @param snapshotRoot the directory to be snapped
+   * @throws IOException
+   */
+  public void allowSnapshot(String snapshotRoot) throws IOException;
+
+  /**
+   * Disallow snapshot on a directory.
+   * @param snapshotRoot the directory to disallow snapshot
+   * @throws IOException
+   */
+  public void disallowSnapshot(String snapshotRoot) throws IOException;
+  
+  /**
+   * Get listing of all the snapshottable directories
+   * 
+   * @return Information about all the current snapshottable directory
+   * @throws IOException
+   *           If an I/O error occurred
+   */
+  public SnapshottableDirectoryStatus[] getSnapshottableDirListing()
+      throws IOException;
+  
+  /**
+   * Get the difference between two snapshots, or between a snapshot and the
+   * current tree of a directory.
+   * 
+   * @param snapshotRoot
+   *          full path of the directory where snapshots are taken
+   * @param fromSnapshot
+   *          snapshot name of the from point. Null indicates the current
+   *          tree
+   * @param toSnapshot
+   *          snapshot name of the to point. Null indicates the current
+   *          tree.
+   * @return The difference report represented as a {@link SnapshotDiffReport}.
+   * @throws IOException on error
+   */
+  public SnapshotDiffReport getSnapshotDiffReport(String snapshotRoot,
+      String fromSnapshot, String toSnapshot) throws IOException;
 }

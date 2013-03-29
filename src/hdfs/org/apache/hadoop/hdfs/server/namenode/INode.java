@@ -17,48 +17,34 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.apache.hadoop.fs.Path;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.ContentSummary;
-import org.apache.hadoop.fs.permission.*;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.protocol.Block;
-import org.apache.hadoop.hdfs.protocol.LocatedBlock;
-import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
+import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
+import org.apache.hadoop.hdfs.server.namenode.Content.CountsMap.Key;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectoryWithSnapshot;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
+import org.apache.hadoop.hdfs.util.Diff;
 
 /**
  * We keep an in-memory representation of the file/block hierarchy.
  * This is a base INode class containing common fields for file and 
  * directory inodes.
  */
-abstract class INode implements Comparable<byte[]>, FSInodeInfo {
-  protected byte[] name;
-  protected INodeDirectory parent;
-  protected long modificationTime;
-  protected long accessTime;
-
-  /** Simple wrapper for two counters : 
-   *  nsCount (namespace consumed) and dsCount (diskspace consumed).
-   */
-  static class DirCounts {
-    long nsCount = 0;
-    long dsCount = 0;
-    
-    /** returns namespace count */
-    long getNsCount() {
-      return nsCount;
-    }
-    /** returns diskspace count */
-    long getDsCount() {
-      return dsCount;
-    }
-  }
-  
-  //Only updated by updatePermissionStatus(...).
-  //Other codes should not modify it.
-  private long permission;
+public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
+  public static final Log LOG = LogFactory.getLog(INode.class);
 
   private static enum PermissionStatusFormat {
     MODE(0, 16),
@@ -82,40 +68,62 @@ abstract class INode implements Comparable<byte[]>, FSInodeInfo {
     long combine(long bits, long record) {
       return (record & ~MASK) | (bits << OFFSET);
     }
+
+    /** Encode the {@link PermissionStatus} to a long. */
+    static long toLong(PermissionStatus ps) {
+      long permission = 0L;
+      final int user = SerialNumberManager.INSTANCE.getUserSerialNumber(
+          ps.getUserName());
+      permission = USER.combine(user, permission);
+      final int group = SerialNumberManager.INSTANCE.getGroupSerialNumber(
+          ps.getGroupName());
+      permission = GROUP.combine(group, permission);
+      final int mode = ps.getPermission().toShort();
+      permission = MODE.combine(mode, permission);
+      return permission;
+    }
   }
 
-  protected INode() {
-    name = null;
-    parent = null;
-    modificationTime = 0;
-    accessTime = 0;
+  /**
+   *  The inode name is in java UTF8 encoding; 
+   *  The name in HdfsFileStatus should keep the same encoding as this.
+   *  if this encoding is changed, implicitly getFileInfo and listStatus in
+   *  clientProtocol are changed; The decoding at the client
+   *  side should change accordingly.
+   */
+  private byte[] name = null;
+  /** 
+   * Permission encoded using {@link PermissionStatusFormat}.
+   * Codes other than {@link #clonePermissionStatus(INode)}
+   * and {@link #updatePermissionStatus(PermissionStatusFormat, long)}
+   * should not modify it.
+   */
+  private long permission = 0L;
+  private INodeDirectory parent = null;
+  protected long modificationTime = 0L;
+  private long accessTime = 0L;
+
+  private INode(byte[] name, long permission, INodeDirectory parent,
+      long modificationTime, long accessTime) {
+    this.name = name;
+    this.permission = permission;
+    this.parent = parent;
+    this.modificationTime = modificationTime;
+    this.accessTime = accessTime;
   }
 
-  INode(PermissionStatus permissions, long mTime, long atime) {
-    this.name = null;
-    this.parent = null;
-    this.modificationTime = mTime;
-    setAccessTime(atime);
-    setPermissionStatus(permissions);
-  }
-
-  protected INode(String name, PermissionStatus permissions) {
-    this(permissions, 0L, 0L);
-    setLocalName(name);
+  INode(byte[] name, PermissionStatus permissions, long modificationTime,
+      long accessTime) {
+    this(name, PermissionStatusFormat.toLong(permissions), null,
+        modificationTime, accessTime);
   }
   
-  /** copy constructor
-   * 
-   * @param other Other node to be copied
-   */
+  /** @param other Other node to be copied */
   INode(INode other) {
-    setLocalName(other.getLocalName());
-    this.parent = other.getParent();
-    setPermissionStatus(other.getPermissionStatus());
-    setModificationTime(other.getModificationTime());
-    setAccessTime(other.getAccessTime());
+    this(other.name, other.permission, other.parent, 
+        other.modificationTime, other.accessTime);
   }
-
+  
   /**
    * Check whether this is the root inode.
    */
@@ -123,126 +131,342 @@ abstract class INode implements Comparable<byte[]>, FSInodeInfo {
     return name.length == 0;
   }
 
-  /** Set the {@link PermissionStatus} */
-  protected void setPermissionStatus(PermissionStatus ps) {
-    setUser(ps.getUserName());
-    setGroup(ps.getGroupName());
-    setPermission(ps.getPermission());
+  /** Clone the {@link PermissionStatus}. */
+  void clonePermissionStatus(INode that) {
+    this.permission = that.permission;
   }
+
   /** Get the {@link PermissionStatus} */
-  protected PermissionStatus getPermissionStatus() {
-    return new PermissionStatus(getUserName(),getGroupName(),getFsPermission());
+  public final PermissionStatus getPermissionStatus(Snapshot snapshot) {
+    return new PermissionStatus(getUserName(snapshot), getGroupName(snapshot),
+        getFsPermission(snapshot));
   }
-  private synchronized void updatePermissionStatus(
-      PermissionStatusFormat f, long n) {
-    permission = f.combine(n, permission);
+  /** The same as getPermissionStatus(null). */
+  public final PermissionStatus getPermissionStatus() {
+    return getPermissionStatus(null);
   }
-  /** Get user name */
-  public String getUserName() {
+  
+  /**
+   * @return if the given snapshot is null, return this;
+   *     otherwise return the corresponding snapshot inode.
+   */
+  public INode getSnapshotINode(final Snapshot snapshot) {
+    return this;
+  }
+  
+  private void updatePermissionStatus(PermissionStatusFormat f, long n) {
+    this.permission = f.combine(n, permission);
+  }
+  
+  /**
+   * @param snapshot
+   *          if it is not null, get the result from the given snapshot;
+   *          otherwise, get the result from the current inode.
+   * @return user name
+   */
+  public final String getUserName(Snapshot snapshot) {
+    if (snapshot != null) {
+      return getSnapshotINode(snapshot).getUserName();
+    }
+
     int n = (int)PermissionStatusFormat.USER.retrieve(permission);
     return SerialNumberManager.INSTANCE.getUser(n);
   }
+  /** The same as getUserName(null). */
+  public final String getUserName() {
+    return getUserName(null);
+  }
+
   /** Set user */
-  protected void setUser(String user) {
+  final void setUser(String user) {
     int n = SerialNumberManager.INSTANCE.getUserSerialNumber(user);
     updatePermissionStatus(PermissionStatusFormat.USER, n);
   }
-  /** Get group name */
-  public String getGroupName() {
+  /** Set user */
+  final INode setUser(String user, Snapshot latest)
+      throws QuotaExceededException {
+    final INode nodeToUpdate = recordModification(latest);
+    nodeToUpdate.setUser(user);
+    return nodeToUpdate;
+  }
+  /**
+   * @param snapshot
+   *          if it is not null, get the result from the given snapshot;
+   *          otherwise, get the result from the current inode.
+   * @return group name
+   */
+  public final String getGroupName(Snapshot snapshot) {
+    if (snapshot != null) {
+      return getSnapshotINode(snapshot).getGroupName();
+    }
+
     int n = (int)PermissionStatusFormat.GROUP.retrieve(permission);
     return SerialNumberManager.INSTANCE.getGroup(n);
   }
+  /** The same as getGroupName(null). */
+  public final String getGroupName() {
+    return getGroupName(null);
+  }
   /** Set group */
-  protected void setGroup(String group) {
+  final void setGroup(String group) {
     int n = SerialNumberManager.INSTANCE.getGroupSerialNumber(group);
     updatePermissionStatus(PermissionStatusFormat.GROUP, n);
   }
-  /** Get the {@link FsPermission} */
-  public FsPermission getFsPermission() {
+  /** Set group */
+  final INode setGroup(String group, Snapshot latest)
+      throws QuotaExceededException {
+    final INode nodeToUpdate = recordModification(latest);
+    nodeToUpdate.setGroup(group);
+    return nodeToUpdate;
+  }
+  /**
+   * @param snapshot
+   *          if it is not null, get the result from the given snapshot;
+   *          otherwise, get the result from the current inode.
+   * @return permission.
+   */
+  public final FsPermission getFsPermission(Snapshot snapshot) {
+    if (snapshot != null) {
+      return getSnapshotINode(snapshot).getFsPermission();
+    }
+
     return new FsPermission(
         (short)PermissionStatusFormat.MODE.retrieve(permission));
+  }
+  /** The same as getFsPermission(null). */
+  public final FsPermission getFsPermission() {
+    return getFsPermission(null);
   }
   protected short getFsPermissionShort() {
     return (short)PermissionStatusFormat.MODE.retrieve(permission);
   }
   /** Set the {@link FsPermission} of this {@link INode} */
-  protected void setPermission(FsPermission permission) {
-    updatePermissionStatus(PermissionStatusFormat.MODE, permission.toShort());
+  void setPermission(FsPermission permission) {
+    final short mode = permission.toShort();
+    updatePermissionStatus(PermissionStatusFormat.MODE, mode);
+  }
+  /** Set the {@link FsPermission} of this {@link INode} */
+  INode setPermission(FsPermission permission, Snapshot latest)
+      throws QuotaExceededException {
+    final INode nodeToUpdate = recordModification(latest);
+    nodeToUpdate.setPermission(permission);
+    return nodeToUpdate;
   }
 
+  /** Is this inode in the latest snapshot? */
+  public final boolean isInLatestSnapshot(final Snapshot latest) {
+    return latest != null
+        && (parent == null
+            || (parent.isInLatestSnapshot(latest)
+                && this == parent.getChild(getLocalNameBytes(), latest)));
+  }
+
+  /** Cast this inode to an {@link INodeFile}.  */
+  public INodeFile asFile() {
+    throw new IllegalStateException("Current inode is not a file: "
+        + this.toDetailString());
+  }
+
+  /**
+   * This inode is being modified.  The previous version of the inode needs to
+   * be recorded in the latest snapshot.
+   *
+   * @param latest the latest snapshot that has been taken.
+   *        Note that it is null if no snapshots have been taken.
+   * @return The current inode, which usually is the same object of this inode.
+   *         However, in some cases, this inode may be replaced with a new inode
+   *         for maintaining snapshots. The current inode is then the new inode. 
+   */
+  abstract INode recordModification(final Snapshot latest)
+      throws QuotaExceededException;
+
+  
+  /**
+   * Check whether it's a file.
+   */
+  public boolean isFile() {
+    return false;
+  }
+  
   /**
    * Check whether it's a directory
    */
-  public abstract boolean isDirectory();
+  public boolean isDirectory() {
+    return false;
+  }
+  
   /**
-   * Collect all the blocks in all children of this INode.
-   * Count and return the number of files in the sub tree.
-   * Also clears references since this INode is deleted.
+   * Clean the subtree under this inode and collect the blocks from the descents
+   * for further block deletion/update. The current inode can either resides in
+   * the current tree or be stored as a snapshot copy.
+   * 
+   * <pre>
+   * In general, we have the following rules. 
+   * 1. When deleting a file/directory in the current tree, we have different 
+   * actions according to the type of the node to delete. 
+   * 
+   * 1.1 The current inode (this) is an {@link INodeFile}. 
+   * 1.1.1 If {@code prior} is null, there is no snapshot taken on ancestors 
+   * before. Thus we simply destroy (i.e., to delete completely, no need to save 
+   * snapshot copy) the current INode and collect its blocks for further 
+   * cleansing.
+   * 1.1.2 Else do nothing since the current INode will be stored as a snapshot
+   * copy.
+   * 
+   * 1.2 The current inode is an {@link INodeDirectory}.
+   * 1.2.1 If {@code prior} is null, there is no snapshot taken on ancestors 
+   * before. Similarly, we destroy the whole subtree and collect blocks.
+   * 1.2.2 Else do nothing with the current INode. Recursively clean its 
+   * children.
+   * 
+   * 1.3 The current inode is a {@link FileWithSnapshot}.
+   * Call {@link INode#recordModification(Snapshot)} to capture the 
+   * current states. Mark the INode as deleted.
+   * 
+   * 1.4 The current inode is a {@link INodeDirectoryWithSnapshot}.
+   * Call {@link INode#recordModification(Snapshot)} to capture the 
+   * current states. Destroy files/directories created after the latest snapshot 
+   * (i.e., the inodes stored in the created list of the latest snapshot).
+   * Recursively clean remaining children. 
+   *
+   * 2. When deleting a snapshot.
+   * 2.1 To clean {@link INodeFile}: do nothing.
+   * 2.2 To clean {@link INodeDirectory}: recursively clean its children.
+   * 2.3 To clean {@link FileWithSnapshot}: delete the corresponding snapshot in
+   * its diff list.
+   * 2.4 To clean {@link INodeDirectoryWithSnapshot}: delete the corresponding 
+   * snapshot in its diff list. Recursively clean its children.
+   * </pre>
+   * 
+   * @param snapshot
+   *          The snapshot to delete. Null means to delete the current
+   *          file/directory.
+   * @param prior
+   *          The latest snapshot before the to-be-deleted snapshot. When
+   *          deleting a current inode, this parameter captures the latest
+   *          snapshot.
+   * @param collectedBlocks
+   *          blocks collected from the descents for further block
+   *          deletion/update will be added to the given map.
+   * @return quota usage delta when deleting a snapshot
    */
-  abstract int collectSubtreeBlocksAndClear(List<Block> v);
+  public abstract Quota.Counts cleanSubtree(final Snapshot snapshot,
+      Snapshot prior, BlocksMapUpdateInfo collectedBlocks)
+      throws QuotaExceededException;
+  
+  /**
+   * Destroy self and clear everything! If the INode is a file, this method
+   * collects its blocks for further block deletion. If the INode is a 
+   * directory, the method goes down the subtree and collects blocks from the 
+   * descents, and clears its parent/children references as well. The method 
+   * also clears the diff list if the INode contains snapshot diff list.
+   * 
+   * @param collectedBlocks blocks collected from the descents for further block
+   *                        deletion/update will be added to this map.
+   */
+  public abstract void destroyAndCollectBlocks(
+      BlocksMapUpdateInfo collectedBlocks);
+
+  /** Cast this inode to an {@link INodeDirectory}.  */
+  public INodeDirectory asDirectory() {
+    throw new IllegalStateException("Current inode is not a directory: "
+        + this.toDetailString());
+  }
 
   /** Compute {@link ContentSummary}. */
   public final ContentSummary computeContentSummary() {
-    long[] a = computeContentSummary(new long[]{0,0,0,0});
-    return new ContentSummary(a[0], a[1], a[2], getNsQuota(), 
-                              a[3], getDsQuota());
+    final Content.Counts current = computeContentSummary(
+        new Content.CountsMap()).getCounts(Key.CURRENT);
+    return new ContentSummary(current.get(Content.LENGTH),
+        current.get(Content.FILE) + current.get(Content.SYMLINK),
+        current.get(Content.DIRECTORY), getNsQuota(),
+        current.get(Content.DISKSPACE), getDsQuota());
   }
+
   /**
-   * @return an array of three longs. 
-   * 0: length, 1: file count, 2: directory count 3: disk space
+   * Count subtree content summary with a {@link Content.CountsMap}.
+   *
+   * @param countsMap The subtree counts for returning.
+   * @return The same objects as the counts parameter.
    */
-  abstract long[] computeContentSummary(long[] summary);
+  public abstract Content.CountsMap computeContentSummary(
+      Content.CountsMap countsMap);
+
+  /**
+   * Count subtree content summary with a {@link Content.Counts}.
+   *
+   * @param counts The subtree counts for returning.
+   * @return The same objects as the counts parameter.
+   */
+  public abstract Content.Counts computeContentSummary(Content.Counts counts);
   
+  /**
+   * Check and add namespace/diskspace consumed to itself and the ancestors.
+   * @throws QuotaExceededException if quote is violated.
+   */
+  public void addSpaceConsumed(long nsDelta, long dsDelta)
+      throws QuotaExceededException {
+    if (parent != null) {
+      parent.addSpaceConsumed(nsDelta, dsDelta);
+    }
+  }
+
   /**
    * Get the quota set for this inode
    * @return the quota if it is set; -1 otherwise
    */
-  long getNsQuota() {
+  public long getNsQuota() {
     return -1;
   }
 
-  long getDsQuota() {
+  public long getDsQuota() {
     return -1;
   }
   
-  boolean isQuotaSet() {
+  public final boolean isQuotaSet() {
     return getNsQuota() >= 0 || getDsQuota() >= 0;
   }
   
   /**
-   * Adds total nubmer of names and total disk space taken under 
-   * this tree to counts.
-   * Returns updated counts object.
+   * Count subtree {@link Quota#NAMESPACE} and {@link Quota#DISKSPACE} usages.
    */
-  abstract DirCounts spaceConsumedInTree(DirCounts counts);
-  
-  /**
-   * Get local file name
-   * @return local file name
-   */
-  String getLocalName() {
-    return DFSUtil.bytes2String(name);
+  final Quota.Counts computeQuotaUsage() {
+    return computeQuotaUsage(new Quota.Counts(), true);
   }
 
   /**
-   * Get local file name
-   * @return local file name
+   * Count subtree {@link Quota#NAMESPACE} and {@link Quota#DISKSPACE} usages.
+   * 
+   * @param counts The subtree counts for returning.
+   * @return The same objects as the counts parameter.
    */
-  byte[] getLocalNameBytes() {
+  public abstract Quota.Counts computeQuotaUsage(Quota.Counts counts,
+      boolean useCache);
+  
+  /**
+   * @return null if the local name is null; otherwise, return the local name.
+   */
+  public String getLocalName() {
+    return name == null? null: DFSUtil.bytes2String(name);
+  }
+
+  /**
+   * @return null if the local name is null;
+   *         otherwise, return the local name byte array.
+   */
+  public byte[] getLocalNameBytes() {
     return name;
   }
 
-  /**
-   * Set local file name
-   */
-  void setLocalName(String name) {
-    this.name = DFSUtil.string2Bytes(name);
+  @Override
+  public byte[] getKey() {
+    return getLocalNameBytes();
   }
 
   /**
    * Set local file name
    */
-  void setLocalName(byte[] name) {
+  public void setLocalName(byte[] name) {
     this.name = name;
   }
 
@@ -252,65 +476,126 @@ abstract class INode implements Comparable<byte[]>, FSInodeInfo {
     return FSDirectory.getFullPathName(this);
   }
 
-  /** {@inheritDoc} */
+  /**
+   * @return The full path name represented in a list of byte array
+   */
+  public byte[][] getRelativePathNameBytes(INode ancestor) {
+    return FSDirectory.getRelativePathNameBytes(this, ancestor);
+  }
+  
+  @Override
   public String toString() {
-    return "\"" + getLocalName() + "\":" + getPermissionStatus();
+    return getLocalName();
+  }
+  
+  public String getObjectString() {
+    return getClass().getSimpleName() + "@"
+        + Integer.toHexString(super.hashCode());
+  }
+
+  public String toStringWithObjectType() {
+    return toString() + "(" + getObjectString() + ")";
+  }
+
+  public String toDetailString() {
+    return toStringWithObjectType() + ", parent="
+        + (parent == null ? null : parent.toStringWithObjectType());
   }
 
   /**
    * Get parent directory 
    * @return parent INode
    */
-  INodeDirectory getParent() {
+  public final INodeDirectory getParent() {
     return this.parent;
   }
+  
+  /** Set parent directory */
+  public void setParent(INodeDirectory parent) {
+    this.parent = parent;
+  }
 
-  /** 
-   * Get last modification time of inode.
-   * @return access time
+  /**
+   * @param snapshot
+   *          if it is not null, get the result from the given snapshot;
+   *          otherwise, get the result from the current inode.
+   * @return modification time.
    */
-  public long getModificationTime() {
+  public final long getModificationTime(Snapshot snapshot) {
+    if (snapshot != null) {
+      return getSnapshotINode(snapshot).modificationTime;
+    }
+
     return this.modificationTime;
   }
 
-  /**
-   * Set last modification time of inode.
-   */
-  void setModificationTime(long modtime) {
-    assert isDirectory();
-    if (this.modificationTime <= modtime) {
-      this.modificationTime = modtime;
+  /** The same as getModificationTime(null). */
+  public final long getModificationTime() {
+    return getModificationTime(null);
+  }
+
+  /** Update modification time if it is larger than the current value. */
+  public final INode updateModificationTime(long mtime, Snapshot latest)
+      throws QuotaExceededException {
+    if (!isDirectory()) {
+      throw new IllegalStateException("this is not a directory: "
+          + this.toDetailString());
     }
+    if (mtime <= modificationTime) {
+      return this;
+    }
+    return setModificationTime(mtime, latest);
+  }
+  
+  void cloneModificationTime(INode that) {
+    this.modificationTime = that.modificationTime;
+  }
+
+  /** Set the last modification time of inode. */
+  public final void setModificationTime(long modificationTime) {
+    this.modificationTime = modificationTime;
+  }
+  /** Set the last modification time of inode. */
+  public final INode setModificationTime(long modificationTime, Snapshot latest)
+      throws QuotaExceededException {
+    final INode nodeToUpdate = recordModification(latest);
+    nodeToUpdate.setModificationTime(modificationTime);
+    return nodeToUpdate;
   }
 
   /**
-   * Always set the last modification time of inode.
-   */
-  void setModificationTimeForce(long modtime) {
-    assert !isDirectory();
-    this.modificationTime = modtime;
-  }
-
-  /**
-   * Get access time of inode.
+   * @param snapshot
+   *          if it is not null, get the result from the given snapshot;
+   *          otherwise, get the result from the current inode.
    * @return access time
    */
-  public long getAccessTime() {
+  public final long getAccessTime(Snapshot snapshot) {
+    if (snapshot != null) {
+      return getSnapshotINode(snapshot).accessTime;
+    }
+
     return accessTime;
+  }
+
+  /** The same as getAccessTime(null). */
+  public final long getAccessTime() {
+    return getAccessTime(null);
   }
 
   /**
    * Set last access time of inode.
    */
-  void setAccessTime(long atime) {
-    accessTime = atime;
+  public void setAccessTime(long accessTime) {
+    this.accessTime = accessTime;
   }
-
   /**
-   * Is this inode being constructed?
+   * Set last access time of inode.
    */
-  boolean isUnderConstruction() {
-    return false;
+  public INode setAccessTime(long accessTime, Snapshot latest)
+      throws QuotaExceededException {
+    final INode nodeToUpdate = recordModification(latest);
+    nodeToUpdate.setAccessTime(accessTime);
+    return nodeToUpdate;
   }
 
   /**
@@ -346,22 +631,11 @@ abstract class INode implements Comparable<byte[]>, FSInodeInfo {
     return path.split(Path.SEPARATOR);
   }
 
-  boolean removeNode() {
-    if (parent == null) {
-      return false;
-    } else {
-      
-      parent.removeChild(this);
-      parent = null;
-      return true;
-    }
-  }
-
   //
   // Comparable interface
   //
   public int compareTo(byte[] o) {
-    return compareBytes(name, o);
+    return DFSUtil.compareBytes(name, o);
   }
 
   public boolean equals(Object o) {
@@ -375,34 +649,79 @@ abstract class INode implements Comparable<byte[]>, FSInodeInfo {
     return Arrays.hashCode(this.name);
   }
 
-  //
-  // static methods
-  //
   /**
-   * Compare two byte arrays.
-   * 
-   * @return a negative integer, zero, or a positive integer 
-   * as defined by {@link #compareTo(byte[])}.
+   * Dump the subtree starting from this inode.
+   * @return a text representation of the tree.
    */
-  static int compareBytes(byte[] a1, byte[] a2) {
-    if (a1==a2)
-        return 0;
-    int len1 = (a1==null ? 0 : a1.length);
-    int len2 = (a2==null ? 0 : a2.length);
-    int n = Math.min(len1, len2);
-    byte b1, b2;
-    for (int i=0; i<n; i++) {
-      b1 = a1[i];
-      b2 = a2[i];
-      if (b1 != b2)
-        return b1 - b2;
-    }
-    return len1 - len2;
+  public final StringBuffer dumpTreeRecursively() {
+    final StringWriter out = new StringWriter(); 
+    dumpTreeRecursively(new PrintWriter(out, true), new StringBuilder(), null);
+    return out.getBuffer();
   }
-  
-  
-  LocatedBlocks createLocatedBlocks(List<LocatedBlock> blocks) {
-    return new LocatedBlocks(computeContentSummary().getLength(), blocks,
-        isUnderConstruction());
+
+  /**
+   * Dump tree recursively.
+   * @param prefix The prefix string that each line should print.
+   * @param snapshot
+   */
+  public void dumpTreeRecursively(PrintWriter out, StringBuilder prefix,
+      Snapshot snapshot) {
+    out.print(prefix);
+    out.print(" ");
+    out.print(getLocalName());
+    out.print("   (");
+    out.print(getObjectString());
+    out.print("), parent=");
+    out.print(parent == null? null: parent.getLocalName() + "/");
+    out.print(", " + getPermissionStatus(snapshot));
+  }
+
+  /** Clear references to other objects. */
+  public void clearReferences() {
+    setParent(null);
+  }
+
+  /**
+   * Information used for updating the blocksMap when deleting files.
+   */
+  public static class BlocksMapUpdateInfo {
+    /**
+     * The list of blocks that need to be removed from blocksMap
+     */
+    private List<Block> toDeleteList;
+    
+    public BlocksMapUpdateInfo(List<Block> toDeleteList) {
+      this.toDeleteList = toDeleteList == null ? new ArrayList<Block>()
+          : toDeleteList;
+    }
+    
+    public BlocksMapUpdateInfo() {
+      toDeleteList = new ArrayList<Block>();
+    }
+    
+    /**
+     * @return The list of blocks that need to be removed from blocksMap
+     */
+    public List<Block> getToDeleteList() {
+      return toDeleteList;
+    }
+    
+    /**
+     * Add a to-be-deleted block into the
+     * {@link BlocksMapUpdateInfo#toDeleteList}
+     * @param toDelete the to-be-deleted block
+     */
+    public void addDeleteBlock(Block toDelete) {
+      if (toDelete != null) {
+        toDeleteList.add(toDelete);
+      }
+    }
+    
+    /**
+     * Clear {@link BlocksMapUpdateInfo#toDeleteList}
+     */
+    public void clear() {
+      toDeleteList.clear();
+    }
   }
 }

@@ -34,6 +34,30 @@ import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
 import org.apache.hadoop.net.NodeBase;
 
 public class DFSUtil {
+  public static final byte[] EMPTY_BYTES = {};
+  
+  /**
+   * Compare two byte arrays.
+   * 
+   * @return a negative integer, zero, or a positive integer 
+   * as defined by {@link #compareTo(byte[])}.
+   */
+  public static int compareBytes(byte[] a1, byte[] a2) {
+    if (a1 == a2)
+      return 0;
+    int len1 = (a1 == null ? 0 : a1.length);
+    int len2 = (a2 == null ? 0 : a2.length);
+    int n = Math.min(len1, len2);
+    byte b1, b2;
+    for (int i = 0; i < n; i++) {
+      b1 = a1[i];
+      b2 = a2[i];
+      if (b1 != b2)
+        return b1 - b2;
+    }
+    return len1 - len2;
+  }
+  
   /**
    * Whether the pathname is valid.  Currently prohibits relative paths, 
    * and names which contain a ":" or "/" 
@@ -63,12 +87,136 @@ public class DFSUtil {
    * Converts a byte array to a string using UTF8 encoding.
    */
   public static String bytes2String(byte[] bytes) {
+    return bytes2String(bytes, 0, bytes.length);
+  }
+  
+  /**
+   * Decode a specific range of bytes of the given byte array to a string
+   * using UTF8.
+   * 
+   * @param bytes The bytes to be decoded into characters
+   * @param offset The index of the first byte to decode
+   * @param length The number of bytes to decode
+   * @return The decoded string
+   */
+  public static String bytes2String(byte[] bytes, int offset, int length) {
     try {
-      return new String(bytes, "UTF8");
+      return new String(bytes, offset, length, "UTF8");
     } catch(UnsupportedEncodingException e) {
       assert false : "UTF8 encoding is not supported ";
     }
     return null;
+  }
+  
+  /**
+   * Given a list of path components returns a path as a UTF8 String
+   */
+  public static String byteArray2PathString(byte[][] pathComponents) {
+    if (pathComponents.length == 0) {
+      return "";
+    } else if (pathComponents.length == 1
+        && (pathComponents[0] == null || pathComponents[0].length == 0)) {
+      return Path.SEPARATOR;
+    }
+    try {
+      StringBuilder result = new StringBuilder();
+      for (int i = 0; i < pathComponents.length; i++) {
+        result.append(new String(pathComponents[i], "UTF-8"));
+        if (i < pathComponents.length - 1) {
+          result.append(Path.SEPARATOR_CHAR);
+        }
+      }
+      return result.toString();
+    } catch (UnsupportedEncodingException ex) {
+      throw new AssertionError("UTF-8 encoding is not supported.");
+    }
+  }
+  
+  /**
+   * Splits first len bytes in bytes to array of arrays of bytes
+   * on byte separator
+   * @param bytes the byte array to split
+   * @param len the number of bytes to split
+   * @param separator the delimiting byte
+   */
+  public static byte[][] bytes2byteArray(byte[] bytes,
+                                         int len,
+                                         byte separator) {
+    assert len <= bytes.length;
+    int splits = 0;
+    if (len == 0) {
+      return new byte[][]{null};
+    }
+    // Count the splits. Omit multiple separators and the last one
+    for (int i = 0; i < len; i++) {
+      if (bytes[i] == separator) {
+        splits++;
+      }
+    }
+    int last = len - 1;
+    while (last > -1 && bytes[last--] == separator) {
+      splits--;
+    }
+    if (splits == 0 && bytes[0] == separator) {
+      return new byte[][]{null};
+    }
+    splits++;
+    byte[][] result = new byte[splits][];
+    int startIndex = 0;
+    int nextIndex = 0;
+    int index = 0;
+    // Build the splits
+    while (index < splits) {
+      while (nextIndex < len && bytes[nextIndex] != separator) {
+        nextIndex++;
+      }
+      result[index] = new byte[nextIndex - startIndex];
+      System.arraycopy(bytes, startIndex, result[index], 0, nextIndex
+              - startIndex);
+      index++;
+      startIndex = nextIndex + 1;
+      nextIndex = startIndex;
+    }
+    return result;
+  }
+  
+  /**
+   * Given a list of path components returns a byte array
+   */
+  public static byte[] byteArray2bytes(byte[][] pathComponents) {
+    if (pathComponents.length == 0) {
+      return EMPTY_BYTES;
+    } else if (pathComponents.length == 1
+        && (pathComponents[0] == null || pathComponents[0].length == 0)) {
+      return new byte[]{(byte) Path.SEPARATOR_CHAR};
+    }
+    int length = 0;
+    for (int i = 0; i < pathComponents.length; i++) {
+      length += pathComponents[i].length;
+      if (i < pathComponents.length - 1) {
+        length++; // for SEPARATOR
+      }
+    }
+    byte[] path = new byte[length];
+    int index = 0;
+    for (int i = 0; i < pathComponents.length; i++) {
+      System.arraycopy(pathComponents[i], 0, path, index,
+          pathComponents[i].length);
+      index += pathComponents[i].length;
+      if (i < pathComponents.length - 1) {
+        path[index] = (byte) Path.SEPARATOR_CHAR;
+        index++;
+      }
+    }
+    return path;
+  }
+  
+  /** Convert an object representing a path to a string. */
+  public static String path2String(final Object path) {
+    return path == null? null
+        : path instanceof String? (String)path
+        : path instanceof byte[][]? byteArray2PathString((byte[][])path)
+        : path.toString();
   }
 
   /**

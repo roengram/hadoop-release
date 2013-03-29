@@ -18,11 +18,15 @@
 
 package org.apache.hadoop.hdfs.server.namenode;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+import java.io.FileNotFoundException;
+import java.io.IOException;
 
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
-
 import org.junit.Test;
 
 public class TestINodeFile {
@@ -30,10 +34,15 @@ public class TestINodeFile {
   static final short BLOCKBITS = 48;
   static final long BLKSIZE_MAXVALUE = ~(0xffffL << BLOCKBITS);
 
-  private String userName = "Test";
+  private final PermissionStatus perm = new PermissionStatus(
+      "userName", null, FsPermission.getDefault());
   private short replication;
   private long preferredBlockSize;
 
+  INodeFile createINodeFile(short replication, long preferredBlockSize) {
+    return new INodeFile(null, perm, 0L, 0L,
+        null, replication, preferredBlockSize);
+  }
   /**
    * Test for the Replication value. Sets a value and checks if it was set
    * correct.
@@ -42,11 +51,9 @@ public class TestINodeFile {
   public void testReplication () {
     replication = 3;
     preferredBlockSize = 128*1024*1024;
-    INodeFile inf = new INodeFile(new PermissionStatus(userName, null, 
-                                  FsPermission.getDefault()), null, replication,
-                                  0L, 0L, preferredBlockSize);
+    INodeFile inf = createINodeFile(replication, preferredBlockSize);
     assertEquals("True has to be returned in this case", replication,
-                 inf.getReplication());
+                 inf.getFileReplication());
   }
 
   /**
@@ -59,9 +66,7 @@ public class TestINodeFile {
               throws IllegalArgumentException {
     replication = -1;
     preferredBlockSize = 128*1024*1024;
-    INodeFile inf = new INodeFile(new PermissionStatus(userName, null,
-                                  FsPermission.getDefault()), null, replication,
-                                  0L, 0L, preferredBlockSize);
+    createINodeFile(replication, preferredBlockSize);
   }
 
   /**
@@ -72,9 +77,7 @@ public class TestINodeFile {
   public void testPreferredBlockSize () {
     replication = 3;
     preferredBlockSize = 128*1024*1024;
-    INodeFile inf = new INodeFile(new PermissionStatus(userName, null,
-                                  FsPermission.getDefault()), null, replication,
-                                  0L, 0L, preferredBlockSize);
+    INodeFile inf = createINodeFile(replication, preferredBlockSize);
     assertEquals("True has to be returned in this case", preferredBlockSize,
            inf.getPreferredBlockSize());
   }
@@ -83,9 +86,7 @@ public class TestINodeFile {
   public void testPreferredBlockSizeUpperBound () {
     replication = 3;
     preferredBlockSize = BLKSIZE_MAXVALUE;
-    INodeFile inf = new INodeFile(new PermissionStatus(userName, null, 
-                                  FsPermission.getDefault()), null, replication,
-                                  0L, 0L, preferredBlockSize);
+    INodeFile inf = createINodeFile(replication, preferredBlockSize);
     assertEquals("True has to be returned in this case", BLKSIZE_MAXVALUE,
                  inf.getPreferredBlockSize());
   }
@@ -100,9 +101,7 @@ public class TestINodeFile {
               throws IllegalArgumentException {
     replication = 3;
     preferredBlockSize = -1;
-    INodeFile inf = new INodeFile(new PermissionStatus(userName, null, 
-                                  FsPermission.getDefault()), null, replication,
-                                  0L, 0L, preferredBlockSize);
+    createINodeFile(replication, preferredBlockSize);
   } 
 
   /**
@@ -115,9 +114,116 @@ public class TestINodeFile {
               throws IllegalArgumentException {
     replication = 3;
     preferredBlockSize = BLKSIZE_MAXVALUE+1;
-    INodeFile inf = new INodeFile(new PermissionStatus(userName, null, 
-                                  FsPermission.getDefault()), null, replication,
-                                  0L, 0L, preferredBlockSize);
+    createINodeFile(replication, preferredBlockSize);
   }
 
+
+  /**
+   * Test for the static {@link INodeFile#valueOf(INode, String)}
+   * and {@link INodeFileUnderConstruction#valueOf(INode, String)} methods.
+   * @throws IOException 
+   */
+  @Test
+  public void testValueOf () throws IOException {
+    final String path = "/testValueOf";
+    final short replication = 3;
+
+    {//cast from null
+      final INode from = null;
+
+      //cast to INodeFile, should fail
+      try {
+        INodeFile.valueOf(from, path);
+        fail();
+      } catch(FileNotFoundException fnfe) {
+        assertTrue(fnfe.getMessage().contains("File does not exist"));
+      }
+
+      //cast to INodeFileUnderConstruction, should fail
+      try {
+        INodeFileUnderConstruction.valueOf(from, path);
+        fail();
+      } catch(FileNotFoundException fnfe) {
+        assertTrue(fnfe.getMessage().contains("File does not exist"));
+      }
+
+      //cast to INodeDirectory, should fail
+      try {
+        INodeDirectory.valueOf(from, path);
+        fail();
+      } catch (FileNotFoundException e) {
+        assertTrue(e.getMessage().contains("Directory does not exist"));
+      }
+    }
+
+    {//cast from INodeFile
+      final INode from = createINodeFile(replication, preferredBlockSize);
+      
+      //cast to INodeFile, should success
+      final INodeFile f = INodeFile.valueOf(from, path);
+      assertTrue(f == from);
+
+      //cast to INodeFileUnderConstruction, should fail
+      try {
+        INodeFileUnderConstruction.valueOf(from, path);
+        fail();
+      } catch(IOException ioe) {
+        assertTrue(ioe.getMessage().contains("File is not under construction"));
+      }
+
+      //cast to INodeDirectory, should fail
+      try {
+        INodeDirectory.valueOf(from, path);
+        fail();
+      } catch(FileNotFoundException e) {
+        assertTrue(e.getMessage().contains("Is not a directory"));
+      }
+    }
+
+    {//cast from INodeFileUnderConstruction
+      final INode from = new INodeFileUnderConstruction(
+          perm, replication, 0L, 0L, "client", "machine", null);
+      
+      //cast to INodeFile, should success
+      final INodeFile f = INodeFile.valueOf(from, path);
+      assertTrue(f == from);
+
+      //cast to INodeFileUnderConstruction, should success
+      final INodeFileUnderConstruction u = INodeFileUnderConstruction.valueOf(
+          from, path);
+      assertTrue(u == from);
+
+      //cast to INodeDirectory, should fail
+      try {
+        INodeDirectory.valueOf(from, path);
+        fail();
+      } catch(FileNotFoundException e) {
+        assertTrue(e.getMessage().contains("Is not a directory"));
+      }
+    }
+
+    {//cast from INodeDirectory
+      final INode from = new INodeDirectory(null, perm, 0L);
+
+      //cast to INodeFile, should fail
+      try {
+        INodeFile.valueOf(from, path);
+        fail();
+      } catch(FileNotFoundException fnfe) {
+        assertTrue(fnfe.getMessage().contains("Path is not a file"));
+      }
+
+      //cast to INodeFileUnderConstruction, should fail
+      try {
+        INodeFileUnderConstruction.valueOf(from, path);
+        fail();
+      } catch(FileNotFoundException fnfe) {
+        assertTrue(fnfe.getMessage().contains("Path is not a file"));
+      }
+
+      //cast to INodeDirectory, should success
+      final INodeDirectory d = INodeDirectory.valueOf(from, path);
+      assertTrue(d == from);
+    }
+  }
 }

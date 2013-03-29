@@ -1425,6 +1425,41 @@ public abstract class FileSystem extends Configured implements Closeable {
   public void setTimes(Path p, long mtime, long atime
       ) throws IOException {
   }
+  
+  /**
+   * Create a snapshot
+   * @param path The directory where snapshots will be taken
+   * @param snapshotName The name of the snapshot
+   */
+  public void createSnapshot(Path path, String snapshotName)
+      throws IOException {
+    throw new UnsupportedOperationException(getClass().getSimpleName()
+        + " doesn't support createSnapshot");
+  }
+  
+  /**
+   * Delete a snapshot of a directory
+   * @param path  The directory that the to-be-deleted snapshot belongs to
+   * @param snapshotName The name of the snapshot
+   */
+  public void deleteSnapshot(Path path, String snapshotName)
+      throws IOException {
+    throw new UnsupportedOperationException(getClass().getSimpleName()
+        + " doesn't support deleteSnapshot");
+  }
+  
+  /**
+   * Rename a snapshot
+   * @param path The directory path where the snapshot was taken
+   * @param snapshotOldName Old name of the snapshot
+   * @param snapshotNewName New name of the snapshot
+   * @throws IOException
+   */
+  public void renameSnapshot(Path path, String snapshotOldName,
+      String snapshotNewName) throws IOException {
+    throw new UnsupportedOperationException(getClass().getSimpleName()
+        + " doesn't support renameSnapshot");
+  }
 
   private static FileSystem createFileSystem(URI uri, Configuration conf
       ) throws IOException {

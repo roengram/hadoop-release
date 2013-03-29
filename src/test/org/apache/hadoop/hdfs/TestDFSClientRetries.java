@@ -62,6 +62,8 @@ import org.apache.hadoop.hdfs.protocol.FSConstants.UpgradeAction;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
+import org.apache.hadoop.hdfs.protocol.SnapshotDiffReport;
+import org.apache.hadoop.hdfs.protocol.SnapshottableDirectoryStatus;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hdfs.server.common.UpgradeStatusReport;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
@@ -313,7 +315,7 @@ public class TestDFSClientRetries extends TestCase {
 
     public void setQuota(String path, long namespaceQuota, long diskspaceQuota) throws IOException {}
 
-    public void fsync(String src, String client) throws IOException {}
+    public void fsync(String src, String client, long lastBlockLenght) throws IOException {}
 
     public void setTimes(String src, long mtime, long atime) throws IOException {}
 
@@ -331,6 +333,36 @@ public class TestDFSClientRetries extends TestCase {
 
     public void cancelDelegationToken(Token<DelegationTokenIdentifier> token)
         throws IOException {
+    }
+
+    @Override
+    public void createSnapshot(String snapshotRoot, String snapshotName)
+        throws IOException {}
+    
+    @Override
+    public void deleteSnapshot(String snapshotRoot, String snapshotName)
+        throws IOException {}
+
+    @Override
+    public void allowSnapshot(String snapshotRoot) throws IOException {}
+
+    @Override
+    public void disallowSnapshot(String snapshotRoot) throws IOException {}
+
+    @Override
+    public void renameSnapshot(String snapshotRoot, String snapshotOldName,
+        String snapshotNewName) throws IOException {}
+
+    @Override
+    public SnapshottableDirectoryStatus[] getSnapshottableDirListing()
+        throws IOException {
+      return null;
+    }
+
+    @Override
+    public SnapshotDiffReport getSnapshotDiffReport(String snapshotRoot,
+        String fromSnapshot, String toSnapshot) throws IOException {
+      return null;
     }
   }
   

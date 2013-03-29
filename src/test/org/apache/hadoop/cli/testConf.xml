@@ -3180,7 +3180,7 @@
       <comparators>
         <comparator>
           <type>SubstringComparator</type>
-          <expected-output>Cannot set quota on a file: /test/file1</expected-output>
+          <expected-output>setQuota: java.io.FileNotFoundException: Is not a directory: /test/file1</expected-output>
         </comparator>
       </comparators>
     </test>

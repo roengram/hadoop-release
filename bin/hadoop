@@ -81,6 +81,9 @@ print_usage()
   echo "  fsck                 run a DFS filesystem checking utility"
   echo "  fs                   run a generic filesystem user client"
   echo "  balancer             run a cluster balancing utility"
+  echo "  snapshotDiff         diff two snapshots of a directory or diff the"
+  echo "                       current directory contents with a snapshot"
+  echo "  lsSnapshottableDir   list all snapshottable dirs owned by the current user"
   echo "  fetchdt              fetch a delegation token from the NameNode"
   echo "  jobtracker           run the MapReduce job Tracker node" 
   echo "  pipes                run a Pipes job"
@@ -281,6 +284,10 @@ elif [ "$COMMAND" = "dfsadmin" ] ; then
 elif [ "$COMMAND" = "mradmin" ] ; then
   CLASS=org.apache.hadoop.mapred.tools.MRAdmin
   HADOOP_OPTS="$HADOOP_OPTS $HADOOP_CLIENT_OPTS"
+elif [ "$COMMAND" = "snapshotDiff" ] ; then
+  CLASS=org.apache.hadoop.hdfs.tools.snapshot.SnapshotDiff
+elif [ "$COMMAND" = "lsSnapshottableDir" ] ; then
+  CLASS=org.apache.hadoop.hdfs.tools.snapshot.LsSnapshottableDir
 elif [ "$COMMAND" = "fsck" ] ; then
   CLASS=org.apache.hadoop.hdfs.tools.DFSck
   HADOOP_OPTS="$HADOOP_OPTS $HADOOP_CLIENT_OPTS"

@@ -160,7 +160,7 @@ public class TestNameNodeMetrics extends TestCase {
     // Delete file operations and number of files deleted must be 1
     rb = getMetrics(nnMetrics);
     assertCounter("DeleteFileOps", 1, rb);
-    assertCounter("FilesDeleted", 1, rb);
+    assertCounter("FilesDeleted", 1L, rb);
   }
   
   /** Corrupt a block and ensure metrics reflects it */

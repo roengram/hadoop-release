@@ -25,11 +25,15 @@ import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 /**
  * Directory INode class that has a quota restriction
  */
-class INodeDirectoryWithQuota extends INodeDirectory {
-  private long nsQuota; /// NameSpace quota
-  private long nsCount;
-  private long dsQuota; /// disk space quota
-  private long diskspace;
+public class INodeDirectoryWithQuota extends INodeDirectory {
+  /** Name space quota */
+  private long nsQuota = Long.MAX_VALUE;
+  /** Name space count */
+  private long namespace = 1L;
+  /** Disk space quota */
+  private long dsQuota = -1L;
+  /** Disk space count */
+  private long diskspace = 0L;
   
   /** Convert an existing directory inode to one with the given quota
    * 
@@ -37,48 +41,40 @@ class INodeDirectoryWithQuota extends INodeDirectory {
    * @param dsQuota Diskspace quota to be assigned to this indoe
    * @param other The other inode from which all other properties are copied
    */
-  INodeDirectoryWithQuota(long nsQuota, long dsQuota, INodeDirectory other)
-  throws QuotaExceededException {
-    super(other);
-    INode.DirCounts counts = new INode.DirCounts();
-    other.spaceConsumedInTree(counts);
-    this.nsCount= counts.getNsCount();
-    this.diskspace = counts.getDsCount();
-    setQuota(nsQuota, dsQuota);
+  public INodeDirectoryWithQuota(INodeDirectory other, boolean adopt,
+      long nsQuota, long dsQuota) {
+    super(other, adopt);
+    final Quota.Counts counts = other.computeQuotaUsage();
+    this.namespace = counts.get(Quota.NAMESPACE);
+    this.diskspace = counts.get(Quota.DISKSPACE);
+    this.nsQuota = nsQuota;
+    this.dsQuota = dsQuota;
   }
   
   /** constructor with no quota verification */
-  INodeDirectoryWithQuota(
-      PermissionStatus permissions, long modificationTime, 
-      long nsQuota, long dsQuota)
-  {
-    super(permissions, modificationTime);
+  INodeDirectoryWithQuota(byte[] name, PermissionStatus permissions,
+      long modificationTime, long nsQuota, long dsQuota) {
+    super(name, permissions, modificationTime);
     this.nsQuota = nsQuota;
     this.dsQuota = dsQuota;
-    this.nsCount = 1;
   }
   
   /** constructor with no quota verification */
-  INodeDirectoryWithQuota(String name, PermissionStatus permissions, 
-                          long nsQuota, long dsQuota)
-  {
-    super(name, permissions);
-    this.nsQuota = nsQuota;
-    this.dsQuota = dsQuota;
-    this.nsCount = 1;
+  INodeDirectoryWithQuota(byte[] name, PermissionStatus permissions) {
+    super(name, permissions, 0L);
   }
   
   /** Get this directory's namespace quota
    * @return this directory's namespace quota
    */
-  long getNsQuota() {
+  public long getNsQuota() {
     return nsQuota;
   }
   
   /** Get this directory's diskspace quota
    * @return this directory's diskspace quota
    */
-  long getDsQuota() {
+  public long getDsQuota() {
     return dsQuota;
   }
   
@@ -86,30 +82,76 @@ class INodeDirectoryWithQuota extends INodeDirectory {
    * 
    * @param nsQuota Namespace quota to be set
    * @param dsQuota diskspace quota to be set
-   *                                
+   * @param latest Latest snapshot                               
    */
-  void setQuota(long newNsQuota, long newDsQuota) {
-    nsQuota = newNsQuota;
-    dsQuota = newDsQuota;
+  public void setQuota(long nsQuota, long dsQuota) {
+    this.nsQuota = nsQuota;
+    this.dsQuota = dsQuota;
+  }
+
+  @Override
+  public final Quota.Counts computeQuotaUsage(Quota.Counts counts,
+      boolean useCache) {
+    if (useCache && isQuotaSet()) {
+      // use cache value
+      counts.add(Quota.NAMESPACE, namespace);
+      counts.add(Quota.DISKSPACE, diskspace);
+    } else {
+      super.computeQuotaUsage(counts, false);
+    }
+    return counts;
+  }
+
+  @Override
+  public Content.CountsMap computeContentSummary(
+      final Content.CountsMap countsMap) {
+    final long original = countsMap.sum(Content.DISKSPACE);
+    super.computeContentSummary(countsMap);
+    checkDiskspace(countsMap.sum(Content.DISKSPACE) - original);
+    return countsMap;
+  }
+
+  @Override
+  public Content.Counts computeContentSummary(
+      final Content.Counts counts) {
+    final long original = counts.get(Content.DISKSPACE);
+    super.computeContentSummary(counts);
+    checkDiskspace(counts.get(Content.DISKSPACE) - original);
+    return counts;
   }
   
-  
-  @Override
-  DirCounts spaceConsumedInTree(DirCounts counts) {
-    counts.nsCount += nsCount;
-    counts.dsCount += diskspace;
-    return counts;
+  private void checkDiskspace(final long computed) {
+    if (-1 != getDsQuota() && diskspace != computed) {
+      NameNode.LOG.error("BUG: Inconsistent diskspace for directory "
+          + getFullPathName() + ". Cached = " + diskspace
+          + " != Computed = " + computed);
+    }
   }
 
   /** Get the number of names in the subtree rooted at this directory
    * @return the size of the subtree rooted at this directory
    */
   long numItemsInTree() {
-    return nsCount;
+    return namespace;
   }
   
-  long diskspaceConsumed() {
-    return diskspace;
+  @Override
+  public final void addSpaceConsumed(final long nsDelta, final long dsDelta)
+      throws QuotaExceededException {
+    if (isQuotaSet()) { 
+      // The following steps are important: 
+      // check quotas in this inode and all ancestors before changing counts
+      // so that no change is made if there is any quota violation.
+
+      // (1) verify quota in this inode  
+      verifyQuota(nsDelta, dsDelta);
+      // (2) verify quota and then add count in ancestors 
+      super.addSpaceConsumed(nsDelta, dsDelta);
+      // (3) add count in this inode
+      addSpaceConsumed2Cache(nsDelta, dsDelta);
+    } else {
+      super.addSpaceConsumed(nsDelta, dsDelta);
+    }
   }
   
   /** Update the size of the tree
@@ -117,18 +159,9 @@ class INodeDirectoryWithQuota extends INodeDirectory {
    * @param nsDelta the change of the tree size
    * @param dsDelta change to disk space occupied
    */
-  void updateNumItemsInTree(long nsDelta, long dsDelta) {
-    nsCount += nsDelta;
+  protected void addSpaceConsumed2Cache(long nsDelta, long dsDelta) {
+    namespace += nsDelta;
     diskspace += dsDelta;
-  }
-  
-  /** Update the size of the tree
-   * 
-   * @param nsDelta the change of the tree size
-   * @param dsDelta change to disk space occupied
-   */
-  void addSpaceConsumed(long nsDelta, long dsDelta) {
-    setSpaceConsumed(nsCount + nsDelta, diskspace + dsDelta);
   }
   
   /** 
@@ -140,23 +173,49 @@ class INodeDirectoryWithQuota extends INodeDirectory {
    * @param diskspace disk space take by all the nodes under this directory
    */
   void setSpaceConsumed(long namespace, long diskspace) {
-    this.nsCount = namespace;
+    this.namespace = namespace;
     this.diskspace = diskspace;
   }
   
+  /** Verify if the namespace quota is violated after applying delta. */
+  void verifyNamespaceQuota(long delta) throws NSQuotaExceededException {
+    if (Quota.isViolated(nsQuota, namespace, delta)) {
+      throw new NSQuotaExceededException(nsQuota, namespace + delta);
+    }
+  }
+
   /** Verify if the namespace count disk space satisfies the quota restriction 
    * @throws QuotaExceededException if the given quota is less than the count
    */
   void verifyQuota(long nsDelta, long dsDelta) throws QuotaExceededException {
-    long newCount = nsCount + nsDelta;
-    long newDiskspace = diskspace + dsDelta;
-    if (nsDelta>0 || dsDelta>0) {
-      if (nsQuota >= 0 && nsQuota < newCount) {
-        throw new NSQuotaExceededException(nsQuota, newCount);
-      }
-      if (dsQuota >= 0 && dsQuota < newDiskspace) {
-        throw new DSQuotaExceededException(dsQuota, newDiskspace);
-      }
+    verifyNamespaceQuota(nsDelta);
+
+    if (Quota.isViolated(dsQuota, diskspace, dsDelta)) {
+      throw new DSQuotaExceededException(dsQuota, diskspace + dsDelta);
     }
+  }
+
+  String namespaceString() {
+    return "namespace: " + (nsQuota < 0? "-": namespace + "/" + nsQuota);
+  }
+  String diskspaceString() {
+    return "diskspace: " + (dsQuota < 0? "-": diskspace + "/" + dsQuota);
+  }
+  String quotaString() {
+    return ", Quota[" + namespaceString() + ", " + diskspaceString() + "]";
+  }
+  
+  /**
+   * @return {@link #namespace}. Used for testing.
+   */
+  public long getNamespace() {
+    return this.namespace;
+  }
+  
+  /**
+   * @return {@link #diskspace}. Used for testing.
+   */
+  public long getDiskspace() {
+    return this.diskspace;
   }
 }

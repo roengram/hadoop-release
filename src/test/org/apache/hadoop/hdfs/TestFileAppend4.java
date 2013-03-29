@@ -1020,7 +1020,7 @@ public class TestFileAppend4 extends TestCase {
 
       if (err.get() != null) {
         if (err.get().getMessage().contains(
-              "File does not exist.")) {
+              "File does not exist")) {
           LOG.info("Got expected exception", err.get());
         } else {
           throw err.get();

@@ -49,6 +49,7 @@ import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifie
 import org.apache.hadoop.hdfs.server.common.Storage;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
 import org.apache.hadoop.hdfs.server.namenode.FSImage.NameNodeDirType;
+import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
 import org.apache.hadoop.hdfs.server.namenode.metrics.NameNodeInstrumentation;
 import org.apache.hadoop.io.ArrayWritable;
 import org.apache.hadoop.io.DataOutputBuffer;
@@ -90,6 +91,12 @@ public class FSEditLog {
   private static final byte OP_RENEW_DELEGATION_TOKEN = 19; //renew delegation token
   private static final byte OP_CANCEL_DELEGATION_TOKEN = 20; //cancel delegation token
   private static final byte OP_UPDATE_MASTER_KEY = 21; //update master key
+  private static final byte OP_CREATE_SNAPSHOT = 26; // create snapshot
+  private static final byte OP_DELETE_SNAPSHOT = 27; // delete snapshot
+  private static final byte OP_RENAME_SNAPSHOT = 28; // rename snapshot
+  private static final byte OP_ALLOW_SNAPSHOT = 29;  // allow snapshot
+  private static final byte OP_DISALLOW_SNAPSHOT = 30; // disallow snapshot
+  
 
   private static int sizeFlushBuffer = 512*1024;
   /** Preallocation length in bytes for writing edit log. */
@@ -712,7 +719,7 @@ public class FSEditLog {
                                     " but writables.length is " +
                                     length + ". ");
           }
-          path = FSImage.readString(in);
+          path = FSImageSerialization.readString(in);
           short replication = adjustReplication(readShort(in));
           mtime = readLong(in);
           if (logVersion <= -17) {
@@ -756,8 +763,8 @@ public class FSEditLog {
 
           // clientname, clientMachine and block locations of last block.
           if (opcode == OP_ADD && logVersion <= -12) {
-            clientName = FSImage.readString(in);
-            clientMachine = FSImage.readString(in);
+            clientName = FSImageSerialization.readString(in);
+            clientMachine = FSImageSerialization.readString(in);
             if (-13 <= logVersion) {
               readDatanodeDescriptorArray(in);
             }
@@ -789,23 +796,15 @@ public class FSEditLog {
             // Recreate in-memory lease record.
             //
             INodeFileUnderConstruction cons = new INodeFileUnderConstruction(
-                                      node.getLocalNameBytes(),
-                                      node.getReplication(), 
-                                      node.getModificationTime(),
-                                      node.getPreferredBlockSize(),
-                                      node.getBlocks(),
-                                      node.getPermissionStatus(),
-                                      clientName, 
-                                      clientMachine, 
-                                      null);
-            fsDir.replaceNode(path, node, cons);
+                node, clientName, clientMachine, null);
+            fsDir.unprotectedReplaceINodeFile(path, node, cons);
             fsNamesys.leaseManager.addLease(cons.clientName, path);
           }
           break;
         } 
         case OP_SET_REPLICATION: {
           numOpSetRepl++;
-          path = FSImage.readString(in);
+          path = FSImageSerialization.readString(in);
           short replication = adjustReplication(readShort(in));
           fsDir.unprotectedSetReplication(path, replication, null);
           break;
@@ -821,11 +820,11 @@ public class FSEditLog {
             throw new IOException("Incorrect data format. " 
                                   + "ConcatDelete operation.");
           }
-          String trg = FSImage.readString(in);
+          String trg = FSImageSerialization.readString(in);
           int srcSize = length - 1 - 1; //trg and timestamp
           String [] srcs = new String [srcSize];
           for(int i=0; i<srcSize;i++) {
-            srcs[i]= FSImage.readString(in);
+            srcs[i]= FSImageSerialization.readString(in);
           }
           timestamp = readLong(in);
           fsDir.unprotectedConcat(trg, srcs, timestamp);
@@ -838,8 +837,8 @@ public class FSEditLog {
             throw new IOException("Incorrect data format. " 
                                   + "Rename operation.");
           }
-          String s = FSImage.readString(in);
-          String d = FSImage.readString(in);
+          String s = FSImageSerialization.readString(in);
+          String d = FSImageSerialization.readString(in);
           timestamp = readLong(in);
           HdfsFileStatus dinfo = fsDir.getFileInfo(d);
           fsDir.unprotectedRenameTo(s, d, timestamp);
@@ -853,7 +852,7 @@ public class FSEditLog {
             throw new IOException("Incorrect data format. " 
                                   + "delete operation.");
           }
-          path = FSImage.readString(in);
+          path = FSImageSerialization.readString(in);
           timestamp = readLong(in);
           fsDir.unprotectedDelete(path, timestamp);
           break;
@@ -867,7 +866,7 @@ public class FSEditLog {
             throw new IOException("Incorrect data format. " 
                                   + "Mkdir operation.");
           }
-          path = FSImage.readString(in);
+          path = FSImageSerialization.readString(in);
           timestamp = readLong(in);
 
           // The disk format stores atimes for directories as well.
@@ -914,7 +913,7 @@ public class FSEditLog {
             throw new IOException("Unexpected opcode " + opcode
                                   + " for version " + logVersion);
           fsDir.unprotectedSetPermission(
-              FSImage.readString(in), FsPermission.read(in));
+              FSImageSerialization.readString(in), FsPermission.read(in));
           break;
         }
         case OP_SET_OWNER: {
@@ -922,9 +921,9 @@ public class FSEditLog {
           if (logVersion > -11)
             throw new IOException("Unexpected opcode " + opcode
                                   + " for version " + logVersion);
-          fsDir.unprotectedSetOwner(FSImage.readString(in),
-              FSImage.readString_EmptyAsNull(in),
-              FSImage.readString_EmptyAsNull(in));
+          fsDir.unprotectedSetOwner(FSImageSerialization.readString(in),
+              FSImageSerialization.readString_EmptyAsNull(in),
+              FSImageSerialization.readString_EmptyAsNull(in));
           break;
         }
         case OP_SET_NS_QUOTA: {
@@ -932,7 +931,7 @@ public class FSEditLog {
             throw new IOException("Unexpected opcode " + opcode
                 + " for version " + logVersion);
           }
-          fsDir.unprotectedSetQuota(FSImage.readString(in), 
+          fsDir.unprotectedSetQuota(FSImageSerialization.readString(in), 
                                     readLongWritable(in), 
                                     FSConstants.QUOTA_DONT_SET);
           break;
@@ -942,14 +941,14 @@ public class FSEditLog {
             throw new IOException("Unexpected opcode " + opcode
                 + " for version " + logVersion);
           }
-          fsDir.unprotectedSetQuota(FSImage.readString(in),
+          fsDir.unprotectedSetQuota(FSImageSerialization.readString(in),
                                     FSConstants.QUOTA_RESET,
                                     FSConstants.QUOTA_DONT_SET);
           break;
         }
 
         case OP_SET_QUOTA:
-          fsDir.unprotectedSetQuota(FSImage.readString(in),
+          fsDir.unprotectedSetQuota(FSImageSerialization.readString(in),
                                     readLongWritable(in),
                                     readLongWritable(in));
                                       
@@ -962,7 +961,7 @@ public class FSEditLog {
             throw new IOException("Incorrect data format. " 
                                   + "times operation.");
           }
-          path = FSImage.readString(in);
+          path = FSImageSerialization.readString(in);
           mtime = readLong(in);
           atime = readLong(in);
           fsDir.unprotectedSetTimes(path, mtime, atime, true);
@@ -1019,6 +1018,41 @@ public class FSEditLog {
           delegationKey.readFields(in);
           fsNamesys.getDelegationTokenSecretManager().updatePersistedMasterKey(
               delegationKey);
+          break;
+        }
+        case OP_CREATE_SNAPSHOT: {
+          String snapshotRoot = FSImageSerialization.readString(in);
+          String snapshotName = FSImageSerialization.readString(in);
+          fsNamesys.getSnapshotManager().createSnapshot(snapshotRoot,
+              snapshotName);
+          break;
+        }
+        case OP_DELETE_SNAPSHOT: {
+          BlocksMapUpdateInfo collectedBlocks = new BlocksMapUpdateInfo();
+          String snapshotRoot = FSImageSerialization.readString(in);
+          String snapshotName = FSImageSerialization.readString(in);
+          fsNamesys.getSnapshotManager().deleteSnapshot(snapshotRoot,
+              snapshotName, collectedBlocks);
+          fsNamesys.removeBlocks(collectedBlocks);
+          collectedBlocks.clear();
+          break;
+        }
+        case OP_RENAME_SNAPSHOT: {
+          String snapshotRoot = FSImageSerialization.readString(in);
+          String snapshotOldName = FSImageSerialization.readString(in);
+          String snapshotNewName = FSImageSerialization.readString(in);
+          fsNamesys.getSnapshotManager().renameSnapshot(snapshotRoot,
+              snapshotOldName, snapshotNewName);
+          break;
+        }
+        case OP_ALLOW_SNAPSHOT: {
+          fsNamesys.getSnapshotManager().setSnapshottable(
+              FSImageSerialization.readString(in));
+          break;
+        }
+        case OP_DISALLOW_SNAPSHOT: {
+          fsNamesys.getSnapshotManager().resetSnapshottable(
+              FSImageSerialization.readString(in));
           break;
         }
         default: {
@@ -1290,7 +1324,7 @@ public class FSEditLog {
 
     UTF8 nameReplicationPair[] = new UTF8[] { 
       new UTF8(path), 
-      FSEditLog.toLogReplication(newNode.getReplication()),
+      FSEditLog.toLogReplication(newNode.getFileReplication()),
       FSEditLog.toLogLong(newNode.getModificationTime()),
       FSEditLog.toLogLong(newNode.getAccessTime()),
       FSEditLog.toLogLong(newNode.getPreferredBlockSize())};
@@ -1308,7 +1342,7 @@ public class FSEditLog {
   public void logCloseFile(String path, INodeFile newNode) {
     UTF8 nameReplicationPair[] = new UTF8[] {
       new UTF8(path),
-      FSEditLog.toLogReplication(newNode.getReplication()),
+      FSEditLog.toLogReplication(newNode.getFileReplication()),
       FSEditLog.toLogLong(newNode.getModificationTime()),
       FSEditLog.toLogLong(newNode.getAccessTime()),
       FSEditLog.toLogLong(newNode.getPreferredBlockSize())};
@@ -1439,6 +1473,27 @@ public class FSEditLog {
 
   void logUpdateMasterKey(DelegationKey key) {
     logEdit(OP_UPDATE_MASTER_KEY, key);
+  }
+  
+  void logCreateSnapshot(String snapRoot, String snapName) {
+    logEdit(OP_CREATE_SNAPSHOT, new UTF8(snapRoot), new UTF8(snapName));
+  }
+  
+  void logRenameSnapshot(String path, String snapOldName, String snapNewName) {
+    logEdit(OP_RENAME_SNAPSHOT, new UTF8(path), new UTF8(snapOldName),
+        new UTF8(snapNewName));
+  }
+
+  void logDeleteSnapshot(String snapRoot, String snapName) {
+    logEdit(OP_DELETE_SNAPSHOT, new UTF8(snapRoot), new UTF8(snapName));
+  }
+  
+  void logAllowSnapshot(String path) {
+    logEdit(OP_ALLOW_SNAPSHOT, new UTF8(path));
+  }
+  
+  void logDisallowSnapshot(String path) {
+    logEdit(OP_DISALLOW_SNAPSHOT, new UTF8(path));
   }
 
   static private UTF8 toLogReplication(short replication) {
@@ -1636,11 +1691,11 @@ public class FSEditLog {
   }
 
   static private short readShort(DataInputStream in) throws IOException {
-    return Short.parseShort(FSImage.readString(in));
+    return Short.parseShort(FSImageSerialization.readString(in));
   }
 
   static private long readLong(DataInputStream in) throws IOException {
-    return Long.parseLong(FSImage.readString(in));
+    return Long.parseLong(FSImageSerialization.readString(in));
   }
 
   static private Block[] readBlocks(DataInputStream in) throws IOException {

@@ -28,12 +28,13 @@ import org.apache.hadoop.hdfs.util.LightWeightGSet;
  * block's metadata currently includes INode it belongs to and
  * the datanodes that store the block.
  */
-class BlocksMap {
+public class BlocksMap {
         
   /**
    * Internal class for block metadata.
    */
-  static class BlockInfo extends Block implements LightWeightGSet.LinkedElement {
+  public static class BlockInfo extends Block implements LightWeightGSet.LinkedElement {
+    public static final BlockInfo[] EMPTY_ARRAY = {}; 
     private INodeFile          inode;
 
     /** For implementing {@link LightWeightGSet.LinkedElement} interface */
@@ -49,13 +50,22 @@ class BlocksMap {
      */
     private Object[] triplets;
 
+    /**
+     * Construct an entry for blocksmap
+     * @param replication the block's replication factor
+     */
+    public BlockInfo(int replication) {
+      this.triplets = new Object[3*replication];
+      this.inode = null;
+    }
+    
     BlockInfo(Block blk, int replication) {
       super(blk);
       this.triplets = new Object[3*replication];
       this.inode = null;
     }
 
-    INodeFile getINode() {
+    public INodeFile getINode() {
       return inode;
     }
     
@@ -371,7 +381,7 @@ class BlocksMap {
    * Add block b belonging to the specified file inode to the map.
    */
   BlockInfo addINode(Block b, INodeFile iNode) {
-    BlockInfo info = checkBlockInfo(b, iNode.getReplication());
+    BlockInfo info = checkBlockInfo(b, iNode.getBlockReplication());
     info.inode = iNode;
     return info;
   }

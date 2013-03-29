@@ -763,7 +763,8 @@ public class SecondaryNameNode implements Runnable {
         sdEdits = it.next();
       if ((sdName == null) || (sdEdits == null))
         throw new IOException("Could not locate checkpoint directories");
-      loadFSImage(FSImage.getImageFile(sdName, NameNodeFile.IMAGE));
+      FSImageFormat.Loader loader = new FSImageFormat.Loader(this);
+      loader.load(FSImage.getImageFile(sdName, NameNodeFile.IMAGE), true);
       loadFSEdits(sdEdits, null);
       sig.validateStorageInfo(this);
       saveNamespace(false);

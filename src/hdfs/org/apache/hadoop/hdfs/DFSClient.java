@@ -17,24 +17,76 @@
  */
 package org.apache.hadoop.hdfs;
 
-import org.apache.hadoop.io.*;
-import org.apache.hadoop.io.retry.RetryPolicies;
-import org.apache.hadoop.io.retry.RetryPolicy;
-import org.apache.hadoop.io.retry.RetryProxy;
-import org.apache.hadoop.io.retry.RetryUtils;
-import org.apache.hadoop.fs.*;
-import org.apache.hadoop.fs.permission.FsPermission;
-import org.apache.hadoop.ipc.*;
-import org.apache.hadoop.fs.FileAlreadyExistsException;
-import org.apache.hadoop.net.DNS;
-import org.apache.hadoop.net.NetUtils;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InterruptedIOException;
+import java.io.OutputStream;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.NetworkInterface;
+import java.net.Socket;
+import java.net.SocketAddress;
+import java.net.SocketException;
+import java.net.UnknownHostException;
+import java.nio.BufferOverflowException;
+import java.nio.ByteBuffer;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+
+import javax.net.SocketFactory;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
-import org.apache.hadoop.conf.*;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.BlockLocation;
+import org.apache.hadoop.fs.ChecksumException;
+import org.apache.hadoop.fs.ContentSummary;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FSInputChecker;
+import org.apache.hadoop.fs.FSInputStream;
+import org.apache.hadoop.fs.FSOutputSummer;
+import org.apache.hadoop.fs.FileAlreadyExistsException;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.MD5MD5CRC32FileChecksum;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.Syncable;
+import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.DistributedFileSystem.DiskStatus;
-import org.apache.hadoop.hdfs.protocol.*;
+import org.apache.hadoop.hdfs.protocol.AlreadyBeingCreatedException;
+import org.apache.hadoop.hdfs.protocol.Block;
+import org.apache.hadoop.hdfs.protocol.ClientDatanodeProtocol;
+import org.apache.hadoop.hdfs.protocol.ClientProtocol;
+import org.apache.hadoop.hdfs.protocol.DSQuotaExceededException;
+import org.apache.hadoop.hdfs.protocol.DataTransferProtocol;
 import org.apache.hadoop.hdfs.protocol.DataTransferProtocol.PipelineAck;
-import org.apache.hadoop.hdfs.security.token.block.InvalidBlockTokenException;
+import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
+import org.apache.hadoop.hdfs.protocol.DirectoryListing;
+import org.apache.hadoop.hdfs.protocol.FSConstants;
+import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
+import org.apache.hadoop.hdfs.protocol.LocatedBlock;
+import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
+import org.apache.hadoop.hdfs.protocol.NSQuotaExceededException;
+import org.apache.hadoop.hdfs.protocol.SnapshotDiffReport;
+import org.apache.hadoop.hdfs.protocol.SnapshottableDirectoryStatus;
 import org.apache.hadoop.hdfs.security.token.block.BlockTokenIdentifier;
+import org.apache.hadoop.hdfs.security.token.block.InvalidBlockTokenException;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants;
 import org.apache.hadoop.hdfs.server.common.UpgradeStatusReport;
@@ -42,25 +94,31 @@ import org.apache.hadoop.hdfs.server.datanode.DataNode;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.hdfs.server.namenode.NotReplicatedYetException;
 import org.apache.hadoop.hdfs.server.namenode.SafeModeException;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotAccessControlException;
+import org.apache.hadoop.io.DataOutputBuffer;
+import org.apache.hadoop.io.IOUtils;
+import org.apache.hadoop.io.MD5Hash;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.retry.RetryPolicies;
+import org.apache.hadoop.io.retry.RetryPolicy;
+import org.apache.hadoop.io.retry.RetryProxy;
+import org.apache.hadoop.io.retry.RetryUtils;
+import org.apache.hadoop.ipc.Client;
+import org.apache.hadoop.ipc.RPC;
+import org.apache.hadoop.ipc.RemoteException;
+import org.apache.hadoop.net.DNS;
+import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.SecretManager.InvalidToken;
+import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenRenewer;
-import org.apache.hadoop.util.*;
-
-import org.apache.commons.logging.*;
-
-import java.io.*;
-import java.net.*;
-import java.util.*;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.ConcurrentHashMap;
-import java.nio.BufferOverflowException;
-import java.nio.ByteBuffer;
-
-import javax.net.SocketFactory;
+import org.apache.hadoop.util.Daemon;
+import org.apache.hadoop.util.DataChecksum;
+import org.apache.hadoop.util.Progressable;
+import org.apache.hadoop.util.PureJavaCrc32;
+import org.apache.hadoop.util.StringUtils;
 
 import sun.net.util.IPAddressUtil;
 
@@ -941,7 +999,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
                                      NSQuotaExceededException.class,
-                                     DSQuotaExceededException.class);
+                                     DSQuotaExceededException.class,
+                                     SnapshotAccessControlException.class);
     }
   }
   
@@ -957,7 +1016,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       throw re.unwrapRemoteException(AccessControlException.class);
     }
   }
-
+  
   /**
    * Rename file or directory.
    * See {@link ClientProtocol#rename(String, String)}. 
@@ -969,7 +1028,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
                                      NSQuotaExceededException.class,
-                                     DSQuotaExceededException.class);
+                                     DSQuotaExceededException.class,
+                                     SnapshotAccessControlException.class);
     }
   }
 
@@ -993,7 +1053,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     try {
       return namenode.delete(src, recursive);
     } catch(RemoteException re) {
-      throw re.unwrapRemoteException(AccessControlException.class);
+      throw re.unwrapRemoteException(AccessControlException.class,
+                                     SnapshotAccessControlException.class);
     }
   }
   
@@ -1267,7 +1328,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       namenode.setPermission(src, permission);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
-                                     FileNotFoundException.class);
+                                     FileNotFoundException.class,
+                                     SnapshotAccessControlException.class);
     }
   }
 
@@ -1285,7 +1347,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       namenode.setOwner(src, username, groupname);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
-                                     FileNotFoundException.class);
+                                     FileNotFoundException.class,
+                                     SnapshotAccessControlException.class);
     }
   }
 
@@ -1346,6 +1409,77 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    */
   public boolean setSafeMode(SafeModeAction action) throws IOException {
     return namenode.setSafeMode(action);
+  }
+   
+  /**
+   * Create one snapshot.
+   * 
+   * @param snapshotRoot The directory where the snapshot is to be taken
+   * @param snapshotName Name of the snapshot
+   * @see ClientProtocol#createSnapshot(String, String)
+   */
+  public void createSnapshot(String snapshotRoot, String snapshotName)
+      throws IOException {
+    checkOpen();
+    namenode.createSnapshot(snapshotRoot, snapshotName);
+  }
+   
+  /**
+   * Delete a snapshot of a snapshottable directory.
+   * 
+   * @param snapshotRoot The snapshottable directory that the 
+   *                     to-be-deleted snapshot belongs to
+   * @param snapshotName The name of the to-be-deleted snapshot
+   * @throws IOException
+   * @see ClientProtocol#deleteSnapshot(String, String)
+   */
+  public void deleteSnapshot(String snapshotRoot, String snapshotName)
+      throws IOException {
+    namenode.deleteSnapshot(snapshotRoot, snapshotName);
+  }
+  
+  /**
+   * Rename a snapshot.
+   * @param snapshotDir The directory path where the snapshot was taken
+   * @param snapshotOldName Old name of the snapshot
+   * @param snapshotNewName New name of the snapshot
+   * @throws IOException
+   * @see ClientProtocol#renameSnapshot(String, String, String)
+   */
+  public void renameSnapshot(String snapshotDir, String snapshotOldName,
+      String snapshotNewName) throws IOException {
+    checkOpen();
+    namenode.renameSnapshot(snapshotDir, snapshotOldName, snapshotNewName);
+  }
+  
+  /**
+   * Allow snapshot on a directory.
+   * 
+   * @see ClientProtocol#allowSnapshot(String)
+   */
+  public void allowSnapshot(String snapshotRoot) throws IOException {
+    namenode.allowSnapshot(snapshotRoot);
+  }
+  
+  /**
+   * Disallow snapshot on a directory.
+   * 
+   * @see ClientProtocol#disallowSnapshot(String)
+   */
+  public void disallowSnapshot(String snapshotRoot) throws IOException {
+    namenode.disallowSnapshot(snapshotRoot);
+  }
+  
+  /**
+   * Get the difference between two snapshots, or between a snapshot and the
+   * current tree of a directory.
+   * @see ClientProtocol#getSnapshotDiffReport(String, String, String)
+   */
+  public SnapshotDiffReport getSnapshotDiffReport(Path snapshotDir,
+      String fromSnapshot, String toSnapshot) throws IOException {
+    checkOpen();
+    return namenode.getSnapshotDiffReport(snapshotDir.toString(), fromSnapshot,
+        toSnapshot);
   }
 
   /**
@@ -1440,7 +1574,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
                                      NSQuotaExceededException.class,
-                                     DSQuotaExceededException.class);
+                                     DSQuotaExceededException.class,
+                                     SnapshotAccessControlException.class);
     }
   }
 
@@ -1476,7 +1611,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       throw re.unwrapRemoteException(AccessControlException.class,
                                      FileNotFoundException.class,
                                      NSQuotaExceededException.class,
-                                     DSQuotaExceededException.class);
+                                     DSQuotaExceededException.class,
+                                     SnapshotAccessControlException.class);
     }
   }
 
@@ -1490,7 +1626,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       namenode.setTimes(src, mtime, atime);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
-                                     FileNotFoundException.class);
+                                     FileNotFoundException.class,
+                                     SnapshotAccessControlException.class);
     }
   }
 
@@ -1519,6 +1656,18 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       this.info = info;
       this.addr = addr;
     }
+  }
+  
+  /**
+   * Get all the current snapshottable directories.
+   * @return All the current snapshottable directories
+   * @throws IOException
+   * @see ClientProtocol#getSnapshottableDirListing()
+   */
+  public SnapshottableDirectoryStatus[] getSnapshottableDirListing()
+      throws IOException {
+    checkOpen();
+    return namenode.getSnapshottableDirListing();
   }
 
   /** This is a wrapper around connection to datadone
@@ -2762,7 +2911,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    * datanode from the original pipeline. The DataStreamer now
    * starts sending packets from the dataQueue.
   ****************************************************************/
-  class DFSOutputStream extends FSOutputSummer implements Syncable {
+  public class DFSOutputStream extends FSOutputSummer implements Syncable {
     private Socket s;
     boolean closed = false;
   
@@ -2932,6 +3081,11 @@ public class DFSClient implements FSConstants, java.io.Closeable {
        */
       private boolean isHeartbeatPacket() {
         return seqno == HEART_BEAT_SEQNO;
+      }
+      
+      // get the packet's last byte's offset in the block
+      long getLastByteOffsetBlock() {
+        return offsetInBlock + dataPos - dataStart;
       }
     }
   
@@ -3175,6 +3329,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
                                     one.seqno + " but received " + seqno);
             }
             lastPacketInBlock = one.lastPacketInBlock;
+            block.setNumBytes(one.getLastByteOffsetBlock());
 
             synchronized (ackQueue) {
               assert ack.getSeqno() == lastAckedSeqno + 1;
@@ -3441,7 +3596,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
                                        FileAlreadyExistsException.class,
                                        FileNotFoundException.class,
                                        NSQuotaExceededException.class,
-                                       DSQuotaExceededException.class);
+                                       DSQuotaExceededException.class,
+                                       SnapshotAccessControlException.class);
       }
       streamer.start();
     }
@@ -3849,19 +4005,29 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         currentPacket = null;
       }
     }
+    
+    /**
+     * Sync buffered data to DataNodes and do not update the length in NN.
+     */
+    public void sync() throws IOException {
+      sync(false);
+    }
 
     /**
      * All data is written out to datanodes. It is not guaranteed 
      * that data has been flushed to persistent store on the 
      * datanode. Block allocations are persisted on namenode.
+     * 
+     * @param updateLength Whether or not to update the length in NameNode.
      */
-    public void sync() throws IOException {
+    public void sync(boolean updateLength) throws IOException {
       checkOpen();
       if (closed) {
         throw new IOException("DFSOutputStream is closed");
       }
       try {
         long toWaitFor;
+        long lastBlockLength = -1L;
         synchronized (this) {
           /* Record current blockOffset. This might be changed inside
            * flushBuffer() where a partial checksum chunk might be flushed.
@@ -3906,10 +4072,15 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         synchronized (this) {
           willPersist = persistBlocks && !closed;
           persistBlocks = false;
+          if (updateLength) {
+            if (streamer != null && block != null) {
+              lastBlockLength = block.getNumBytes();
+            }
+          }
         }
-        if (willPersist) {
+        if (willPersist || updateLength) {
           try {
-            namenode.fsync(src, clientName);
+            namenode.fsync(src, clientName, lastBlockLength);
           } catch (IOException ioe) {
             DFSClient.LOG.warn("Unable to persist blocks in hflush for " + src, ioe);
             // If we got an error here, it might be because some other thread called

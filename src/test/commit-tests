@@ -139,6 +139,9 @@
 **/TestSimulatedFSDataset.java
 **/TestStartup.java
 **/TestUrlStreamHandler.java
+**/Test*Snapshot*.java
+**/TestDiff.java
+
 # -------------------------- mapred --------------------------
 **/TestCommandLineJobSubmission.java
 # -------------------------- eof --------------------------

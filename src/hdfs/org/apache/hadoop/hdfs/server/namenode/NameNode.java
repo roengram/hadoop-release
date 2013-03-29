@@ -22,8 +22,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.security.PrivilegedExceptionAction;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -51,6 +49,8 @@ import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
+import org.apache.hadoop.hdfs.protocol.SnapshotDiffReport;
+import org.apache.hadoop.hdfs.protocol.SnapshottableDirectoryStatus;
 import org.apache.hadoop.hdfs.protocol.UnregisteredDatanodeException;
 import org.apache.hadoop.hdfs.security.token.block.ExportedBlockKeys;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
@@ -1029,9 +1029,10 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
     namesystem.setQuota(path, namespaceQuota, diskspaceQuota);
   }
   
-  /** {@inheritDoc} */
-  public void fsync(String src, String clientName) throws IOException {
-    namesystem.fsync(src, clientName);
+  @Override
+  public void fsync(String src, String clientName, long lastBlockLength)
+      throws IOException {
+    namesystem.fsync(src, clientName, lastBlockLength);
   }
 
   /** @inheritDoc */
@@ -1150,8 +1151,12 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
    */
   public void verifyRequest(DatanodeRegistration nodeReg) throws IOException {
     verifyVersion(nodeReg.getVersion());
-    if (!namesystem.getRegistrationID().equals(nodeReg.getRegistrationID()))
+    if (!namesystem.getRegistrationID().equals(nodeReg.getRegistrationID())) {
+      LOG.warn("Invalid registrationID - expected: "
+          + namesystem.getRegistrationID() + " received: "
+          + nodeReg.getRegistrationID());
       throw new UnregisteredDatanodeException(nodeReg);
+    }
   }
     
   /**
@@ -1475,5 +1480,57 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
       LOG.error(StringUtils.stringifyException(e));
       System.exit(-1);
     }
+  }
+
+  @Override
+  public void createSnapshot(String snapshotRoot, String snapshotName)
+      throws IOException {
+    myMetrics.incrCreateSnapshotOps();
+    namesystem.createSnapshot(snapshotRoot, snapshotName);
+  }
+  
+  @Override
+  public void deleteSnapshot(String snapshotRoot, String snapshotName)
+      throws IOException {
+    myMetrics.incrDeleteSnapshotOps();
+    namesystem.deleteSnapshot(snapshotRoot, snapshotName);
+  }
+  
+  @Override
+  public void renameSnapshot(String snapshotRoot, String snapshotOldName,
+      String snapshotNewName) throws IOException {
+    myMetrics.incrRenameSnapshotOps();
+    namesystem.renameSnapshot(snapshotRoot, snapshotOldName, snapshotNewName);
+  }
+  
+  @Override
+  public void allowSnapshot(String snapshotRoot) throws IOException {
+    myMetrics.incrAllowSnapshotOps();
+    namesystem.allowSnapshot(snapshotRoot);
+  }
+
+  @Override
+  public void disallowSnapshot(String snapshot) throws IOException {
+    myMetrics.incrDisAllowSnapshotOps();
+    namesystem.disallowSnapshot(snapshot);
+  }
+
+  @Override
+  // Client Protocol
+  public SnapshottableDirectoryStatus[] getSnapshottableDirListing()
+      throws IOException {
+    SnapshottableDirectoryStatus[] status = namesystem
+        .getSnapshottableDirListing();
+    myMetrics.incrListSnapshottableDirOps();
+    return status;
+  }
+  
+  @Override
+  public SnapshotDiffReport getSnapshotDiffReport(String snapshotRoot,
+      String earlierSnapshotName, String laterSnapshotName) throws IOException {
+    SnapshotDiffReport report = namesystem.getSnapshotDiffReport(snapshotRoot,
+        earlierSnapshotName, laterSnapshotName);
+    myMetrics.incrSnapshotDiffReportOps();
+    return report;
   }
 }

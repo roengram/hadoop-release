@@ -94,9 +94,15 @@ public interface HdfsConstants {
   public static int WRITE_TIMEOUT = 8 * 60 * 1000;
   public static int WRITE_TIMEOUT_EXTENSION = 5 * 1000; //for write pipeline
 
+  public static final long QUOTA_DONT_SET = Long.MAX_VALUE;
 
   // The lease holder for recovery initiated by the NameNode
   public static final String NN_RECOVERY_LEASEHOLDER = "NN_Recovery";
+    
+  /**
+   * A special path component contained in the path for a snapshot file/dir
+   */
+  public static final String DOT_SNAPSHOT_DIR = ".snapshot";
 
 }
 
