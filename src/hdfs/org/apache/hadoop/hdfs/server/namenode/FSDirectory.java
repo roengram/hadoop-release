@@ -600,22 +600,26 @@ public class FSDirectory implements FSConstants, Closeable {
    * @param srcs list of file to move the blocks from
    * Must be public because also called from EditLogs
    * NOTE: - it does not update quota since concat is restricted to same dir.
+   * @throws SnapshotAccessControlException 
    */
-  public void unprotectedConcat(String target, String [] srcs, long timestamp) {
+  public void unprotectedConcat(String target, String[] srcs, long timestamp)
+      throws SnapshotAccessControlException {
     if (NameNode.stateChangeLog.isDebugEnabled()) {
       NameNode.stateChangeLog.debug("DIR* FSNamesystem.concat to "+target);
     }
     // do the move
     
-    final INode[] trgINodes =  getExistingPathINodes(target);
-    INodeFile trgInode = (INodeFile) trgINodes[trgINodes.length-1];
-    INodeDirectory trgParent = (INodeDirectory)trgINodes[trgINodes.length-2];
+    final INodesInPath trgIIP = rootDir.getINodesInPath4Write(target);
+    final INode[] trgINodes = trgIIP.getINodes();
+    INodeFile trgInode = (INodeFile) trgIIP.getLastINode();
+    INodeDirectory trgParent = (INodeDirectory) trgINodes[trgINodes.length-2];
+    final Snapshot trgLatestSnapshot = trgIIP.getLatestSnapshot();
     
     INodeFile [] allSrcInodes = new INodeFile[srcs.length];
     int i = 0;
     int totalBlocks = 0;
     for(String src : srcs) {
-      INodeFile srcInode = getFileINode(src);
+      INodeFile srcInode = (INodeFile) getINode4Write(src);
       allSrcInodes[i++] = srcInode;
       totalBlocks += srcInode.blocks.length;  
     }

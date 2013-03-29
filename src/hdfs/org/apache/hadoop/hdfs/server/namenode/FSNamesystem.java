@@ -1290,7 +1290,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     // replication and blocks sizes should be the same for ALL the blocks
 
     // check the target
-    final INodeFile trgInode = dir.getFileINode(target);
+    final INodeFile trgInode = INodeFile.valueOf(dir.getINode4Write(target),
+        target);
     if(trgInode.isUnderConstruction()) {
       throw new IllegalArgumentException("concat: target file "
           + target + " is under construction");
@@ -1312,7 +1313,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     }
 
     si.add(trgInode);
-    short repl = trgInode.getReplication();
+    short repl = trgInode.getBlockReplication();
 
     // now check the srcs
     boolean endSrc = false; // final src file doesn't have to have full end block
@@ -1321,7 +1322,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       if(i==srcs.length-1)
         endSrc=true;
 
-      final INodeFile srcInode = dir.getFileINode(src);
+      final INodeFile srcInode = INodeFile.valueOf(dir.getINode4Write(src), src);
       if(src.isEmpty() 
           || srcInode.isUnderConstruction()
           || srcInode.blocks.length == 0) {
@@ -1330,11 +1331,11 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       }
 
       // check replication and blocks size
-      if(repl != srcInode.getReplication()) {
+      if(repl != srcInode.getBlockReplication()) {
         throw new IllegalArgumentException("concat: the source file "
             + src + " and the target file " + target
             + " should have the same replication: source replication is "
-            + srcInode.getReplication()
+            + srcInode.getBlockReplication()
             + " but target replication is " + repl);
       }
 

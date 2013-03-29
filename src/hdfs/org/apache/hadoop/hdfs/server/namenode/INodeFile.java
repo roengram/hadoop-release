@@ -89,7 +89,7 @@ public class INodeFile extends INode {
 
   protected long header = 0L;
 
-  private BlockInfo blocks[] = null;
+  BlockInfo blocks[] = null;
   
   INodeFile(byte[] name, PermissionStatus permissions, long mtime, long atime,
       BlockInfo[] blklist, short replication, long preferredBlockSize) {
@@ -364,7 +364,6 @@ public class INodeFile extends INode {
       }
     }
   }
-<<<<<<< HEAD
 
   private void computeContentSummary4Current(final Content.Counts counts) {
     if (this instanceof FileWithSnapshot
@@ -386,17 +385,6 @@ public class INodeFile extends INode {
       final FileDiff d = ((FileWithSnapshot)this).getDiffs().getDiff(snapshot);
       if (d != null) {
         return d.getFileSize();
-=======
-  
-  long diskspaceConsumed(Block[] blkArr) {
-    long size = 0;
-    if(blkArr == null) 
-      return 0;
-    
-    for (Block blk : blkArr) {
-      if (blk != null) {
-        size += blk.getNumBytes();
->>>>>>> c5bb818... HDFS-4256 Backport concatenation of files into a single file to branch-1 (sanjay Radia)
       }
     }
 

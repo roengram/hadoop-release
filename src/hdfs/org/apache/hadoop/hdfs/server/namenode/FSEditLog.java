@@ -820,11 +820,11 @@ public class FSEditLog {
             throw new IOException("Incorrect data format. " 
                                   + "ConcatDelete operation.");
           }
-          String trg = FSImage.readString(in);
+          String trg = FSImageSerialization.readString(in);
           int srcSize = length - 1 - 1; //trg and timestamp
           String [] srcs = new String [srcSize];
           for(int i=0; i<srcSize;i++) {
-            srcs[i]= FSImage.readString(in);
+            srcs[i]= FSImageSerialization.readString(in);
           }
           timestamp = readLong(in);
           fsDir.unprotectedConcat(trg, srcs, timestamp);
