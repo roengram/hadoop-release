@@ -261,6 +261,12 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
                 && this == parent.getChild(getLocalNameBytes(), latest)));
   }
 
+  /** Cast this inode to an {@link INodeFile}.  */
+  public INodeFile asFile() {
+    throw new IllegalStateException("Current inode is not a file: "
+        + this.toDetailString());
+  }
+
   /**
    * This inode is being modified.  The previous version of the inode needs to
    * be recorded in the latest snapshot.
@@ -361,6 +367,12 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
   public abstract int destroyAndCollectBlocks(
       BlocksMapUpdateInfo collectedBlocks);
 
+  /** Cast this inode to an {@link INodeDirectory}.  */
+  public INodeDirectory asDirectory() {
+    throw new IllegalStateException("Current inode is not a directory: "
+        + this.toDetailString());
+  }
+
   /**
    * The content types such as file, directory and symlink to be computed
    * in {@link INode#computeContentSummary(CountsMap)}.
@@ -459,7 +471,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
     return -1;
   }
   
-  final boolean isQuotaSet() {
+  public final boolean isQuotaSet() {
     return getNsQuota() >= 0 || getDsQuota() >= 0;
   }
   
@@ -639,13 +651,6 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
     final INode nodeToUpdate = recordModification(latest);
     nodeToUpdate.setAccessTime(accessTime);
     return nodeToUpdate;
-  }
-
-  /**
-   * Is this inode being constructed?
-   */
-  boolean isUnderConstruction() {
-    return false;
   }
 
   /**

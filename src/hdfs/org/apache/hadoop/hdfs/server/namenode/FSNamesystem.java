@@ -140,8 +140,6 @@ import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.VersionInfo;
 import org.mortbay.util.ajax.JSON;
 
-import sun.security.provider.PolicyParser.PermissionEntry;
-
 /***************************************************
  * FSNamesystem does the actual bookkeeping work for the
  * DataNode.
@@ -1443,9 +1441,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     return status;
   }
 
-  private boolean setReplicationInternal(String src,
-                                             short replication
-                                             ) throws IOException {
+  private boolean setReplicationInternal(String src, short replication)
+      throws IOException {
     FSPermissionChecker pc = getPermissionChecker();
     synchronized (this) {
       if (isInSafeMode())
@@ -1456,31 +1453,31 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
         checkPathAccess(pc, src, FsAction.WRITE);
       }
 
-      int[] oldReplication = new int[1];
-      Block[] fileBlocks;
-      fileBlocks = dir.setReplication(src, replication, oldReplication);
-      if (fileBlocks == null) // file not found or is a directory
+      final short[] blockRepls = new short[2]; // 0: old, 1: new
+      final Block[] blocks = dir.setReplication(src, replication, blockRepls);
+      if (blocks == null)  // file not found or is a directory
         return false;
-      int oldRepl = oldReplication[0];
-      if (oldRepl == replication) // the same replication
+      short oldRepl = blockRepls[0];
+      short newRepl = blockRepls[1];
+      if (oldRepl == newRepl) // the same replication
         return true;
 
       // update needReplication priority queues
-      for(int idx = 0; idx < fileBlocks.length; idx++)
-        updateNeededReplications(fileBlocks[idx], 0, replication - oldRepl);
-
-      if (oldRepl > replication) {
+      for(int idx = 0; idx < blocks.length; idx++)
+        updateNeededReplications(blocks[idx], 0, newRepl-oldRepl);
+        
+      if (oldRepl > newRepl) {  
         // old replication > the new one; need to remove copies
         LOG.info("Reducing replication for " + src 
-            + ". New replication is " + replication);
-        for (int idx = 0; idx < fileBlocks.length; idx++)
-          processOverReplicatedBlock(fileBlocks[idx], replication, null, null);
+                 + ". New replication is " + newRepl);
+        for(int idx = 0; idx < blocks.length; idx++)
+          processOverReplicatedBlock(blocks[idx], newRepl, null, null);
       } else { // replication factor is increased
-        LOG.info("Increasing replication for " + src
-            + ". New replication is " + replication);
+        LOG.info("Increasing replication for " + src 
+            + ". New replication is " + newRepl);
       }
+      return true;
     }
-    return true;
   }
     
   long getPreferredBlockSize(String filename) throws IOException {
@@ -1583,10 +1580,11 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
 
     // Verify that the destination does not exist as a directory already.
     final INodesInPath iip = dir.getINodesInPath4Write(src);
-    final INode myFile = iip.getLastINode();
-    if (myFile != null && myFile.isDirectory()) {
+    final INode inode = iip.getLastINode();
+    if (inode != null && inode.isDirectory()) {
       throw new IOException("Cannot create "+ src + "; already exists as a directory");
     }
+    INodeFile myFile = INodeFile.valueOf(inode, src, true);
 
     if (isPermissionEnabled) {
       if (append || (overwrite && myFile != null)) {
@@ -1635,12 +1633,11 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
         // Replace current node with a INodeUnderConstruction.
         // Recreate in-memory lease record.
         //
-        INodeFile node = (INodeFile) myFile;
         Snapshot latestSnapshot = iip.getLatestSnapshot();
-        node = node.recordModification(latestSnapshot);
-        final INodeFileUnderConstruction cons = node.toUnderConstruction(
+        myFile = myFile.recordModification(latestSnapshot);
+        final INodeFileUnderConstruction cons = myFile.toUnderConstruction(
             holder, clientMachine, clientNode);
-        dir.unprotectedReplaceINodeFile(src, node, cons);
+        dir.unprotectedReplaceINodeFile(src, myFile, cons);
         leaseManager.addLease(cons.clientName, src);
 
       } else {
@@ -1710,7 +1707,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     return false;
   }
   
-  private void recoverLeaseInternal(INode fileInode, 
+  private void recoverLeaseInternal(INodeFile fileInode, 
       String src, String holder, String clientMachine, boolean force)
   throws IOException {
     if (fileInode != null && fileInode.isUnderConstruction()) {
@@ -1767,7 +1764,6 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
             " on " + pendingFile.getClientMachine());
       }
     }
-
   }
   
   /**
@@ -1989,10 +1985,9 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     return (INodeFileUnderConstruction)file;
   }
 
-  private void checkLease(String src, String holder, INode file) 
-                                                     throws IOException {
-
-    if (file == null || file.isDirectory()) {
+  private void checkLease(String src, String holder, INode inode)
+      throws IOException {
+    if (inode == null || !inode.isFile()) {
       Lease lease = leaseManager.getLease(holder);
       throw new LeaseExpiredException("No lease on " + src +
                                       " File does not exist. " +
@@ -2000,6 +1995,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
                                        "Holder " + holder + 
                                        " does not have any open files"));
     }
+    final INodeFile file = inode.asFile();
     if (!file.isUnderConstruction()) {
       Lease lease = leaseManager.getLease(holder);
       throw new LeaseExpiredException("No lease on " + src + 
@@ -2090,17 +2086,17 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    * Allocate a block at the given pending filename
    * 
    * @param src path to the file
-   * @param inodesInPath representing each of the components of src. 
+   * @param iip representing each of the components of src. 
    *                     The last INode is the INode for the file.
    */
-  private Block allocateBlock(String src, INodesInPath inodesInPath)
+  private Block allocateBlock(String src, INodesInPath iip)
       throws IOException {
     Block b = new Block(FSNamesystem.randBlockId.nextLong(), 0, 0); 
     while(isValidBlock(b)) {
       b.setBlockId(FSNamesystem.randBlockId.nextLong());
     }
     b.setGenerationStamp(getGenerationStamp());
-    b = dir.addBlock(src, inodesInPath, b);
+    b = dir.addBlock(src, iip, b);
     NameNode.stateChangeLog.info("BLOCK* allocateBlock: "
                                  +src+ ". "+b);
     return b;
@@ -4878,7 +4874,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       NumberReplicas num) {
     int curReplicas = num.liveReplicas();
     int curExpectedReplicas = getReplication(block);
-    INode fileINode = blocksMap.getINode(block);
+    INodeFile fileINode = blocksMap.getINode(block);
     Iterator<DatanodeDescriptor> nodeIter = blocksMap.nodeIterator(block);
     StringBuffer nodeList = new StringBuffer();
     while (nodeIter.hasNext()) {
@@ -4910,7 +4906,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
 
     for(final Iterator<Block> i = srcNode.getBlockIterator(); i.hasNext(); ) {
       final Block block = i.next();
-      INode fileINode = blocksMap.getINode(block);
+      INodeFile fileINode = blocksMap.getINode(block);
 
       if (fileINode != null) {
         NumberReplicas num = countNodes(block);

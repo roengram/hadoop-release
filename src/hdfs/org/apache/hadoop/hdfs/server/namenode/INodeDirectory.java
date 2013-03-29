@@ -53,7 +53,7 @@ public class INodeDirectory extends INode {
       throw new FileNotFoundException("Is not a directory: "
           + DFSUtil.path2String(path));
     }
-    return (INodeDirectory)inode; 
+    return inode.asDirectory(); 
   }
 
   protected static final int DEFAULT_FILES_PER_DIRECTORY = 5;
@@ -101,6 +101,12 @@ public class INodeDirectory extends INode {
           + DFSUtil.bytes2String(name));
     }
     return i;
+  }
+
+  /** @return this object. */
+  @Override
+  public final INodeDirectory asDirectory() {
+    return this;
   }
 
   /** Is this a snapshottable directory? */
@@ -391,21 +397,22 @@ public class INodeDirectory extends INode {
       if (index >= 0) {
         existing.addNode(curNode);
       }
-      if (curNode instanceof INodeDirectoryWithSnapshot) {
+      final boolean isDir = curNode.isDirectory();
+      final INodeDirectory dir = isDir? curNode.asDirectory(): null;  
+      if (isDir && dir instanceof INodeDirectoryWithSnapshot) {
         //if the path is a non-snapshot path, update the latest snapshot.
         if (!existing.isSnapshot()) {
           existing.updateLatestSnapshot(
-              ((INodeDirectoryWithSnapshot)curNode).getLastSnapshot());
+              ((INodeDirectoryWithSnapshot)dir).getLastSnapshot());
         }
       }
-      if (!curNode.isDirectory() || (count == components.length - 1))
+      if (!isDir || (count == components.length - 1))
         break; // no more child, stop here
-      final INodeDirectory parentDir = (INodeDirectory)curNode;
       final byte[] childName = components[count + 1];
       
       // check if the next byte[] in components is for ".snapshot"
       if (isDotSnapshotDir(childName)
-          && (curNode instanceof INodeDirectorySnapshottable)) {
+          && isDir && dir instanceof INodeDirectorySnapshottable) {
         // skip the ".snapshot" in components
         count++;
         index++;
@@ -418,8 +425,8 @@ public class INodeDirectory extends INode {
           break;
         }
         // Resolve snapshot root
-        final Snapshot s = ((INodeDirectorySnapshottable) parentDir)
-            .getSnapshot(components[count + 1]);
+        final Snapshot s = ((INodeDirectorySnapshottable) dir).getSnapshot(
+            components[count + 1]);
         if (s == null) {
           // snapshot not found
           curNode = null;
@@ -432,7 +439,7 @@ public class INodeDirectory extends INode {
         }
       } else {
         // normal case, and also for resolving file/dir under snapshot root
-        curNode = parentDir.getChild(childName, existing.getPathSnapshot());
+        curNode = dir.getChild(childName, existing.getPathSnapshot());
       }
       count += 1;
       index += 1;
@@ -724,9 +731,7 @@ public class INodeDirectory extends INode {
     INode[] getINodes() {
       if (capacity < inodes.length) {
         INode[] newNodes = new INode[capacity];
-        for (int i = 0; i < capacity; i++) {
-          newNodes[i] = inodes[i];
-        }
+        System.arraycopy(inodes, 0, newNodes, 0, capacity);
         inodes = newNodes;
       }
       return inodes;

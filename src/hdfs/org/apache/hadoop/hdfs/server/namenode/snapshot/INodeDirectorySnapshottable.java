@@ -264,8 +264,8 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithSnapshot {
   private void computeDiffRecursively(INode node, 
       SnapshotDiffInfo diffReport) {
     ChildrenDiff diff = new ChildrenDiff();
-    if (node instanceof INodeDirectory) {
-      INodeDirectory dir = (INodeDirectory) node;
+    if (node.isDirectory()) {
+      INodeDirectory dir = node.asDirectory();
       if (dir instanceof INodeDirectoryWithSnapshot) {
         INodeDirectoryWithSnapshot sdir = (INodeDirectoryWithSnapshot) dir;
         boolean change = sdir.computeDiffBetweenSnapshots(
@@ -282,8 +282,8 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithSnapshot {
           computeDiffRecursively(child, diffReport);
         }
       }
-    } else if (node instanceof FileWithSnapshot) {
-      FileWithSnapshot file = (FileWithSnapshot) node;
+    } else if (node.isFile() && node.asFile() instanceof FileWithSnapshot) {
+      FileWithSnapshot file = (FileWithSnapshot) node.asFile();
       Snapshot earlierSnapshot = diffReport.isFromEarlier() ? diffReport.from
           : diffReport.to;
       Snapshot laterSnapshot = diffReport.isFromEarlier() ? diffReport.to

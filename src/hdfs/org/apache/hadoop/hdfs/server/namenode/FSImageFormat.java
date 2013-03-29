@@ -282,7 +282,7 @@ public class FSImageFormat {
 
       if (child.isFile()) {
         // Add file->block mapping
-        final INodeFile file = (INodeFile)child;
+        final INodeFile file = child.asFile();
         final BlockInfo[] blocks = file.getBlocks();
         if (blocks != null) {
           for (int i = 0; i < blocks.length; i++) {
@@ -313,10 +313,10 @@ public class FSImageFormat {
       if (pathComponents.length < 2) { // root
         return null;
       }
-      // Gets the parent INode
-      final INodesInPath inodes = namesystem.dir.rootDir.getExistingPathINodes(
-          pathComponents, 2);
-      return INodeDirectory.valueOf(inodes.getINode(0), pathComponents);
+      // Get the parent INode
+      final INodesInPath inodes = namesystem.dir.getExistingPathINodes(
+          pathComponents);
+      return INodeDirectory.valueOf(inodes.getINode(-2), pathComponents);
     }
     
     byte[][] getParent(byte[][] path) {
@@ -622,7 +622,7 @@ public class FSImageFormat {
         if(!child.isDirectory())
           continue;
         currentDirName.put(PATH_SEPARATOR).put(child.getLocalNameBytes());
-        saveImage(currentDirName, (INodeDirectory)child, out, snapshot);
+        saveImage(currentDirName, child.asDirectory(), out, snapshot);
         currentDirName.position(prefixLen);
       }
       if (snapshotDirMap != null) {

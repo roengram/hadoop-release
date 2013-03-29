@@ -99,11 +99,9 @@ public class INodeFileUnderConstruction extends INodeFile {
     return clientNode;
   }
 
-  /**
-   * Is this inode being constructed?
-   */
+  /** @return true unconditionally. */
   @Override
-  boolean isUnderConstruction() {
+  public final boolean isUnderConstruction() {
     return true;
   }
   

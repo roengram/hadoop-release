@@ -132,7 +132,7 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
       List<INodeDirectory> dirList = new ArrayList<INodeDirectory>();
       for (INode node : getDeletedList()) {
         if (node.isDirectory()) {
-          dirList.add((INodeDirectory) node);
+          dirList.add(node.asDirectory());
         }
       }
       return dirList;
@@ -353,7 +353,7 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
 
     @Override
     INodeDirectory createSnapshotCopy(INodeDirectory currentDir) {
-      final INodeDirectory copy = currentDir instanceof INodeDirectoryWithQuota?
+      final INodeDirectory copy = currentDir.isQuotaSet()?
           new INodeDirectoryWithQuota(currentDir, false,
               currentDir.getNsQuota(), currentDir.getDsQuota())
       : new INodeDirectory(currentDir, false);
