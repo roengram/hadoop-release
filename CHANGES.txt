@@ -425,6 +425,23 @@ Release 1.2.0 - unreleased
     MAPREDUCE-4850. Job recovery may fail if staging directory has been
     deleted. (tomwhite)
 
+    MAPREDUCE-4933. MR1 final merge asks for length of file it just wrote
+    before flushing it. (Sandy Ryza via bobby)
+
+    MAPREDUCE-4930. Backport MAPREDUCE-4678 and MAPREDUCE-4925 to branch-1.
+    (Karthik Kambatla and Chris McConnell via harsh)
+
+    MAPREDUCE-4924. flakey test: org.apache.hadoop.mapred.TestClusterMRNotification.testMR. 
+    (rkanter via tucu)
+
+    MAPREDUCE-4315. jobhistory.jsp throws 500 when a .txt file is found in /done. 
+    (sandyr via tucu)
+
+    MAPREDUCE-4923. Add toString method to TaggedInputSplit. (sandyr via tucu)
+
+    HADOOP-8580. ant compile-native fails with automake version 1.11.3.
+    (Gera Shegalov via suresh)
+
 Release 1.1.2 - Unreleased
 
   INCOMPATIBLE CHANGES
