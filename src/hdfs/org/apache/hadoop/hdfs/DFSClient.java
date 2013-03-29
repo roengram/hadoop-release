@@ -1016,7 +1016,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       throw re.unwrapRemoteException(AccessControlException.class);
     }
   }
-
+  
   /**
    * Rename file or directory.
    * See {@link ClientProtocol#rename(String, String)}. 
