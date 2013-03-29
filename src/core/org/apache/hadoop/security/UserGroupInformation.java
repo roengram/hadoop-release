@@ -69,6 +69,7 @@ public class UserGroupInformation {
    */
   private static final float TICKET_RENEW_WINDOW = 0.80f;
   static final String HADOOP_USER_NAME = "HADOOP_USER_NAME";
+  static final String HADOOP_PROXY_USER = "HADOOP_PROXY_USER";
   
   /**
    * A login module that looks at the Kerberos, Unix, or Windows principal and
@@ -252,16 +253,20 @@ public class UserGroupInformation {
   
   private static String OS_LOGIN_MODULE_NAME;
   private static Class<? extends Principal> OS_PRINCIPAL_CLASS;
-  private static final boolean windows = 
-                           System.getProperty("os.name").startsWith("Windows");
+  private static final boolean windows =
+      System.getProperty("os.name").startsWith("Windows");
+  private static final boolean is64Bit =
+      System.getProperty("os.arch").contains("64");
   private static Thread renewerThread = null;
   private static volatile boolean shouldRunRenewerThread = true;
   
   /* Return the OS login module class name */
   private static String getOSLoginModuleName() {
     if (System.getProperty("java.vendor").contains("IBM")) {
-      return windows ? "com.ibm.security.auth.module.NTLoginModule"
-       : "com.ibm.security.auth.module.LinuxLoginModule";    
+      return windows ? (is64Bit
+          ? "com.ibm.security.auth.module.Win64LoginModule"
+          : "com.ibm.security.auth.module.NTLoginModule")
+        : "com.ibm.security.auth.module.LinuxLoginModule";
     } else {
       return windows ? "com.sun.security.auth.module.NTLoginModule"
         : "com.sun.security.auth.module.UnixLoginModule";
@@ -275,13 +280,13 @@ public class UserGroupInformation {
     try {
       if (System.getProperty("java.vendor").contains("IBM")) {
         if (windows) {
-          return (Class<? extends Principal>)
-            cl.loadClass("com.ibm.security.auth.UsernamePrincipal");
+          return (Class<? extends Principal>) (is64Bit
+            ? cl.loadClass("com.ibm.security.auth.UsernamePrincipal")
+            : cl.loadClass("com.ibm.security.auth.NTUserPrincipal"));
         } else {
-          return (Class<? extends Principal>)
-            (System.getProperty("os.arch").contains("64")
-             ? cl.loadClass("com.ibm.security.auth.UsernamePrincipal")
-             : cl.loadClass("com.ibm.security.auth.LinuxPrincipal"));
+          return (Class<? extends Principal>) (is64Bit
+            ? cl.loadClass("com.ibm.security.auth.UsernamePrincipal")
+            : cl.loadClass("com.ibm.security.auth.LinuxPrincipal"));
         }
       } else {
         return (Class<? extends Principal>) (windows
@@ -480,12 +485,20 @@ public class UserGroupInformation {
           login = newLoginContext(HadoopConfiguration.SIMPLE_CONFIG_NAME, subject);
         }
         login.login();
-        loginUser = new UserGroupInformation(subject);
-        loginUser.setLogin(login);
-        loginUser.setAuthenticationMethod(isSecurityEnabled() ?
+        UserGroupInformation realUser = new UserGroupInformation(subject);
+        realUser.setLogin(login);
+        realUser.setAuthenticationMethod(isSecurityEnabled() ?
                                           AuthenticationMethod.KERBEROS :
                                           AuthenticationMethod.SIMPLE);
-        loginUser = new UserGroupInformation(login.getSubject());
+        realUser = new UserGroupInformation(login.getSubject());
+        // If the HADOOP_PROXY_USER environment variable or property
+        // is specified, create a proxy user as the logged in user.
+        String proxyUser = System.getenv(HADOOP_PROXY_USER);
+        if (proxyUser == null) {
+          proxyUser = System.getProperty(HADOOP_PROXY_USER);
+        }
+        loginUser = proxyUser == null ? realUser : createProxyUser(proxyUser, realUser);
+
         String fileLocation = System.getenv(HADOOP_TOKEN_FILE_LOCATION);
         if (fileLocation != null && isSecurityEnabled()) {
           // load the token storage file and put all of the tokens into the

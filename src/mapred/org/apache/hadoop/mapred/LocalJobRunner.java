@@ -122,6 +122,8 @@ class LocalJobRunner implements JobSubmissionProtocol {
         trackerDistributedCacheManager.newTaskDistributedCacheManager(
             jobid, conf);
       taskDistributedCacheManager.setupCache(conf, "archive", "archive");
+      // Localize private distributed cache
+      JobLocalizer.downloadPrivateCache(conf);
       
       if (DistributedCache.getSymlink(conf)) {
         // This is not supported largely because,
@@ -425,8 +427,12 @@ class LocalJobRunner implements JobSubmissionProtocol {
   // JobSubmissionProtocol methods
 
   private static int jobid = 0;
+  // used for making sure that local jobs run in different jvms don't
+  // collide on staging or job directories
+  private int randid;
+
   public synchronized JobID getNewJobId() {
-    return new JobID("local", ++jobid);
+    return new JobID("local" + randid, ++jobid);
   }
 
   public JobStatus submitJob(JobID jobid, String jobSubmitDir, 
@@ -539,10 +545,11 @@ class LocalJobRunner implements JobSubmissionProtocol {
         "/tmp/hadoop/mapred/staging"));
     UserGroupInformation ugi = UserGroupInformation.getCurrentUser();
     String user;
+    randid = rand.nextInt(Integer.MAX_VALUE);
     if (ugi != null) {
-      user = ugi.getShortUserName() + rand.nextInt();
+      user = ugi.getShortUserName() + randid;
     } else {
-      user = "dummy" + rand.nextInt();
+      user = "dummy" + randid;
     }
     return fs.makeQualified(new Path(stagingRootDir, user+"/.staging")).toString();
   }

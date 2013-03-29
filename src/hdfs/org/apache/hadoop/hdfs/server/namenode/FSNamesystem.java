@@ -536,9 +536,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
               DFSUtil.getInvalidateWorkPctPerIteration(conf);
 
     this.blocksReplWorkMultiplier = DFSUtil.getReplWorkMultiplier(conf);
-    this.clusterMap = (NetworkTopology) ReflectionUtils.newInstance(
-        conf.getClass("net.topology.impl", NetworkTopology.class,
-            NetworkTopology.class), conf);
+    this.clusterMap = NetworkTopology.getInstance(conf);
 
     this.maxCorruptFilesReturned = conf.getInt(
         DFSConfigKeys.DFS_MAX_CORRUPT_FILES_RETURNED_KEY,

@@ -91,6 +91,8 @@ import org.apache.hadoop.security.token.SecretManager.InvalidToken;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.util.ServicePlugin;
 import org.apache.hadoop.util.StringUtils;
+import org.apache.hadoop.security.authorize.PolicyProvider;
+import org.apache.hadoop.util.ReflectionUtils;
 
 /**********************************************************
  * NameNode serves as both directory namespace manager and
@@ -234,7 +236,11 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
   }
 
   public static InetSocketAddress getAddress(Configuration conf) {
-    return getAddress(FileSystem.getDefaultUri(conf).toString());
+    String addr = conf.get(DFSConfigKeys.DFS_NAMENODE_RPC_ADDRESS_KEY);
+    if (addr == null || addr.isEmpty()) {
+      return getAddress(FileSystem.getDefaultUri(conf).toString());
+    }
+    return getAddress(addr);
   }
 
   public static URI getUri(InetSocketAddress namenode) {
@@ -278,7 +284,12 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
     if (serviceAuthEnabled = 
           conf.getBoolean(
             ServiceAuthorizationManager.SERVICE_AUTHORIZATION_CONFIG, false)) {
-      ServiceAuthorizationManager.refresh(conf, new HDFSPolicyProvider());
+      PolicyProvider policyProvider = 
+          (PolicyProvider)(ReflectionUtils.newInstance(
+              conf.getClass(PolicyProvider.POLICY_PROVIDER_CONFIG, 
+                  HDFSPolicyProvider.class, PolicyProvider.class), 
+              conf));
+        ServiceAuthorizationManager.refresh(conf, policyProvider);
     }
     
     myMetrics = NameNodeInstrumentation.create(conf);

@@ -6,6 +6,15 @@ Release 1.2.0 - unreleased
 
   NEW FEATURES
 
+    MAPREUDCE-4397. Introduce HADOOP_SECURITY_CONF_DIR for task-controller.
+    (Yu Gao via llu)
+
+    MAPREDUCE-4660. Update task placement policy for network topology
+    with node group. (Junping Du via llu)
+
+    HADOOP-8561. Introduce HADOOP_PROXY_USER for secure impersonation in child
+    hadoop client processes. (Yu Gao via llu)
+
     HADOOP-8023. Add unset() method to Configuration (tucu)
 
     MAPREDUCE-4355. Add RunningJob.getJobStatus() (kkambatl via tucu)
@@ -41,6 +50,16 @@ Release 1.2.0 - unreleased
 
     HDFS-4219. Backport slive to branch-1. (Backported by Arpit Gupta via
     suresh)
+
+    HADOOP-9090. Support on-demand publish of metrics. (Mostafa Elhemali via
+    suresh)
+
+    HADOOP-7096. Allow setting of end-of-record delimiter for TextInputFormat
+    (Ahmed Radwan, backported by suresh)
+
+    HDFS-3942. Backport HDFS-3495 and HDFS-4234: Update Balancer to support new
+    NetworkTopology with NodeGroup and use generic code for choosing datanode
+    in Balancer.  (Junping Du via szetszwo)
 
   IMPROVEMENTS
 
@@ -124,6 +143,20 @@ Release 1.2.0 - unreleased
     HDFS-4122. Cleanup HDFS logs and reduce the size of logged messages.
     (suresh)
 
+    HADOOP-9098. Add missing license headers. (Arpit Agarwal via suresh)
+
+    MAPREDUCE-4703. Add the ability to start the MiniMRClientCluster using the 
+    configurations used before it is being stopped. (ahmed.radwan via tucu)
+
+    MAPREDUCE-4845. ClusterStatus.getMaxMemory() and getUsedMemory() exist in
+    MR1 but not MR2. (Sandy Ryza via tomwhite)
+
+    HDFS-4320. Add a separate configuration for namenode rpc address instead
+    of using fs.default.name. (Mostafa Elhemali via suresh)
+
+    MAPREDUCE-4907. TrackerDistributedCacheManager issues too many 
+    getFileStatus calls. (sandyr via tucu)
+
   OPTIMIZATIONS
 
     HDFS-2533. Backport: Remove needless synchronization on some FSDataSet
@@ -133,6 +166,25 @@ Release 1.2.0 - unreleased
     (Backport of HADOOP-8926) (Gopal V via suresh)
 
   BUG FIXES
+
+    HADOOP-8419. Fixed GzipCode NPE reset for IBM JDK. (Yu Li via eyang)
+
+    MAPREDUCE-4904. OTHER_LOCAL_MAPS counter is not correct.
+    (Junping Du via llu)
+
+    MAPREDUCE-4272. SortedRanges.Range#compareTo is not spec compliant.
+    (Yu Gao via llu)
+
+    HADOOP-9051 Fix ant clean/test with circular symlinks in build dir. (llu)
+
+    MAPREDUCE-4396. Port support private distributed cache to 
+    LocalJobRunner from branch-1-win. (Yu Gao via eyang)
+
+    MAPREDUCE-4798. Updated TestJobHistoryServer test case for startup
+    race conditions.  (Sam Liu via eyang)
+
+    HADOOP-8418. Update UGI Principal classes name for running with
+    IBM JDK on 64 bits Windows.  (Yu Gao via eyang)
 
     HADOOP-8460. Document proper setting of HADOOP_PID_DIR and
     HADOOP_SECURE_DN_PID_DIR (bobby)
@@ -316,6 +368,59 @@ Release 1.2.0 - unreleased
     MAPREDUCE-4778. Fair scheduler event log is only written if directory
     exists on HDFS. (Sandy Ryza via tomwhite)
 
+    HADOOP-8164. Handle paths using back slash as path separator for windows
+    only. (Daryn Sharp, backported by Jing Zhao via suresh)
+
+    MAPREDUCE-4860. DelegationTokenRenewal attempts to renew token even after
+    a job is removed. (kkambatl via tucu)
+
+    MAPREDUCE-4806. Some private methods in JobTracker.RecoveryManager are not
+    used anymore after MAPREDUCE-3837. (Karthik Kambatla via tomwhite)
+
+    HDFS-4337. Backport HDFS-4240: For nodegroup-aware block placement, when a
+    node is excluded, the nodes in the same nodegroup should also be excluded.
+    (Meng Gong via szetszwo)
+
+    HADOOP-9174. TestSecurityUtil fails with Open JDK 7. (Arpit Agarwal via
+    suresh)
+
+    HADOOP-9175. TestWritableName fails with Open JDK 7. (Arpit Agarwal via
+    suresh)
+
+    MAPREDUCE-2217. The expire launching task should cover the UNASSIGNED task. 
+    (schen and kkambatl via tucu)
+
+    MAPREDUCE-4909. TestKeyValueTextInputFormat fails with Open JDK 7 on
+    Windows. (Arpit Agarwal via suresh)
+
+    HDFS-4355. TestNameNodeMetrics.testCorruptBlock fails with open JDK7.
+    (Brandon Li via suresh)
+
+    HDFS-4358. TestCheckpoint failure with JDK7. (Arpit Agarwal via suresh)
+
+    HADOOP-9179. TestFileSystem fails with open JDK7. (Brandon Li via suresh)
+
+    MAPREDUCE-4916. Fix flaxy test TestTrackerDistributedCacheManager. (Xuan
+    Gong via acmurthy) 
+
+    MAPREDUCE-4914. TestMiniMRDFSSort fails with openJDK7. (Brandon Li via
+    suresh)
+
+    MAPREDUCE-4915. TestShuffleExceptionCount fails with open JDK7.
+    (Brandon Li via suresh)
+
+    HDFS-4351.  In BlockPlacementPolicyDefault.chooseTarget(..), numOfReplicas
+    needs to be updated when avoiding stale nodes.  (Andrew Wang via szetszwo)
+
+    MAPREDUCE-4278. Cannot run two local jobs in parallel from the same
+    gateway. (Sandy Ryza via tomwhite)
+
+    HADOOP-9191. TestAccessControlList and TestJobHistoryConfig fail with
+    JDK7. (Arpit Agarwal via suresh)
+
+    MAPREDUCE-4850. Job recovery may fail if staging directory has been
+    deleted. (tomwhite)
+
 Release 1.1.2 - Unreleased
 
   INCOMPATIBLE CHANGES
@@ -353,6 +458,22 @@ Release 1.1.2 - Unreleased
 
     MAPREDUCE-4478. Fixed a bug in TaskTracker's heartbeat to keep it under
     control. (Liyin Liang via vinodkv)
+
+    MAPREDUCE-4696. Fixed a failing unit test - TestMRServerPorts
+    (Gopal V via sseth)
+
+    MAPREDUCE-4697. Fixed a failing unit test - TestMapredHeartbeat.
+    (Gopal V via sseth)
+
+    MAPREDUCE-4699. Fixed unit test failures - TestFairScheduler and 
+    TestCapacityScheduler. (Gopal V via sseth)
+
+    MAPREDUCE-4858. Fixed TestWebUIAuthorization. (acmurthy) 
+
+    MAPREDUCE-4859. Fixed TestRecoveryManager. (acmurthy) 
+
+    MAPREDUCE-4888. Fixed NLineInputFormat one-off error which dropped data.
+    (vinodkv via acmurthy) 
 
 Release 1.1.1 - 2012.11.18
 
