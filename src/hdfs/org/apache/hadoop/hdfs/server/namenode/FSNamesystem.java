@@ -5687,7 +5687,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     return getEditLog().getEditLogSize();
   }
 
-  synchronized CheckpointSignature rollEditLog() throws IOException {
+  CheckpointSignature rollEditLog() throws IOException {
     checkSuperuserPrivilege();
     synchronized (this) {
       if (isInSafeMode()) {
@@ -6454,6 +6454,10 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
                 roundBytesToGBytes(getCapacityUsed()))
       .addGauge("CapacityRemainingGB", "",
                 roundBytesToGBytes(getCapacityRemaining()))
+      .addGauge("CapacityTotal", "", getCapacityTotal())
+      .addGauge("CapacityUsed", "", getCapacityUsed())
+      .addGauge("CapacityRemaining", "", getCapacityRemaining())
+      .addGauge("CapacityUsedNonDFS", "", getNonDfsUsedSpace())
       .addGauge("TotalLoad", "", getTotalLoad())
       .addGauge("CorruptBlocks", "", getCorruptReplicaBlocks())
       .addGauge("ExcessBlocks", "", getExcessBlocks())
