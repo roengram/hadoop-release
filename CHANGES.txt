@@ -4,10 +4,10 @@ Release 1.2.0 - unreleased
 
   INCOMPATIBLE CHANGES
 
-  NEW FEATURES
+    HDFS-4350. Make enabling of stale marking on read and write paths
+    independent. (Andrew Wang via suresh)
 
-    MAPREUDCE-4397. Introduce HADOOP_SECURITY_CONF_DIR for task-controller.
-    (Yu Gao via llu)
+  NEW FEATURES
 
     MAPREDUCE-4660. Update task placement policy for network topology
     with node group. (Junping Du via llu)
@@ -60,7 +60,6 @@ Release 1.2.0 - unreleased
     HDFS-3942. Backport HDFS-3495 and HDFS-4234: Update Balancer to support new
     NetworkTopology with NodeGroup and use generic code for choosing datanode
     in Balancer.  (Junping Du via szetszwo)
-
 
     HDFS-4256 Backport concatenation of files into a single file to branch-1
     (sanjay Radia)
@@ -160,6 +159,17 @@ Release 1.2.0 - unreleased
 
     MAPREDUCE-4907. TrackerDistributedCacheManager issues too many 
     getFileStatus calls. (sandyr via tucu)
+    
+    MAPREDUCE-2931. LocalJobRunner should support parallel mapper execution.
+    (Sandy Ryza via tomwhite)
+
+    MAPREDUCE-4837. Add webservices for Jobtracker. (Arun C Murthy via hitesh)
+
+    MAPREDUCE-4838. Add additional fields like Locality, Avataar to the 
+    JobHistory logs. (Arun C Murthy and Zhijie Shen via sseth)
+
+    HADOOP-9253. Capture ulimit info in the logs at service start time.
+    (Arpit Gupta via suresh)
 
   OPTIMIZATIONS
 
@@ -441,6 +451,47 @@ Release 1.2.0 - unreleased
 
     HADOOP-8580. ant compile-native fails with automake version 1.11.3.
     (Gera Shegalov via suresh)
+    
+    MAPREDUCE-4929. mapreduce.task.timeout is ignored.
+    (Sandy Ryza via tomwhite)
+
+    MAPREDUCE-2264. Job status exceeds 100% in some cases. 
+    (devaraj.k & sandyr via tucu)
+
+    MAPREDUCE-4963. StatisticsCollector improperly keeps track of "Last Day" 
+    and "Last Hour" statistics for new TaskTrackers. (rkanter via tucu)
+
+    MAPREDUCE-4962. jobdetails.jsp uses display name instead of real name 
+    to get counters. (sandyr via tucu)
+
+    HDFS-4444. Add space between total transaction time and number of
+    transactions in FSEditLog#printStatistics. (Stephen Chu via suresh)
+
+    MAPREDUCE-4969. TestKeyValueTextInputFormat test fails with Open JDK 7.
+    (Arpit Agarwal via suresh)
+
+    MAPREDUCE-4843. When using DefaultTaskController, JobLocalizer not thread 
+    safe. (kkambatl via tucu)
+
+    MAPREDUCE-4967. TestJvmReuse fails on assertion. (kkambatl via tucu)
+
+    MAPREDUCE-4434. Backport MR-2779 (JobSplitWriter.java can't handle large 
+    job.split file) to branch-1. (kkambatl via tucu)
+
+    MAPREDUCE-4970. Child tasks (try to) create security audit log files.
+    (sandyr via tucu)
+
+    HADOOP-9124. SortedMapWritable violates contract of Map interface for
+    equals() and hashCode(). (Surenkumar Nihalani via tomwhite)
+
+    MAPREDUCE-4643. Make job-history cleanup-period configurable. 
+    (sandyr via tucu)
+
+    HDFS-4466. Remove the deadlock from AbstractDelegationTokenSecretManager.
+    (Brandon Li via suresh)
+
+    HADOOP-9154. SortedMapWritable#putAll() doesn't add key/value classes to
+    the map. (Karthik Kambatla via tomwhite)
 
 Release 1.1.2 - Unreleased
 
@@ -449,6 +500,9 @@ Release 1.1.2 - Unreleased
   NEW FEATURES
 
   IMPROVEMENTS
+
+    MAPREDUCE-4397. Introduce HADOOP_SECURITY_CONF_DIR for task-controller.
+    (Yu Gao via llu)
 
     HDFS-4252. Improve confusing log message that prints exception when editlog 
     read is completed. (Jing Zhao via suresh)
@@ -495,6 +549,9 @@ Release 1.1.2 - Unreleased
 
     MAPREDUCE-4888. Fixed NLineInputFormat one-off error which dropped data.
     (vinodkv via acmurthy) 
+
+    HDFS-4423. Checkpoint exception may cause fatal damage to fsimage.
+    (Chris Nauroth via szetszwo)
 
 Release 1.1.1 - 2012.11.18
 

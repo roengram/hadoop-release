@@ -15,29 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hadoop.hdfs.server.namenode;
 
-/** 
- * This interface is used for retrieving the load related statistics of 
- * the cluster.
- */
-public interface FSClusterStats {
+package org.apache.hadoop.mapred;
 
-  /**
-   * an indication of the total load of the cluster.
-   * 
-   * @return a count of the total number of block transfers and block
-   *         writes that are currently occuring on the cluster.
-   */
-  public int getTotalLoad();
-
-  /**
-   * Indicate whether or not the cluster is now avoiding to use stale DataNodes
-   * for writing.
-   * 
-   * @return True if the cluster is currently avoiding using stale DataNodes for
-   *         writing targets, and false otherwise.
-   */
-  public boolean shouldAvoidStaleDataNodesForWrite();
+enum Locality {
+  NODE_LOCAL,
+  GROUP_LOCAL,
+  RACK_LOCAL,
+  OFF_SWITCH
 }
-    
