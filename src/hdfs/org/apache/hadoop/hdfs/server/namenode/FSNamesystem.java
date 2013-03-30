@@ -74,6 +74,7 @@ import org.apache.hadoop.hdfs.protocol.ClientProtocol;
 import org.apache.hadoop.hdfs.protocol.DatanodeID;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.DirectoryListing;
+import org.apache.hadoop.hdfs.protocol.ExtendedDirectoryListing;
 import org.apache.hadoop.hdfs.protocol.ExtendedHdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
@@ -2903,6 +2904,28 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     }
   }
 
+  public ExtendedDirectoryListing getExtendedListing(String src,
+      byte[] startAfter) throws IOException {
+    FSPermissionChecker pc = getPermissionChecker();
+    byte[][] pathComponents = INode.getPathComponents(src);
+    synchronized (this) {
+      src = FSDirectory.resolvePath(src, pathComponents, dir);
+      if (isPermissionEnabled) {
+        if (dir.isDir(src)) {
+          checkPathAccess(pc, src, FsAction.READ_EXECUTE);
+        } else {
+          checkTraverse(pc, src);
+        }
+      }
+      if (auditLog.isInfoEnabled() && isExternalInvocation()) {
+        logAuditEvent(UserGroupInformation.getCurrentUser(),
+            Server.getRemoteIp(), "listStatus", src, null, null);
+      }
+      INode inode = FSDirectory.resolveInode(startAfter, dir);
+      return dir.getExtendedListing(src,
+          (inode != null ? inode.getLocalNameBytes() : startAfter));
+    }
+  }
   /////////////////////////////////////////////////////////
   //
   // These methods are called by datanodes

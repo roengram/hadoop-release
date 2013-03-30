@@ -619,7 +619,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
   static byte[][] getPathComponents(String path) {
     return getPathComponents(getPathNames(path));
   }
-
+  
   /** Convert strings to byte arrays for path components. */
   static byte[][] getPathComponents(String[] strings) {
     if (strings.length == 0) {

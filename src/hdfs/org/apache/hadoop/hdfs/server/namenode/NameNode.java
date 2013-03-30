@@ -45,6 +45,7 @@ import org.apache.hadoop.hdfs.protocol.ClientProtocol;
 import org.apache.hadoop.hdfs.protocol.DatanodeID;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.DirectoryListing;
+import org.apache.hadoop.hdfs.protocol.ExtendedDirectoryListing;
 import org.apache.hadoop.hdfs.protocol.ExtendedHdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
@@ -914,6 +915,18 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
     return files;
   }
   
+
+  @Override
+  public ExtendedDirectoryListing getExtendedListing(String src, byte[] startAfter)
+  throws IOException {
+    ExtendedDirectoryListing files = namesystem.getExtendedListing(src, startAfter);
+    myMetrics.incrNumGetListingOps();
+    if (files != null) {
+      myMetrics.incrNumFilesInGetListingOps(files.getPartialListing().length);
+    }
+    return files;
+  }
+  
   /**
    * Get the file info for a specific file.
    * @param src The string representation of the path to the file
@@ -928,7 +941,7 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
 
   public ExtendedHdfsFileStatus getExtendedFileInfo(String src)
       throws IOException {
-    myMetrics.incrNumFileInfoOps(); // TODO: fix me
+    myMetrics.incrNumFileInfoOps();
     return namesystem.getExtendedFileInfo(src);
   }
   

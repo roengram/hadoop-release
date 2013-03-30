@@ -654,4 +654,8 @@ public interface ClientProtocol extends VersionedProtocol {
    */
   public SnapshotDiffReport getSnapshotDiffReport(String snapshotRoot,
       String fromSnapshot, String toSnapshot) throws IOException;
+
+ 
+  ExtendedDirectoryListing getExtendedListing(String src, byte[] startAfter)
+      throws IOException;
 }

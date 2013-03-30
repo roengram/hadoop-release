@@ -37,6 +37,7 @@ import org.apache.hadoop.hdfs.protocol.ClientProtocol;
 import org.apache.hadoop.hdfs.protocol.DirectoryListing;
 import org.apache.hadoop.hdfs.protocol.ExtendedHdfsFileStatus;
 import org.apache.hadoop.hdfs.DFSUtil;
+import org.apache.hadoop.hdfs.protocol.ExtendedDirectoryListing;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.NSQuotaExceededException;
@@ -967,6 +968,68 @@ public class FSDirectory implements FSConstants, Closeable {
         listing, snapshots.size() - skipSize - numOfListing);
   }
   
+  ExtendedDirectoryListing getExtendedListing(String src, byte[] startAfter) throws IOException {
+    String srcs = normalizePath(src);
+    synchronized (rootDir) {
+      if (srcs.endsWith(Path.SEPARATOR + HdfsConstants.DOT_SNAPSHOT_DIR)) {
+        return getExtendedSnapshotsListing(srcs, startAfter);
+      }
+      final INodesInPath inodesInPath = rootDir.getLastINodeInPath(srcs);
+      final Snapshot snapshot = inodesInPath.getPathSnapshot();
+      INode targetNode = inodesInPath.getINode(0);
+      if (targetNode == null)
+        return null;
+      
+      if (!targetNode.isDirectory()) {
+        return new ExtendedDirectoryListing();
+      }
+      
+      INodeDirectory dirInode = targetNode.asDirectory(); 
+      final ReadOnlyList<INode> contents = dirInode.getChildrenList(snapshot);
+      int startChild = INodeDirectory.nextChild(contents, startAfter);
+      int totalNumChildren = contents.size();
+      int numOfListing = Math.min(totalNumChildren-startChild, this.lsLimit);
+      ExtendedHdfsFileStatus listing[] = new ExtendedHdfsFileStatus[numOfListing];
+      for (int i=0; i<numOfListing; i++) {
+        INode cur = contents.get(startChild+i);
+        listing[i] = createExtendedFileStatus(cur.getLocalNameBytes(), cur,
+            snapshot);
+      }
+      return new ExtendedDirectoryListing(
+          listing, totalNumChildren-startChild-numOfListing);
+    }
+  }
+  
+  /**
+   * Get a listing of all the snapshots of a snapshottable directory
+   */
+  private ExtendedDirectoryListing getExtendedSnapshotsListing(String src,
+      byte[] startAfter) throws IOException {
+    final String dotSnapshot = Path.SEPARATOR + HdfsConstants.DOT_SNAPSHOT_DIR;
+    if (!src.endsWith(dotSnapshot)) {
+      throw new IllegalArgumentException(src + " does not end with "
+          + dotSnapshot);
+    }
+    
+    final String dirPath = normalizePath(src.substring(0,
+        src.length() - HdfsConstants.DOT_SNAPSHOT_DIR.length()));
+    
+    final INode node = this.getINode(dirPath);
+    final INodeDirectorySnapshottable dirNode = INodeDirectorySnapshottable
+        .valueOf(node, dirPath);
+    final ReadOnlyList<Snapshot> snapshots = dirNode.getSnapshotList();
+    int skipSize = ReadOnlyList.Util.binarySearch(snapshots, startAfter);
+    skipSize = skipSize < 0 ? -skipSize - 1 : skipSize + 1;
+    int numOfListing = Math.min(snapshots.size() - skipSize, this.lsLimit);
+    final ExtendedHdfsFileStatus listing[] = new ExtendedHdfsFileStatus[numOfListing];
+    for (int i = 0; i < numOfListing; i++) {
+      Root sRoot = snapshots.get(i + skipSize).getRoot();
+      listing[i] = createExtendedFileStatus(sRoot.getLocalNameBytes(), sRoot, null);
+    }
+    return new ExtendedDirectoryListing(
+        listing, snapshots.size() - skipSize - numOfListing);
+  }
+
   /** Get the file info for a specific file.
    * @param src The string representation of the path to the file
    * @return object containing information regarding the file
@@ -1850,11 +1913,44 @@ public class FSDirectory implements FSConstants, Closeable {
    */
   static String resolvePath(String src, byte[][] pathComponents, FSDirectory fsd)
       throws FileNotFoundException {
-    if (pathComponents.length <= 2) {
+    INode inode = resolveInode(src, pathComponents, fsd);
+    if (inode == null) {
       return src;
     }
+    if (inode.getId() == INodeId.ROOT_INODE_ID && pathComponents.length == 3) {
+      return Path.SEPARATOR;
+    }
+      
+    StringBuilder path = inode.getId() == INodeId.ROOT_INODE_ID ? new StringBuilder()
+        : new StringBuilder(inode.getFullPathName());
+    for (int i = 3; i < pathComponents.length; i++) {
+      path.append(Path.SEPARATOR).append(
+          DFSUtil.bytes2String(pathComponents[i]));
+    }
+    return path.toString();
+  }
+  
+  static INode resolveInode(byte[] path, FSDirectory fsd)
+      throws FileNotFoundException {
+    if (path == null || path.length == 0) {
+      return null;
+    }
+    String pathStr = DFSUtil.bytes2String(path);
+    String[] pathComponentsStr = INode.getPathNames(pathStr);
+    if (pathComponentsStr == null) {
+      return null;
+    }
+    return resolveInode(pathStr, INode.getPathComponents(pathComponentsStr),
+        fsd);
+  }
+  
+  static INode resolveInode(String src, byte[][] pathComponents, FSDirectory fsd)
+      throws FileNotFoundException {
+    if (pathComponents.length <= 2) {
+      return null;
+    }
     if (!Arrays.equals(DOT_INODES, pathComponents[1])) { // Not .inodes path
-      return src;
+      return null;
     }
     final String inodeId = DFSUtil.bytes2String(pathComponents[2]);
     INode inode = null;
@@ -1869,16 +1965,7 @@ public class FSDirectory implements FSConstants, Closeable {
       throw new FileNotFoundException(
           "File for given inode path does not exist: " + src);
     }
-    if (inode.getId() == INodeId.ROOT_INODE_ID && pathComponents.length == 3) {
-      return Path.SEPARATOR;
-    }
-      
-    StringBuilder path = inode.getId() == INodeId.ROOT_INODE_ID ? new StringBuilder()
-        : new StringBuilder(inode.getFullPathName());
-    for (int i = 3; i < pathComponents.length; i++) {
-      path.append(Path.SEPARATOR).append(DFSUtil.bytes2String(pathComponents[i]));
-    }
-    return path.toString();
+    return inode;
   }
   
   int getInodeMapSize() {

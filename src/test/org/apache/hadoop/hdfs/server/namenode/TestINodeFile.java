@@ -33,11 +33,14 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
+import org.apache.hadoop.hdfs.DFSClient;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.DFSTestUtil;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
+import org.apache.hadoop.hdfs.protocol.ExtendedDirectoryListing;
+import org.apache.hadoop.hdfs.protocol.ExtendedHdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -539,5 +542,59 @@ public class TestINodeFile {
     components = INode.getPathComponents("/.inodes");
     resolvedPath = FSDirectory.resolvePath("/.inodes", components, fsd);
     assertEquals("/.inodes", resolvedPath);
+  }
+  
+  /** File listing should should start with file @{code firstFile} */
+  private void validateList(ExtendedDirectoryListing list, int firstFile,
+      int expectedLength) {
+    ExtendedHdfsFileStatus[] array = list.getPartialListing();
+    assertEquals(expectedLength, array.length);
+    int i = firstFile;
+    for (ExtendedHdfsFileStatus fileStatus : array) {
+      assertEquals(String.valueOf(i++), fileStatus.getLocalName());
+    }
+  }
+  
+  @Test
+  public void testExtendedListing() throws Exception {
+    Configuration conf = new Configuration();
+    conf.setInt(DFSConfigKeys.DFS_BLOCK_SIZE_KEY,
+        DFSConfigKeys.DFS_BYTES_PER_CHECKSUM_DEFAULT);
+    conf.setBoolean(DFSConfigKeys.DFS_NAMENODE_SUPPORT_FILEID_KEY, true);
+    MiniDFSCluster cluster = null;
+    try {
+      cluster = new MiniDFSCluster(0, conf, 1, true, true, null, null);
+      cluster.waitActive();
+      DistributedFileSystem fs = (DistributedFileSystem) cluster.getFileSystem();
+      DFSClient client = new DFSClient(cluster.getNameNode()
+          .getNameNodeAddress(), conf);
+      Path baseDir = new Path("/testExtendedListing");
+      fs.mkdirs(baseDir);
+      for (int i = 0; i < 10; i++) { // Create 10 directories
+        fs.mkdirs(new Path(baseDir, String.valueOf(i)));
+      }
+      
+      // Test extended directory listing gives all the 10 directories
+      ExtendedDirectoryListing list = client.listExtendedPaths(
+          "/testExtendedListing", new byte[0]);
+      validateList(list, 0, 10);
+      
+      // Test offset using a regular file name starting after directory "4"
+      list = client.listExtendedPaths("/testExtendedListing",
+          DFSUtil.string2Bytes("4"));
+      validateList(list, 5, 5);
+      
+      // Test offset using a regular file name starting after directory "4"
+      long fileIdForDir5 = list.getPartialListing()[0].getFileId();
+      list = client.listExtendedPaths("/testExtendedListing",
+          DFSUtil.string2Bytes(getInodePath(fileIdForDir5, "").toString()));
+      validateList(list, 6, 4);
+      
+    } finally {
+      if (cluster != null) {
+        cluster.shutdown();
+      }
+    }
+    
   }
 }

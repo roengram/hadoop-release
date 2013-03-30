@@ -78,6 +78,7 @@ import org.apache.hadoop.hdfs.protocol.DataTransferProtocol;
 import org.apache.hadoop.hdfs.protocol.DataTransferProtocol.PipelineAck;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.DirectoryListing;
+import org.apache.hadoop.hdfs.protocol.ExtendedDirectoryListing;
 import org.apache.hadoop.hdfs.protocol.ExtendedHdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
@@ -1097,6 +1098,16 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     }
   }
 
+  public ExtendedDirectoryListing listExtendedPaths(String src,
+      byte[] startAfter) throws IOException {
+    checkOpen();
+    try {
+      return namenode.getExtendedListing(src, startAfter);
+    } catch (RemoteException re) {
+      throw re.unwrapRemoteException(AccessControlException.class);
+    }
+  }
+  
   public HdfsFileStatus getFileInfo(String src) throws IOException {
     checkOpen();
     try {

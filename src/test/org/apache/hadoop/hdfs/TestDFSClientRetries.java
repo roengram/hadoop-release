@@ -56,6 +56,7 @@ import org.apache.hadoop.hdfs.protocol.ClientProtocol;
 import org.apache.hadoop.hdfs.protocol.DatanodeID;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.DirectoryListing;
+import org.apache.hadoop.hdfs.protocol.ExtendedDirectoryListing;
 import org.apache.hadoop.hdfs.protocol.ExtendedHdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.protocol.FSConstants.SafeModeAction;
@@ -369,6 +370,12 @@ public class TestDFSClientRetries extends TestCase {
     @Override
     public ExtendedHdfsFileStatus getExtendedFileInfo(String src)
         throws IOException {
+      return null;
+    }
+
+    @Override
+    public ExtendedDirectoryListing getExtendedListing(String src,
+        byte[] startAfter) throws IOException {
       return null;
     }
   }

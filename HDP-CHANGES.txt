@@ -25,6 +25,8 @@ Condor release branched from Apache @ https://svn.apache.org/repos/asf/hadoop/co
 
         Add support for getting ExtendedFileStatus
 
+        Add support for getting extended file listing
+
     Changes with Apache jira in trunk
         
         HDFS-4334. Add a unique id to each INode.
