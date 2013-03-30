@@ -128,6 +128,16 @@ public class FSImageFormat {
         }
 
         needToSave = (imgVersion != FSConstants.LAYOUT_VERSION);
+        
+        // read the last allocated inode id in the fsimage
+        if (imgVersion <= -42) {
+          long lastInodeId = in.readLong();
+          namesystem.resetLastInodeId(lastInodeId);
+          LOG.info("load last allocated InodeId from fsimage:" + lastInodeId);
+        } else {
+          LOG.info("Old layout version doesn't have inode id."
+              + " Will assign new id for each inode.");
+        }
 
         if (storage.layoutVersion <= -41) {
           namesystem.getSnapshotManager().read(in);
@@ -218,9 +228,10 @@ public class FSImageFormat {
     
     public INode loadINodeWithLocalName(boolean isSnapshotINode,
         DataInputStream in) throws IOException {
+      final long id = (storage.layoutVersion <= -42) ? in.readLong()
+          : namesystem.allocateNewInodeId();
       final byte[] localName = new byte[in.readShort()];
       in.readFully(localName);
-      long id = FSNamesystem.getFSNamesystem().allocateNewInodeId();
       final INode inode = loadINode(id, localName, isSnapshotINode, in);
       inode.setLocalName(localName);
       return inode;
@@ -232,6 +243,9 @@ public class FSImageFormat {
      * @param in The {@link DataInputStream} instance to read.
      */
     private void loadRoot(DataInputStream in) throws IOException {
+      final long id = (storage.layoutVersion <= -42) ? in.readLong()
+          : namesystem.allocateNewInodeId();
+      assert id == INodeId.ROOT_INODE_ID : "Unexpected root ID " + id;
       // load root
       if (in.readShort() != 0) {
         throw new IOException("First node is not root");
@@ -460,8 +474,8 @@ public class FSImageFormat {
       LOG.info("Number of files under construction = " + size);
 
       for (int i = 0; i < size; i++) {
-        INodeFileUnderConstruction cons 
-            = FSImageSerialization.readINodeUnderConstruction(in);
+        INodeFileUnderConstruction cons = FSImageSerialization
+            .readINodeUnderConstruction(in, storage.layoutVersion <= -42);
 
         // verify that file exists in namespace
         String path = cons.getLocalName();
@@ -539,6 +553,7 @@ public class FSImageFormat {
         out.writeInt(namespaceID);
         out.writeLong(fsDir.rootDir.numItemsInTree());
         out.writeLong(fsNamesys.getGenerationStamp());
+        out.writeLong(fsNamesys.getLastInodeId());
         fsNamesys.getSnapshotManager().write(out);
         byte[] byteStore = new byte[4 * FSConstants.MAX_PATH_LENGTH];
         ByteBuffer strbuf = ByteBuffer.wrap(byteStore);

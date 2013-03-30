@@ -688,6 +688,7 @@ public class FSEditLog {
         long mtime = 0;
         long atime = 0;
         long blockSize = 0;
+        long inodeId;
         opcode = null;
         try {
           opcode = in.readByte();
@@ -714,13 +715,16 @@ public class FSEditLog {
           int length = in.readInt();
           if (-7 == logVersion && length != 3||
               -17 < logVersion && logVersion < -7 && length != 4 ||
-              logVersion <= -17 && length != 5) {
+              -41 <= logVersion && logVersion <= -17 && length != 5 ||
+              logVersion <= -42 && length != 6) {
               throw new IOException("Incorrect data format."  +
                                     " logVersion is " + logVersion +
                                     " but writables.length is " +
                                     length + ". ");
           }
           path = FSImageSerialization.readString(in);
+          inodeId = (logVersion <= -42) ? readLong(in) : FSNamesystem
+              .getFSNamesystem().allocateNewInodeId();
           short replication = adjustReplication(readShort(in));
           mtime = readLong(in);
           if (logVersion <= -17) {
@@ -786,7 +790,6 @@ public class FSEditLog {
           fsDir.unprotectedDelete(path, mtime);
 
           // add to the file tree
-          long inodeId = FSNamesystem.getFSNamesystem().allocateNewInodeId();
           if (lastInodeId < inodeId) {
             lastInodeId = inodeId;
           }
@@ -867,11 +870,14 @@ public class FSEditLog {
           PermissionStatus permissions = fsNamesys.getUpgradePermission();
           int length = in.readInt();
           if (-17 < logVersion && length != 2 ||
-              logVersion <= -17 && length != 3) {
+              -41 <= logVersion && logVersion <= -17 && length != 3 ||
+              logVersion <= -42 && length != 4) {
             throw new IOException("Incorrect data format. " 
                                   + "Mkdir operation.");
           }
           path = FSImageSerialization.readString(in);
+          inodeId = (logVersion <= -42) ? readLong(in) : FSNamesystem
+              .getFSNamesystem().allocateNewInodeId();
           timestamp = readLong(in);
 
           // The disk format stores atimes for directories as well.
@@ -884,7 +890,7 @@ public class FSEditLog {
           if (logVersion <= -11) {
             permissions = PermissionStatus.read(in);
           }
-          long inodeId = fsNamesys.allocateNewInodeId();
+
           if (lastInodeId < inodeId) {
             lastInodeId = inodeId;
           }
@@ -1334,6 +1340,7 @@ public class FSEditLog {
 
     UTF8 nameReplicationPair[] = new UTF8[] { 
       new UTF8(path), 
+      FSEditLog.toLogLong(newNode.getId()),
       FSEditLog.toLogReplication(newNode.getFileReplication()),
       FSEditLog.toLogLong(newNode.getModificationTime()),
       FSEditLog.toLogLong(newNode.getAccessTime()),
@@ -1352,6 +1359,7 @@ public class FSEditLog {
   public void logCloseFile(String path, INodeFile newNode) {
     UTF8 nameReplicationPair[] = new UTF8[] {
       new UTF8(path),
+      FSEditLog.toLogLong(newNode.getId()),
       FSEditLog.toLogReplication(newNode.getFileReplication()),
       FSEditLog.toLogLong(newNode.getModificationTime()),
       FSEditLog.toLogLong(newNode.getAccessTime()),
@@ -1368,6 +1376,7 @@ public class FSEditLog {
   public void logMkDir(String path, INode newNode) {
     UTF8 info[] = new UTF8[] {
       new UTF8(path),
+      FSEditLog.toLogLong(newNode.getId()),
       FSEditLog.toLogLong(newNode.getModificationTime()),
       FSEditLog.toLogLong(newNode.getAccessTime())
     };

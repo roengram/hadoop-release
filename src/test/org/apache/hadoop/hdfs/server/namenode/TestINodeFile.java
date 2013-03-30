@@ -299,12 +299,14 @@ public class TestINodeFile {
       cluster.waitActive();
       fsn = cluster.getNameNode().getNamesystem();
       assertEquals(inodeCount, fsn.dir.getInodeMapSize());
+      assertEquals(expectedLastInodeId, fsn.getLastInodeId());
   
       // Make sure empty editlog can be handled
       cluster.restartNameNode();
       cluster.waitActive();
       fsn = cluster.getNameNode().getNamesystem();
       assertEquals(inodeCount, fsn.dir.getInodeMapSize());
+      assertEquals(expectedLastInodeId, fsn.getLastInodeId());
     } finally {
       if (cluster != null) {
         cluster.shutdown();

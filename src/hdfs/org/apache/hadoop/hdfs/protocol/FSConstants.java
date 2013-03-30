@@ -78,10 +78,11 @@ public interface FSConstants {
   // Version is reflected in the data storage file.
   // Versions are negative.
   // Decrement LAYOUT_VERSION to define a new version.
-  public static final int LAYOUT_VERSION = -41;
+  public static final int LAYOUT_VERSION = -42;
   // Previous versions:
   // -32: to handle editlog opcode conflicts with 0.20.203 during upgrades and
   // to disallow upgrade to release 0.21.
-  // Current version: 
   // -41 added OP_CONCAT_DELETE, Snapshots
+  // Current version: 
+  // -42 Assign a unique inode id to each inode
 }

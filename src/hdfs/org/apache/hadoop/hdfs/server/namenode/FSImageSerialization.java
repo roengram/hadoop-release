@@ -85,7 +85,9 @@ public class FSImageSerialization {
   // from the input stream
   //
   static INodeFileUnderConstruction readINodeUnderConstruction(
-                            DataInputStream in) throws IOException {
+      DataInputStream in, boolean toReadInodeId) throws IOException {
+    final long id = toReadInodeId ? in.readLong() : FSNamesystem
+        .getFSNamesystem().allocateNewInodeId();
     byte[] name = FSImageSerialization.readBytes(in);
     short blockReplication = in.readShort();
     long modificationTime = in.readLong();
@@ -105,7 +107,6 @@ public class FSImageSerialization {
     // the number of locations should be 0, and it is useless
     in.readInt();
 
-    long id = FSNamesystem.getFSNamesystem().allocateNewInodeId();
     return new INodeFileUnderConstruction(id, name, blockReplication,
         modificationTime, preferredBlockSize, blocks, perm, clientName,
         clientMachine, null);
@@ -146,6 +147,7 @@ public class FSImageSerialization {
   
   public static void writeINodeFile(INodeFile file, DataOutputStream out,
       boolean writeUnderConstruction) throws IOException {
+    out.writeLong(file.getId());
     writeLocalName(file, out);
     out.writeShort(file.getFileReplication());
     out.writeLong(file.getModificationTime());
@@ -171,6 +173,7 @@ public class FSImageSerialization {
 
   public static void writeINodeDirectory(INodeDirectory node, DataOutput out)
       throws IOException {
+    out.writeLong(node.getId());
     writeLocalName(node, out);
     out.writeShort(0);  // replication
     out.writeLong(node.getModificationTime());
@@ -209,6 +212,7 @@ public class FSImageSerialization {
                                            INodeFileUnderConstruction cons,
                                            String path) 
                                            throws IOException {
+    out.writeLong(cons.getId());
     writeString(path, out);
     out.writeShort(cons.getFileReplication());
     out.writeLong(cons.getModificationTime());
