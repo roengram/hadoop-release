@@ -105,7 +105,8 @@ public class FSImageSerialization {
     // the number of locations should be 0, and it is useless
     in.readInt();
 
-    return new INodeFileUnderConstruction(name, blockReplication,
+    long id = FSNamesystem.getFSNamesystem().allocateNewInodeId();
+    return new INodeFileUnderConstruction(id, name, blockReplication,
         modificationTime, preferredBlockSize, blocks, perm, clientName,
         clientMachine, null);
   }

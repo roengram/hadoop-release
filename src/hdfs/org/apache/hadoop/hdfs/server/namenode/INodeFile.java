@@ -99,9 +99,9 @@ public class INodeFile extends INode {
 
   private BlockInfo blocks[] = null;
   
-  INodeFile(byte[] name, PermissionStatus permissions, long mtime, long atime,
+  INodeFile(long id, byte[] name, PermissionStatus permissions, long mtime, long atime,
       BlockInfo[] blklist, short replication, long preferredBlockSize) {
-    super(name, permissions, mtime, atime);
+    super(id, name, permissions, mtime, atime);
     header = HeaderFormat.combineReplication(header, replication);
     header = HeaderFormat.combinePreferredBlockSize(header, preferredBlockSize);
     this.blocks = blklist;
@@ -443,7 +443,7 @@ public class INodeFile extends INode {
     if (isUnderConstruction()) {
       return (INodeFileUnderConstruction)this;
     }
-    return new INodeFileUnderConstruction(this.getLocalNameBytes(),
+    return new INodeFileUnderConstruction(this.getId(), this.getLocalNameBytes(),
         getBlockReplication(), modificationTime, getPreferredBlockSize(),
         blocks, getPermissionStatus(),
         clientName, clientMachine, clientNode);

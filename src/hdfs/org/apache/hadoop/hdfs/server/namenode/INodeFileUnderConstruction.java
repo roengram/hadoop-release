@@ -46,18 +46,20 @@ public class INodeFileUnderConstruction extends INodeFile {
   private DatanodeDescriptor[] targets = null;   //locations for last block
   private long lastRecoveryTime = 0;
   
-  INodeFileUnderConstruction(PermissionStatus permissions,
+  INodeFileUnderConstruction(long id,
+                             PermissionStatus permissions,
                              short replication,
                              long preferredBlockSize,
                              long modTime,
                              String clientName,
                              String clientMachine,
                              DatanodeDescriptor clientNode) {
-    this(null, replication, modTime, preferredBlockSize, BlockInfo.EMPTY_ARRAY,
+    this(id, null, replication, modTime, preferredBlockSize, BlockInfo.EMPTY_ARRAY,
         permissions, clientName, clientMachine, clientNode);
   }
 
-  public INodeFileUnderConstruction(byte[] name,
+  public INodeFileUnderConstruction(long id,
+                             byte[] name,
                              short blockReplication,
                              long modificationTime,
                              long preferredBlockSize,
@@ -66,7 +68,7 @@ public class INodeFileUnderConstruction extends INodeFile {
                              String clientName,
                              String clientMachine,
                              DatanodeDescriptor clientNode) {
-    super(name, perm, modificationTime, modificationTime, blocks,
+    super(id, name, perm, modificationTime, modificationTime, blocks,
         blockReplication, preferredBlockSize);
     this.clientName = clientName;
     this.clientMachine = clientMachine;
@@ -153,7 +155,7 @@ public class INodeFileUnderConstruction extends INodeFile {
     * The new modification is the specified mtime.
     */
    protected INodeFile toINodeFile(long mtime) {
-    final INodeFile f = new INodeFile(getLocalNameBytes(),
+    final INodeFile f = new INodeFile(getId(), getLocalNameBytes(),
         getPermissionStatus(), mtime, getModificationTime(), getBlocks(),
         getFileReplication(), getPreferredBlockSize());
     f.setParent(getParent());

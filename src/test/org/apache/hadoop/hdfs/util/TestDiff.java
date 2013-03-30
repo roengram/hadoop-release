@@ -26,6 +26,7 @@ import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
+import org.apache.hadoop.hdfs.server.namenode.INodeId;
 import org.apache.hadoop.hdfs.util.Diff.Container;
 import org.apache.hadoop.hdfs.util.Diff.UndoInfo;
 import org.junit.Assert;
@@ -243,7 +244,7 @@ public class TestDiff {
 
   static INode newINode(int n, int width) {
     byte[] name = DFSUtil.string2Bytes(String.format("n%0" + width + "d", n));
-    return new INodeDirectory(name, PERM, 0L);
+    return new INodeDirectory(INodeId.GRANDFATHER_INODE_ID, name, PERM, 0L);
   }
 
   static void create(INode inode, final List<INode> current,

@@ -66,8 +66,9 @@ public class TestEditLog extends TestCase {
       for (int i = 0; i < numTransactions; i++) {
         try {
           INodeFileUnderConstruction inode = new INodeFileUnderConstruction(
-                              p, replication, blockSize, 0, "", "", null);
-          editLog.logOpenFile("/filename" + i, inode);
+              FSNamesystem.getFSNamesystem().allocateNewInodeId(), p,
+              replication, blockSize, 0, "", "", null);
+         editLog.logOpenFile("/filename" + i, inode);
           editLog.logCloseFile("/filename" + i, inode);
           editLog.logSync();
         } catch (IOException e) {
@@ -145,7 +146,12 @@ public class TestEditLog extends TestCase {
     editLog.setBufferCapacity(2048);
     editLog.close();
     editLog.open();
-  
+
+    // Remember the current lastInodeId and will reset it back to test
+    // loading editlog segments.The transactions in the following allocate new
+    // inode id to write to editlogs but doesn't create inode in namespace
+    long originalLastInodeId = FSNamesystem.getFSNamesystem().getLastInodeId();
+
     // Create threads and make them run transactions concurrently.
     Thread threadId[] = new Thread[numThreads];
     for (int i = 0; i < numThreads; i++) {
@@ -169,6 +175,7 @@ public class TestEditLog extends TestCase {
     // If there were any corruptions, it is likely that the reading in
     // of these transactions will throw an exception.
     //
+    FSNamesystem.getFSNamesystem().resetLastInodeIdWithoutChecking(originalLastInodeId);
     for (Iterator<StorageDirectory> it = 
             fsimage.dirIterator(NameNodeDirType.EDITS); it.hasNext();) {
       File editFile = FSImage.getImageFile(it.next(), NameNodeFile.EDITS);

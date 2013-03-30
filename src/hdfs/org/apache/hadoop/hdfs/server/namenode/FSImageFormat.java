@@ -408,7 +408,8 @@ public class FSImageFormat {
         }
 
         // return
-        final INodeFile file = new INodeFile(localName, permissions,
+        long id = FSNamesystem.getFSNamesystem().allocateNewInodeId();
+        final INodeFile file = new INodeFile(id, localName, permissions,
             modificationTime, atime, blocks, replication, blockSize);
         return fileDiffs != null? new INodeFileWithSnapshot(file, fileDiffs)
             : underConstruction? new INodeFileUnderConstruction(
@@ -439,10 +440,11 @@ public class FSImageFormat {
           permissions = PermissionStatus.read(in);
         }
         //return
+        long id = FSNamesystem.getFSNamesystem().allocateNewInodeId();
         final INodeDirectory dir = nsQuota >= 0 || dsQuota >= 0?
-            new INodeDirectoryWithQuota(localName, permissions,
+            new INodeDirectoryWithQuota(id, localName, permissions,
                 modificationTime, nsQuota, dsQuota)
-            : new INodeDirectory(localName, permissions, modificationTime);
+            : new INodeDirectory(id, localName, permissions, modificationTime);
         return snapshottable ? new INodeDirectorySnapshottable(dir)
             : withSnapshot ? new INodeDirectoryWithSnapshot(dir)
             : dir;

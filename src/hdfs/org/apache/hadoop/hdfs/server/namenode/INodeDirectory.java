@@ -62,9 +62,9 @@ public class INodeDirectory extends INode {
   private List<INode> children = null;
   
   /** constructor */
-  public INodeDirectory(byte[] name, PermissionStatus permissions,
+  public INodeDirectory(long id, byte[] name, PermissionStatus permissions,
       long mtime) {
-    super(name, permissions, mtime, 0L);
+    super(id, name, permissions, mtime, 0L);
   }
   
   /** copy constructor

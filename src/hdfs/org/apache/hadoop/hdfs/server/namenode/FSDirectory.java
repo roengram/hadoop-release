@@ -62,6 +62,7 @@ import org.apache.hadoop.hdfs.util.ReadOnlyList;
 public class FSDirectory implements FSConstants, Closeable {
   private static INodeDirectoryWithQuota createRoot(FSNamesystem namesystem) {
     final INodeDirectoryWithQuota r = new INodeDirectoryWithQuota(
+        FSNamesystem.getFSNamesystem().allocateNewInodeId(),
         INodeDirectory.ROOT_NAME,
         namesystem.createFsOwnerPermissions(new FsPermission((short)0755)));
     final INodeDirectorySnapshottable s = new INodeDirectorySnapshottable(r);
@@ -191,7 +192,9 @@ public class FSDirectory implements FSConstants, Closeable {
       return null;
     }
     boolean added = false;
+    long id = namesystem.allocateNewInodeId();
     INodeFileUnderConstruction newNode = new INodeFileUnderConstruction(
+                                 id,
                                  permissions,replication,
                                  preferredBlockSize, modTime, clientName, 
                                  clientMachine, clientNode);
@@ -209,7 +212,8 @@ public class FSDirectory implements FSConstants, Closeable {
     return newNode;
   }
 
-  INode unprotectedAddFile( String path, 
+  INode unprotectedAddFile( long id,
+                            String path, 
                             PermissionStatus permissions,
                             Block[] blocks, 
                             short replication,
@@ -218,13 +222,13 @@ public class FSDirectory implements FSConstants, Closeable {
                             long preferredBlockSize) {
     final INode newNode;
     if (blocks == null) {
-      newNode = new INodeDirectory(null, permissions, modificationTime);
+      newNode = new INodeDirectory(id, null, permissions, modificationTime);
     } else {
       // since this function is only called by FSEditLog#loadFSEdits, and at
       // the end of edit log loading, FSImage#updateCountForQuota will be called
       // to update the quota for the whole file system, we do not need to update
       // the quota here. Thus for newNode we first pass in an empty block array.
-      newNode = new INodeFile(null, permissions, modificationTime, atime,
+      newNode = new INodeFile(id, null, permissions, modificationTime, atime,
           BlockInfo.EMPTY_ARRAY, replication, preferredBlockSize);
     }
     synchronized (rootDir) {
@@ -1253,8 +1257,9 @@ public class FSDirectory implements FSConstants, Closeable {
       for(; i < inodes.length; i++) {
         pathbuilder.append(Path.SEPARATOR + names[i]);
         String cur = pathbuilder.toString();
-        unprotectedMkdir(iip, i, components[i], permissions,
-            inheritPermission || i != components.length-1, now);
+        unprotectedMkdir(namesystem.allocateNewInodeId(), iip, i,
+            components[i], permissions, inheritPermission
+                || i != components.length - 1, now);
         if (inodes[i] == null) {
           return false;
         }
@@ -1270,13 +1275,13 @@ public class FSDirectory implements FSConstants, Closeable {
     return true;
   }
 
-  INode unprotectedMkdir(String src, PermissionStatus permissions,
+  INode unprotectedMkdir(long id, String src, PermissionStatus permissions,
                           long timestamp) throws QuotaExceededException {
     byte[][] components = INode.getPathComponents(src);
     synchronized (rootDir) {
       INodesInPath iip = getExistingPathINodes(components);
       INode[] inodes = iip.getINodes();
-      unprotectedMkdir(iip, inodes.length - 1,
+      unprotectedMkdir(id, iip, inodes.length - 1,
           components[inodes.length - 1], permissions, false, timestamp);
       return inodes[inodes.length-1];
     }
@@ -1286,10 +1291,10 @@ public class FSDirectory implements FSConstants, Closeable {
    * The parent path to the directory is at [0, pos-1].
    * All ancestors exist. Newly created one stored at index pos.
    */
-  private void unprotectedMkdir(INodesInPath inodesInPath, int pos,
+  private void unprotectedMkdir(long id, INodesInPath inodesInPath, int pos,
       byte[] name, PermissionStatus permission, boolean inheritPermission,
       long timestamp) throws QuotaExceededException {
-    final INodeDirectory dir = new INodeDirectory(name, permission, timestamp);
+    final INodeDirectory dir = new INodeDirectory(id, name, permission, timestamp);
     if (addChild(inodesInPath, pos, dir, inheritPermission, true)) {
       inodesInPath.setINode(pos, dir);
     }

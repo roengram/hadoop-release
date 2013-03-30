@@ -34,6 +34,7 @@ import org.apache.hadoop.hdfs.protocol.NSQuotaExceededException;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
+import org.apache.hadoop.hdfs.server.namenode.INodeId;
 import org.apache.hadoop.hdfs.server.namenode.SnapshotTestHelper;
 import org.apache.hadoop.ipc.RemoteException;
 import org.junit.AfterClass;
@@ -232,8 +233,8 @@ public class TestNestedSnapshots {
   public void testIdCmp() {
     final PermissionStatus perm = PermissionStatus.createImmutable(
         "user", "group", FsPermission.createImmutable((short)0));
-    final INodeDirectory dir = new INodeDirectory(DFSUtil.string2Bytes("foo"),
-        perm, 0L);
+    final INodeDirectory dir = new INodeDirectory(INodeId.GRANDFATHER_INODE_ID,
+        DFSUtil.string2Bytes("foo"), perm, 0L);
     final INodeDirectorySnapshottable snapshottable
         = new INodeDirectorySnapshottable(dir);
     final Snapshot[] snapshots = {

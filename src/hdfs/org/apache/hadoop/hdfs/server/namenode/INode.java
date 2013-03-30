@@ -84,6 +84,14 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
     }
   }
 
+  /** Get inode id */
+  public long getId() {
+    return this.id;
+  }
+ 
+  /** File ID */
+  final private long id;
+  
   /**
    *  The inode name is in java UTF8 encoding; 
    *  The name in HdfsFileStatus should keep the same encoding as this.
@@ -103,8 +111,9 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
   protected long modificationTime = 0L;
   private long accessTime = 0L;
 
-  private INode(byte[] name, long permission, INodeDirectory parent,
+  private INode(long id, byte[] name, long permission, INodeDirectory parent,
       long modificationTime, long accessTime) {
+    this.id = id;
     this.name = name;
     this.permission = permission;
     this.parent = parent;
@@ -112,15 +121,15 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
     this.accessTime = accessTime;
   }
 
-  INode(byte[] name, PermissionStatus permissions, long modificationTime,
+  INode(long id, byte[] name, PermissionStatus permissions, long modificationTime,
       long accessTime) {
-    this(name, PermissionStatusFormat.toLong(permissions), null,
+    this(id, name, PermissionStatusFormat.toLong(permissions), null,
         modificationTime, accessTime);
   }
   
   /** @param other Other node to be copied */
   INode(INode other) {
-    this(other.name, other.permission, other.parent, 
+    this(other.id, other.name, other.permission, other.parent, 
         other.modificationTime, other.accessTime);
   }
   

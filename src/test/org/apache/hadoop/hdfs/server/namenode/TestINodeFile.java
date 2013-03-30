@@ -40,7 +40,7 @@ public class TestINodeFile {
   private long preferredBlockSize;
 
   INodeFile createINodeFile(short replication, long preferredBlockSize) {
-    return new INodeFile(null, perm, 0L, 0L,
+    return new INodeFile(INodeId.GRANDFATHER_INODE_ID, null, perm, 0L, 0L,
         null, replication, preferredBlockSize);
   }
   /**
@@ -182,7 +182,8 @@ public class TestINodeFile {
 
     {//cast from INodeFileUnderConstruction
       final INode from = new INodeFileUnderConstruction(
-          perm, replication, 0L, 0L, "client", "machine", null);
+          INodeId.GRANDFATHER_INODE_ID, perm, replication, 0L, 0L, "client",
+          "machine", null);
       
       //cast to INodeFile, should success
       final INodeFile f = INodeFile.valueOf(from, path);
@@ -203,7 +204,8 @@ public class TestINodeFile {
     }
 
     {//cast from INodeDirectory
-      final INode from = new INodeDirectory(null, perm, 0L);
+      final INode from = new INodeDirectory(INodeId.GRANDFATHER_INODE_ID, null,
+          perm, 0L);
 
       //cast to INodeFile, should fail
       try {

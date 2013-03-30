@@ -239,6 +239,30 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   //
   public CorruptReplicasMap corruptReplicas = new CorruptReplicasMap();
     
+  private INodeId inodeId;
+  
+  /**
+   * Set the last allocated inode id when fsimage is loaded or editlog is
+   * applied. 
+   * @throws IOException
+   */
+  public void resetLastInodeId(long newValue) throws IOException {
+    inodeId.resetLastInodeId(newValue);
+  }
+
+  /** Should only be used for tests to reset to any value */
+  void resetLastInodeIdWithoutChecking(long newValue) {
+    inodeId.resetLastInodeIdWithoutChecking(newValue);
+  }
+  
+  public long getLastInodeId() {
+    return inodeId.getLastInodeId();
+  }
+
+  public long allocateNewInodeId() {
+    return inodeId.allocateNewInodeId();
+  }
+  
   /**
    * Stores the datanode -> block map.  
    * <p>
@@ -433,6 +457,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
 
     this.nameNodeAddress = nn.getNameNodeAddress();
     this.registerMBean(conf); // register the MBean for the FSNamesystemStutus
+    this.inodeId = new INodeId();
     this.dir = new FSDirectory(this, conf);
     snapshotManager = new SnapshotManager(dir);
     StartupOption startOpt = NameNode.getStartupOption(conf);
@@ -513,6 +538,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    */
   FSNamesystem(FSImage fsImage, Configuration conf) throws IOException {
     setConfigurationParameters(conf);
+    this.inodeId = new INodeId();
     this.dir = new FSDirectory(fsImage, this, conf);
     snapshotManager = new SnapshotManager(dir);
     dtSecretManager = createDelegationTokenSecretManager(conf);

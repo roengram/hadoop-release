@@ -643,7 +643,8 @@ public class FSEditLog {
         numOpConcatDelete = 0;
     long highestGenStamp = -1;
     long startTime = FSNamesystem.now();
-
+    long lastInodeId = fsNamesys.getLastInodeId();
+    
     // Keep track of the file offsets of the last several opcodes.
     // This is handy when manually recovering corrupted edits files.
     PositionTrackingInputStream tracker = 
@@ -785,8 +786,12 @@ public class FSEditLog {
           fsDir.unprotectedDelete(path, mtime);
 
           // add to the file tree
+          long inodeId = FSNamesystem.getFSNamesystem().allocateNewInodeId();
+          if (lastInodeId < inodeId) {
+            lastInodeId = inodeId;
+          }
           INodeFile node = (INodeFile)fsDir.unprotectedAddFile(
-                                                    path, permissions,
+                                                    inodeId, path, permissions,
                                                     blocks, replication, 
                                                     mtime, atime, blockSize);
           if (opcode == OP_ADD) {
@@ -879,7 +884,11 @@ public class FSEditLog {
           if (logVersion <= -11) {
             permissions = PermissionStatus.read(in);
           }
-          fsDir.unprotectedMkdir(path, permissions, timestamp);
+          long inodeId = fsNamesys.allocateNewInodeId();
+          if (lastInodeId < inodeId) {
+            lastInodeId = inodeId;
+          }
+          fsDir.unprotectedMkdir(inodeId, path, permissions, timestamp);
           break;
         }
         case OP_SET_GENSTAMP: {
@@ -1100,6 +1109,7 @@ public class FSEditLog {
         MetaRecoveryContext.editLogLoaderPrompt(msg, recovery);
       }
     } finally {
+      fsNamesys.resetLastInodeId(lastInodeId);
       try {
         checkEndOfLog(edits, in, tracker, tolerationLength);
       } finally {
