@@ -34,6 +34,7 @@ import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.ClientProtocol;
 import org.apache.hadoop.hdfs.protocol.DirectoryListing;
+import org.apache.hadoop.hdfs.protocol.ExtendedHdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.NSQuotaExceededException;
@@ -970,6 +971,37 @@ public class FSDirectory implements FSConstants, Closeable {
     return null;
   }
 
+  ExtendedHdfsFileStatus getExtendedFileInfo(String src) {
+    String srcs = normalizePath(src);
+    synchronized (rootDir) {
+      if (srcs.endsWith(Path.SEPARATOR + HdfsConstants.DOT_SNAPSHOT_DIR)) {
+        return getExtendedFileInfo4DotSnapshot(srcs);
+      }
+      final INodesInPath inodesInPath = rootDir.getLastINodeInPath(srcs);
+      final INode i = inodesInPath.getINode(0);
+      return i == null ? null : createExtendedFileStatus(
+          HdfsFileStatus.EMPTY_NAME, i, inodesInPath.getPathSnapshot());
+    }
+  }
+  
+  ExtendedHdfsFileStatus getExtendedFileInfo4DotSnapshot(String src) {
+    final String dotSnapshot = Path.SEPARATOR + HdfsConstants.DOT_SNAPSHOT_DIR;
+    if (!src.endsWith(dotSnapshot)) {
+      throw new IllegalArgumentException(src + " does not end with "
+          + dotSnapshot);
+    }
+    
+    final String dirPath = normalizePath(src.substring(0,
+        src.length() - HdfsConstants.DOT_SNAPSHOT_DIR.length()));
+    
+    final INode node = this.getINode(dirPath);
+    if (node.isDirectory()
+        && node.asDirectory() instanceof INodeDirectorySnapshottable) {
+      return new ExtendedHdfsFileStatus();
+    }
+    return null;
+  }
+  
   /**
    * Get the blocks associated with the file.
    */
@@ -1621,6 +1653,32 @@ public class FSDirectory implements FSConstants, Closeable {
         path);
   }
   
+   /**
+    * Create ExtendedFileStatus by file INode 
+    */
+  private static ExtendedHdfsFileStatus createExtendedFileStatus(byte[] path,
+      INode node, Snapshot snapshot) {
+     int childrenNum = 0;
+     if (node.isDirectory()) {
+       ReadOnlyList<INode> contents = ((INodeDirectory)node).getChildrenList(snapshot);
+       childrenNum = contents.size();
+     }
+     // length is zero for directories
+     return new ExtendedHdfsFileStatus(
+         node.getId(),
+         childrenNum,
+         node.isDirectory() ? 0 : ((INodeFile)node).computeContentSummary().getLength(), 
+         node.isDirectory(), 
+         node.isDirectory() ? 0 : ((INodeFile)node).getBlockReplication(), 
+         node.isDirectory() ? 0 : ((INodeFile)node).getPreferredBlockSize(),
+         node.getModificationTime(),
+         node.getAccessTime(),
+         node.getFsPermission(),
+         node.getUserName(),
+         node.getGroupName(),
+         path);
+   }
+    
   /**
    * Caches frequently used file names to reuse file name objects and
    * reduce heap size.

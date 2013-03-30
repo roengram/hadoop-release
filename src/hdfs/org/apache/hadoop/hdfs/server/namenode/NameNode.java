@@ -45,6 +45,7 @@ import org.apache.hadoop.hdfs.protocol.ClientProtocol;
 import org.apache.hadoop.hdfs.protocol.DatanodeID;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.DirectoryListing;
+import org.apache.hadoop.hdfs.protocol.ExtendedHdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
@@ -925,6 +926,12 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
     return namesystem.getFileInfo(src);
   }
 
+  public ExtendedHdfsFileStatus getExtendedFileInfo(String src)
+      throws IOException {
+    myMetrics.incrNumFileInfoOps(); // TODO: fix me
+    return namesystem.getExtendedFileInfo(src);
+  }
+  
   /** @inheritDoc */
   public long[] getStats() throws IOException {
     return namesystem.getStats();

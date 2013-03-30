@@ -56,6 +56,7 @@ import org.apache.hadoop.hdfs.protocol.ClientProtocol;
 import org.apache.hadoop.hdfs.protocol.DatanodeID;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.DirectoryListing;
+import org.apache.hadoop.hdfs.protocol.ExtendedHdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.protocol.FSConstants.SafeModeAction;
 import org.apache.hadoop.hdfs.protocol.FSConstants.UpgradeAction;
@@ -362,6 +363,12 @@ public class TestDFSClientRetries extends TestCase {
     @Override
     public SnapshotDiffReport getSnapshotDiffReport(String snapshotRoot,
         String fromSnapshot, String toSnapshot) throws IOException {
+      return null;
+    }
+
+    @Override
+    public ExtendedHdfsFileStatus getExtendedFileInfo(String src)
+        throws IOException {
       return null;
     }
   }

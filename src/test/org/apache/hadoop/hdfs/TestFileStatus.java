@@ -33,6 +33,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.DFSClient.DFSDataInputStream;
+import org.apache.hadoop.hdfs.protocol.ExtendedHdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
@@ -59,7 +60,7 @@ public class TestFileStatus {
     // create and write a file that contains three blocks of data
     FSDataOutputStream stm = fileSys.create(name, true,
                                             fileSys.getConf().getInt("io.file.buffer.size", 4096),
-                                            (short)repl, (long)blockSize);
+                                            (short)repl, blockSize);
     byte[] buffer = new byte[fileSize];
     Random rand = new Random(seed);
     rand.nextBytes(buffer);
@@ -248,5 +249,34 @@ public class TestFileStatus {
       fs.close();
       cluster.shutdown();
     }
+  }
+  
+  @Test
+  public void testExtendedFileStatus() throws Exception {
+    Configuration conf = new Configuration();
+    conf.setInt(DFSConfigKeys.DFS_LIST_LIMIT, 2);
+    MiniDFSCluster cluster = new MiniDFSCluster(conf, 1, true, null);
+    FileSystem fs = cluster.getFileSystem();
+    DFSClient dfsClient = new DFSClient(NameNode.getAddress(conf), conf);
+    
+    // check that / exists
+    assertTrue("/ should be a directory", dfsClient.getExtendedFileInfo("/")
+        .isDir() == true);
+    
+    // make sure getExtendedFileInfo returns null for files which do not exist
+    ExtendedHdfsFileStatus fileInfo = dfsClient
+        .getExtendedFileInfo("/noSuchFile");
+    assertTrue(fileInfo == null);
+    
+    // create a dir and file in home directory
+    assertTrue(fs.mkdirs(new Path("/dir1")));
+    fs.create(new Path("/dir1/filestatus.dat"));
+    ExtendedHdfsFileStatus status = dfsClient.getExtendedFileInfo("/dir1");
+    assertTrue(status.isDir());
+    assertTrue(status.getChildrenNum() == 1);
+    
+    // test getFileStatus on a file
+    status = dfsClient.getExtendedFileInfo("/dir1/filestatus.dat");
+    assertTrue(status.isDir() == false);
   }
 }

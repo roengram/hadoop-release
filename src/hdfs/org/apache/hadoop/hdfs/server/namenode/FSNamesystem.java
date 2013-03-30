@@ -74,6 +74,7 @@ import org.apache.hadoop.hdfs.protocol.ClientProtocol;
 import org.apache.hadoop.hdfs.protocol.DatanodeID;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.DirectoryListing;
+import org.apache.hadoop.hdfs.protocol.ExtendedHdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
@@ -2504,6 +2505,16 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     }
   }
 
+  ExtendedHdfsFileStatus getExtendedFileInfo(String src) throws IOException {
+    FSPermissionChecker pc = getPermissionChecker();
+    synchronized (this) {
+      if (isPermissionEnabled) {
+        checkTraverse(pc, src);
+      }
+      return dir.getExtendedFileInfo(src);
+    }
+  }
+  
   /**
    * Create all the necessary directories
    */

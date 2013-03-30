@@ -23,9 +23,12 @@ Condor release branched from Apache @ https://svn.apache.org/repos/asf/hadoop/co
         
         Support execution bit for regular files
 
+        Add support for getting ExtendedFileStatus
+
     Changes with Apache jira in trunk
         
         HDFS-4334. Add a unique id to each INode.
 
         HDFS-4635. Move BlockManager#computeCapacity to LightWeightGSet.
+
 

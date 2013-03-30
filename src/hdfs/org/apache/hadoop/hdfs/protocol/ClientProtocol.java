@@ -505,6 +505,8 @@ public interface ClientProtocol extends VersionedProtocol {
    */
   public HdfsFileStatus getFileInfo(String src) throws IOException;
 
+  public ExtendedHdfsFileStatus getExtendedFileInfo(String src) throws IOException;
+
   /**
    * Get {@link ContentSummary} rooted at the specified directory.
    * @param path The string representation of the path

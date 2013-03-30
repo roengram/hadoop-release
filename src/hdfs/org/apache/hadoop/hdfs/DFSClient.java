@@ -78,6 +78,7 @@ import org.apache.hadoop.hdfs.protocol.DataTransferProtocol;
 import org.apache.hadoop.hdfs.protocol.DataTransferProtocol.PipelineAck;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.DirectoryListing;
+import org.apache.hadoop.hdfs.protocol.ExtendedHdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
@@ -1105,6 +1106,16 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     }
   }
 
+  public ExtendedHdfsFileStatus getExtendedFileInfo(String src)
+      throws IOException {
+    checkOpen();
+    try {
+      return namenode.getExtendedFileInfo(src);
+    } catch (RemoteException re) {
+      throw re.unwrapRemoteException(AccessControlException.class);
+    }
+  }
+  
   /**
    * Return the socket addresses to use with each configured
    * local interface. Local interfaces may be specified by IP
