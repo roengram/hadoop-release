@@ -220,7 +220,8 @@ public class FSImageFormat {
         DataInputStream in) throws IOException {
       final byte[] localName = new byte[in.readShort()];
       in.readFully(localName);
-      final INode inode = loadINode(localName, isSnapshotINode, in);
+      long id = FSNamesystem.getFSNamesystem().allocateNewInodeId();
+      final INode inode = loadINode(id, localName, isSnapshotINode, in);
       inode.setLocalName(localName);
       return inode;
     }
@@ -235,7 +236,7 @@ public class FSImageFormat {
       if (in.readShort() != 0) {
         throw new IOException("First node is not root");
       }
-      final INode root = loadINode(null, false, in);
+      final INode root = loadINode(INodeId.ROOT_INODE_ID, null, false, in);
       // update the root's attributes
       updateRootAttr(root);
     }
@@ -249,8 +250,9 @@ public class FSImageFormat {
       
       for (long i = 0; i < numFiles; i++) {
         pathComponents = FSImageSerialization.readPathComponents(in);
-        final INode newNode = loadINode(pathComponents[pathComponents.length-1],
-            false, in);
+        long id = FSNamesystem.getFSNamesystem().allocateNewInodeId();
+        final INode newNode = loadINode(id,
+            pathComponents[pathComponents.length - 1], false, in);
         
         if (isRoot(pathComponents)) { // it is the root
           // update the root's attributes
@@ -340,7 +342,7 @@ public class FSImageFormat {
       return isParent;
     }
     
-    private INode loadINode(final byte[] localName, boolean isSnapshotINode,
+    private INode loadINode(long id, final byte[] localName, boolean isSnapshotINode,
         DataInputStream in) throws IOException {
       int layoutVersion = storage.getLayoutVersion();
       short replication = FSEditLog.adjustReplication(in.readShort());
@@ -408,7 +410,6 @@ public class FSImageFormat {
         }
 
         // return
-        long id = FSNamesystem.getFSNamesystem().allocateNewInodeId();
         final INodeFile file = new INodeFile(id, localName, permissions,
             modificationTime, atime, blocks, replication, blockSize);
         return fileDiffs != null? new INodeFileWithSnapshot(file, fileDiffs)
@@ -440,7 +441,6 @@ public class FSImageFormat {
           permissions = PermissionStatus.read(in);
         }
         //return
-        long id = FSNamesystem.getFSNamesystem().allocateNewInodeId();
         final INodeDirectory dir = nsQuota >= 0 || dsQuota >= 0?
             new INodeDirectoryWithQuota(id, localName, permissions,
                 modificationTime, nsQuota, dsQuota)

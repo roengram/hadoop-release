@@ -128,7 +128,7 @@ public class TestFSImageWithSnapshot {
     synchronized (fsn) {
       synchronized (fsn.dir) {
         loader.load(imageFile, false);
-        FSImage.updateCountForQuota(fsn.dir.rootDir);
+        FSImage.updateCountForQuota(fsn.dir);
       }
     }
   }

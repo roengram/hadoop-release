@@ -22,6 +22,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -35,6 +36,7 @@ import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.ClientProtocol;
 import org.apache.hadoop.hdfs.protocol.DirectoryListing;
 import org.apache.hadoop.hdfs.protocol.ExtendedHdfsFileStatus;
+import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.NSQuotaExceededException;
@@ -42,14 +44,21 @@ import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants.StartupOption;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
+import org.apache.hadoop.hdfs.server.namenode.Content.CountsMap;
 import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
+import org.apache.hadoop.hdfs.server.namenode.Quota.Counts;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot.Root;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotAccessControlException;
 import org.apache.hadoop.hdfs.util.ByteArray;
+import org.apache.hadoop.hdfs.util.GSet;
+import org.apache.hadoop.hdfs.util.LightWeightGSet;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
+import org.mortbay.log.Log;
+
+import com.sun.tools.example.debug.expr.ExpressionParser.GetFrame;
 
 /*************************************************
  * FSDirectory stores the filesystem directory state.
@@ -61,9 +70,12 @@ import org.apache.hadoop.hdfs.util.ReadOnlyList;
  * 
  *************************************************/
 public class FSDirectory implements FSConstants, Closeable {
+  final static String DOT_INODES_STRING = ".inodes";
+  final static byte[] DOT_INODES = DFSUtil.string2Bytes(DOT_INODES_STRING);
+  
   private static INodeDirectoryWithQuota createRoot(FSNamesystem namesystem) {
     final INodeDirectoryWithQuota r = new INodeDirectoryWithQuota(
-        FSNamesystem.getFSNamesystem().allocateNewInodeId(),
+        INodeId.ROOT_INODE_ID,
         INodeDirectory.ROOT_NAME,
         namesystem.createFsOwnerPermissions(new FsPermission((short)0755)));
     final INodeDirectorySnapshottable s = new INodeDirectorySnapshottable(r);
@@ -76,6 +88,7 @@ public class FSDirectory implements FSConstants, Closeable {
   FSImage fsImage;  
   private boolean ready = false;
   private final int lsLimit;  // max list limit
+  private final GSet<INode, INode> inodeMap; // Synchronized using "this"
 
   /**
    * Caches frequently used file names used in {@link INode} to reuse 
@@ -112,6 +125,7 @@ public class FSDirectory implements FSConstants, Closeable {
     NameNode.LOG.info("Caching file names occuring more than " + threshold
         + " times ");
     nameCache = new NameCache<ByteArray>(threshold);
+    inodeMap = initInodeMap(conf, rootDir);
 
   }
 
@@ -147,6 +161,22 @@ public class FSDirectory implements FSConstants, Closeable {
   private void incrDeletedFileCount(long count) {
     if (namesystem != null)
       NameNode.getNameNodeMetrics().incrFilesDeleted(count);
+  }
+  
+  static LightWeightGSet<INode, INode> initInodeMap(Configuration conf,
+      INodeDirectory rootDir) {
+    boolean supportFileID = conf.getBoolean(
+        DFSConfigKeys.DFS_NAMENODE_SUPPORT_FILEID_KEY,
+        DFSConfigKeys.DFS_NAMENODE_SUPPORT_FILEID_DEFAULT);
+    if (supportFileID) {
+      // Compute the map capacity by allocating 1% of total memory
+      int capacity = LightWeightGSet.computeCapacity(1, "INodeMap");
+      LightWeightGSet<INode, INode> map = new LightWeightGSet<INode, INode>(
+          capacity);
+      map.put(rootDir);
+      return map;
+    }
+    return null;
   }
     
   /**
@@ -193,9 +223,8 @@ public class FSDirectory implements FSConstants, Closeable {
       return null;
     }
     boolean added = false;
-    long id = namesystem.allocateNewInodeId();
     INodeFileUnderConstruction newNode = new INodeFileUnderConstruction(
-                                 id,
+                                 namesystem.allocateNewInodeId(),
                                  permissions,replication,
                                  preferredBlockSize, modTime, clientName, 
                                  clientMachine, clientNode);
@@ -213,6 +242,10 @@ public class FSDirectory implements FSConstants, Closeable {
     return newNode;
   }
 
+  private synchronized INode getFromINodeMap(INode inode) {
+    return inodeMap != null ? inodeMap.get(inode) : null;
+  }
+  
   INode unprotectedAddFile( long id,
                             String path, 
                             PermissionStatus permissions,
@@ -1442,8 +1475,24 @@ public class FSDirectory implements FSConstants, Closeable {
     if (!added) {
       updateCountNoQuotaCheck(iip, pos,
           -counts.get(Quota.NAMESPACE), -counts.get(Quota.DISKSPACE));
+    } else {
+      addToInodeMap(child);
     }
     return added;
+  }
+  
+  /* This method is always called from synchronized caller */
+  final void addToInodeMap(INode inode) {
+    if (inodeMap != null) {
+      inodeMap.put(inode);
+    }
+  }
+
+  /* This method is always called from synchronized caller */
+  private final void removeFromInodeMap(INode inode) {
+    if (inodeMap != null) {
+      inodeMap.remove(inode);
+    }
   }
   
   private boolean addLastINodeNoQuotaCheck(INodesInPath inodesInPath,
@@ -1471,6 +1520,7 @@ public class FSDirectory implements FSConstants, Closeable {
     final INodeDirectory parent = inodes[pos-1].asDirectory();
     final boolean removed = parent.removeChild(inodes[pos], latestSnapshot);
     if (removed && latestSnapshot == null) {
+      removeFromInodeMap(inodes[pos]);
       iip.setINode(pos - 1, inodes[pos].getParent());
       final Quota.Counts counts = inodes[pos].computeQuotaUsage();
       updateCountNoQuotaCheck(iip, pos,
@@ -1693,5 +1743,145 @@ public class FSDirectory implements FSConstants, Closeable {
     if (name != null) {
       inode.setLocalName(name.getBytes());
     }
+  }
+  
+  INode getInode(long id) {
+    INode inode = new INode(id, null, new PermissionStatus(
+        "", "", new FsPermission((short) 0)), 0, 0) {
+      @Override
+      public boolean isDirectory() {
+        return false;
+      }
+
+      @Override
+      INode recordModification(Snapshot latest) throws QuotaExceededException {
+        return null;
+      }
+
+      @Override
+      public Counts cleanSubtree(Snapshot snapshot, Snapshot prior,
+          BlocksMapUpdateInfo collectedBlocks) throws QuotaExceededException {
+        return null;
+      }
+
+      @Override
+      public void destroyAndCollectBlocks(BlocksMapUpdateInfo collectedBlocks) {
+        // Empty
+      }
+
+      @Override
+      public CountsMap computeContentSummary(CountsMap countsMap) {
+        return null;
+      }
+
+      @Override
+      public org.apache.hadoop.hdfs.server.namenode.Content.Counts computeContentSummary(
+          org.apache.hadoop.hdfs.server.namenode.Content.Counts counts) {
+        return null;
+      }
+
+      @Override
+      public Counts computeQuotaUsage(Counts counts, boolean useCache) {
+        return null;
+      }
+    };
+    return getFromINodeMap(inode);
+  }
+  
+  /**
+   * Given an INode get all the path complents leading to it from the root.
+   * If an Inode corresponding to C is given in /A/B/C, the returned
+   * patch components will be {root, A, B, C}
+   */
+  static byte[][] getPathComponents(INode inode) {
+    List<byte[]> components = new ArrayList<byte[]>();
+    components.add(0, inode.getLocalNameBytes());
+    while(inode.getParent() != null) {
+      components.add(0, inode.getParent().getLocalNameBytes());
+      inode = inode.getParent();
+    }
+    return components.toArray(new byte[components.size()][]);
+  }
+  
+  /**
+   * Resolve the path of /.inodes/<inodeid>/... to regular path and return the
+   * path components corresponding to the resolved path.
+   * 
+   * @param src path that is being processed
+   * @param fsd FSDirectory
+   * @return path components for the regular path after replacing upto <inodeid>
+   *         with its corresponding path
+   * @throws FileNotFoundException if inodeid is invalid
+   */
+  static byte[][] getPathComponents(String path, FSDirectory fsd)
+      throws FileNotFoundException {
+    byte[][] pathComponents = INode.getPathComponents(path);
+    if (pathComponents.length <= 2) {
+      return pathComponents;
+    }
+    if (!Arrays.equals(DOT_INODES, pathComponents[1])) { // Not .inodes path
+      return pathComponents;
+    }
+    final String inodeId = DFSUtil.bytes2String(pathComponents[2]);
+    long id = 0;
+    try {
+      id = Long.valueOf(inodeId);
+    } catch (NumberFormatException e) {
+      throw new FileNotFoundException(
+          "File for given inode path does not exist: " + path);
+    }
+    byte[][] inodeComponents = getPathComponents(fsd.getInode(id));
+    byte[][] ret = new byte[inodeComponents.length + pathComponents.length - 3][];
+    System.arraycopy(inodeComponents, 0, ret, 0, inodeComponents.length);
+    System.arraycopy(pathComponents, 3, ret, inodeComponents.length,
+        pathComponents.length-3);
+    return ret;
+  }
+  
+  /**
+   * Resolve the path of /.inodes/<inodeid>/... to regular path
+   * 
+   * @param src path that is being processed
+   * @param pathComponents path components corresponding to the path
+   * @param fsd FSDirectory
+   * @return regular path after replacing upto <inodeid> with its corresponding
+   *         path
+   * @throws FileNotFoundException if inodeid is invalid
+   */
+  static String resolvePath(String src, byte[][] pathComponents, FSDirectory fsd)
+      throws FileNotFoundException {
+    if (pathComponents.length <= 2) {
+      return src;
+    }
+    if (!Arrays.equals(DOT_INODES, pathComponents[1])) { // Not .inodes path
+      return src;
+    }
+    final String inodeId = DFSUtil.bytes2String(pathComponents[2]);
+    INode inode = null;
+    try {
+      inode = fsd.getInode(Long.valueOf(inodeId));
+    } catch (NumberFormatException e) {
+      if (NameNode.LOG.isDebugEnabled()) {
+        NameNode.LOG.debug("Invalid inodeId " + inodeId + " in path " + src);
+      }
+    }
+    if (inode == null) {
+      throw new FileNotFoundException(
+          "File for given inode path does not exist: " + src);
+    }
+    if (inode.getId() == INodeId.ROOT_INODE_ID && pathComponents.length == 3) {
+      return Path.SEPARATOR;
+    }
+      
+    StringBuilder path = inode.getId() == INodeId.ROOT_INODE_ID ? new StringBuilder()
+        : new StringBuilder(inode.getFullPathName());
+    for (int i = 3; i < pathComponents.length; i++) {
+      path.append(Path.SEPARATOR).append(DFSUtil.bytes2String(pathComponents[i]));
+    }
+    return path.toString();
+  }
+  
+  int getInodeMapSize() {
+    return inodeMap != null ? inodeMap.size() : 0;
   }
 }

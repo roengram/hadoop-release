@@ -37,13 +37,15 @@ import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectoryWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.util.Diff;
+import org.apache.hadoop.hdfs.util.LightWeightGSet.LinkedElement;
 
 /**
  * We keep an in-memory representation of the file/block hierarchy.
  * This is a base INode class containing common fields for file and 
  * directory inodes.
  */
-public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
+public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
+    LinkedElement {
   public static final Log LOG = LogFactory.getLog(INode.class);
 
   private static enum PermissionStatusFormat {
@@ -110,6 +112,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
   private INodeDirectory parent = null;
   protected long modificationTime = 0L;
   private long accessTime = 0L;
+  protected LinkedElement next = null;
 
   private INode(long id, byte[] name, long permission, INodeDirectory parent,
       long modificationTime, long accessTime) {
@@ -651,11 +654,14 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
     if (!(o instanceof INode)) {
       return false;
     }
-    return Arrays.equals(this.name, ((INode)o).name);
+    // Null name is used for InodeMap lookup. Use id for equality in that case
+    INode thatInode = (INode) o;
+    return thatInode.name == null ? this.id == thatInode.id : Arrays.equals(
+        this.name, thatInode.name);
   }
 
   public int hashCode() {
-    return Arrays.hashCode(this.name);
+    return (int)(id^(id>>>32));  
   }
 
   /**
@@ -732,5 +738,15 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
     public void clear() {
       toDeleteList.clear();
     }
+  }
+  
+  @Override
+  public void setNext(LinkedElement next) {
+    this.next = next;
+  }
+  
+  @Override
+  public LinkedElement getNext() {
+    return next;
   }
 }

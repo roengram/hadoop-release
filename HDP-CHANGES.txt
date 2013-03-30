@@ -31,4 +31,5 @@ Condor release branched from Apache @ https://svn.apache.org/repos/asf/hadoop/co
 
         HDFS-4635. Move BlockManager#computeCapacity to LightWeightGSet.
 
+        HDFS-4434.  Add support for inode ID to inode map
 

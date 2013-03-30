@@ -32,7 +32,8 @@ public class INodeId implements Comparable<INodeId> {
    * usage. The id won't be recycled and is not expected to wrap around in a
    * very long time. Root inode id will be 1001.
    */
-  public static final long LAST_RESERVED_ID = 1000L;
+  public static final long LAST_RESERVED_ID = 1023L;
+  public static final long ROOT_INODE_ID = LAST_RESERVED_ID + 1;
 
   /**
    * The inode id validation of lease check will be skipped when the request
@@ -43,10 +44,10 @@ public class INodeId implements Comparable<INodeId> {
   private AtomicLong lastInodeId = new AtomicLong();
 
   /**
-   * Create a new instance, initialized to ROOT_ID.
+   * Create a new instance, initialized to ROOT_INODE_ID.
    */
   INodeId() {
-    lastInodeId.set(INodeId.LAST_RESERVED_ID);
+    lastInodeId.set(ROOT_INODE_ID);
   }
   
   /**

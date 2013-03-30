@@ -1021,9 +1021,11 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       ) throws IOException {
     FSPermissionChecker pc = new FSPermissionChecker(fsOwnerShortUserName,
         supergroup);
+    byte[][] pathComponents = INode.getPathComponents(src);
     synchronized (this) {
       if (isInSafeMode())
          throw new SafeModeException("Cannot set permission for " + src, safeMode);
+      src = FSDirectory.resolvePath(src, pathComponents, dir);
       checkOwner(pc, src);
       dir.setPermission(src, permission);
     }
@@ -1044,9 +1046,11 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       ) throws IOException {
     FSPermissionChecker pc = new FSPermissionChecker(fsOwnerShortUserName,
         supergroup);
+    byte[][] pathComponents = INode.getPathComponents(src);
     synchronized (this) {
       if (isInSafeMode())
          throw new SafeModeException("Cannot set owner for " + src, safeMode);
+      src = FSDirectory.resolvePath(src, pathComponents, dir);
       checkOwner(pc, src);
       if (!pc.isSuperUser()) {
         if (username != null && !pc.getUser().equals(username)) {
@@ -1422,11 +1426,13 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       throw new IOException("Access time for hdfs is not configured. " +
                             " Please set dfs.access.time.precision configuration parameter");
     }
+    byte[][] pathComponents = INode.getPathComponents(src);
     FSPermissionChecker pc = getPermissionChecker();
     synchronized (this) {
       if (isInSafeMode()) {
         throw new SafeModeException("Cannot set accesstimes  for " + src, safeMode);
       }
+      src = FSDirectory.resolvePath(src, pathComponents, dir);
       //
       // The caller needs to have write access to set access & modification times.
       if (isPermissionEnabled) {
@@ -1476,10 +1482,12 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   private boolean setReplicationInternal(String src, short replication)
       throws IOException {
     FSPermissionChecker pc = getPermissionChecker();
+    byte[][] pathComponents = INode.getPathComponents(src);
     synchronized (this) {
       if (isInSafeMode())
         throw new SafeModeException("Cannot set replication for " + src,
             safeMode);
+      src = FSDirectory.resolvePath(src, pathComponents, dir);
       verifyReplication(src, replication, null);
       if (isPermissionEnabled) {
         checkPathAccess(pc, src, FsAction.WRITE);
@@ -1517,6 +1525,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       FSPermissionChecker pc = getPermissionChecker();
       checkTraverse(pc, filename);
     }
+    byte[][] pathComponents = INode.getPathComponents(filename);
+    filename = FSDirectory.resolvePath(filename, pathComponents, dir);
     return dir.getPreferredBlockSize(filename);
   }
     
@@ -1571,6 +1581,14 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
                  String holder, String clientMachine,
                  boolean overwrite, boolean createParent, short replication, long blockSize
                 ) throws IOException {
+    if (NameNode.stateChangeLog.isDebugEnabled()) {
+      NameNode.stateChangeLog.debug("DIR* startFile: src=" + src
+          + ", holder=" + holder
+          + ", clientMachine=" + clientMachine
+          + ", createParent=" + createParent
+          + ", replication=" + replication
+          + ", overwrite=" + overwrite);
+    }
     startFileInternal(src, permissions, holder, clientMachine, overwrite, false,
                       createParent, replication, blockSize);
     getEditLog().logSync();
@@ -1592,20 +1610,13 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
                                               short replication,
                                               long blockSize
                                               ) throws IOException {
-    if (NameNode.stateChangeLog.isDebugEnabled()) {
-      NameNode.stateChangeLog.debug("DIR* startFile: src=" + src
-          + ", holder=" + holder
-          + ", clientMachine=" + clientMachine
-          + ", createParent=" + createParent
-          + ", replication=" + replication
-          + ", overwrite=" + overwrite
-          + ", append=" + append);
-    }
+    byte[][] pathComponents = INode.getPathComponents(src);
 
     FSPermissionChecker pc = getPermissionChecker();
     synchronized (this) {
       if (isInSafeMode())
         throw new SafeModeException("Cannot create " + src, safeMode);
+      src = FSDirectory.resolvePath(src, pathComponents, dir);
       if (!DFSUtil.isValidName(src)) {
         throw new IOException("Invalid name: " + src);
       }
@@ -1713,11 +1724,13 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   boolean recoverLease(String src, String holder, String clientMachine)
   throws IOException {
     FSPermissionChecker pc = getPermissionChecker();
+    byte[][] pathComponents = INode.getPathComponents(src);
     synchronized (this) {
       if (isInSafeMode()) {
         throw new SafeModeException("Cannot recover the lease of " + src,
             safeMode);
       }
+      src = FSDirectory.resolvePath(src, pathComponents, dir);
       if (!DFSUtil.isValidName(src)) {
         throw new IOException("Invalid name: " + src);
       }
@@ -1912,6 +1925,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     DatanodeDescriptor clientNode = null;
     Block newBlock = null;
 
+    byte[][] pathComponents = INode.getPathComponents(src);
     NameNode.stateChangeLog.debug("BLOCK* getAdditionalBlock: "
                                   +src+" for "+clientName);
 
@@ -1921,6 +1935,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       }
       // have we exceeded the configured limit of fs objects.
       checkFsObjectLimit();
+      src = FSDirectory.resolvePath(src, pathComponents, dir);
 
       INodeFileUnderConstruction pendingFile  = checkLease(src, clientName);
 
@@ -1962,7 +1977,6 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       if (!checkFileProgress(pendingFile, false)) {
         throw new NotReplicatedYetException("Not replicated yet:" + src);
       }
-
       // allocate new block record block locations in INode.
       newBlock = allocateBlock(src, iip);
       pendingFile.setTargets(targets);
@@ -1998,6 +2012,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       throw new SafeModeException("Cannot abandon " + b +
                                   " for " + src, safeMode);
     }
+    byte[][] pathComponents = INode.getPathComponents(src);
+    src = FSDirectory.resolvePath(src, pathComponents, dir);
     INodeFileUnderConstruction file = checkLease(src, holder);
     dir.removeBlock(src, file, b);
     NameNode.stateChangeLog.debug("BLOCK* abandonBlock: " + b
@@ -2067,6 +2083,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     NameNode.stateChangeLog.debug("DIR* completeFile: " + src + " for " + holder);
     if (isInSafeMode())
       throw new SafeModeException("Cannot complete " + src, safeMode);
+    byte[][] pathComponents = INode.getPathComponents(src);
+    src = FSDirectory.resolvePath(src, pathComponents, dir);
 
     final INodesInPath iip = dir.getLastINodeInPath(src);
     INodeFileUnderConstruction pendingFile  = checkLease(src, holder);
@@ -2360,9 +2378,14 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       ) throws IOException {
     NameNode.stateChangeLog.debug("DIR* renameTo: " + src + " to " + dst);
     FSPermissionChecker pc = getPermissionChecker();
+    byte[][] srcComponents = INode.getPathComponents(src);
+    byte[][] dstComponents = INode.getPathComponents(dst);
     synchronized (this) {
       if (isInSafeMode())
         throw new SafeModeException("Cannot rename " + src, safeMode);
+
+      src = FSDirectory.resolvePath(src, srcComponents, dir);
+      dst = FSDirectory.resolvePath(dst, dstComponents, dir);
       if (!DFSUtil.isValidName(dst)) {
         throw new IOException("Invalid name: " + dst);
       }
@@ -2422,6 +2445,9 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       if (isInSafeMode()) {
         throw new SafeModeException("Cannot delete " + src, safeMode);
       }
+
+      byte[][] pathComponents = INode.getPathComponents(src);
+      src = FSDirectory.resolvePath(src, pathComponents, dir);
       if (enforcePermission && isPermissionEnabled) {
         checkPermission(pc, src, false, null, FsAction.WRITE, null,
             FsAction.ALL);
@@ -2497,7 +2523,9 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    */
   HdfsFileStatus getFileInfo(String src) throws IOException {
     FSPermissionChecker pc = getPermissionChecker();
+    byte[][] pathComponents = INode.getPathComponents(src);
     synchronized (this) {
+      src = FSDirectory.resolvePath(src, pathComponents, dir);
       if (isPermissionEnabled) {
         checkTraverse(pc, src);
       }
@@ -2507,7 +2535,9 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
 
   ExtendedHdfsFileStatus getExtendedFileInfo(String src) throws IOException {
     FSPermissionChecker pc = getPermissionChecker();
+    byte[][] pathComponents = INode.getPathComponents(src);
     synchronized (this) {
+      src = FSDirectory.resolvePath(src, pathComponents, dir);
       if (isPermissionEnabled) {
         checkTraverse(pc, src);
       }
@@ -2538,7 +2568,9 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       PermissionStatus permissions) throws IOException {
     NameNode.stateChangeLog.debug("DIR* mkdirs: " + src);
     FSPermissionChecker pc = getPermissionChecker();
+    byte[][] pathComponents = INode.getPathComponents(src);
     synchronized (this) {
+      src = FSDirectory.resolvePath(src, pathComponents, dir);
       if (isPermissionEnabled) {
         checkTraverse(pc, src);
       }
@@ -2570,7 +2602,9 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
 
   ContentSummary getContentSummary(String src) throws IOException {
     FSPermissionChecker pc = getPermissionChecker();
+    byte[][] pathComponents = INode.getPathComponents(src);
     synchronized (this) {
+      src = FSDirectory.resolvePath(src, pathComponents, dir);
       if (isPermissionEnabled) {
         checkPermission(pc, src, false, null, null, null, FsAction.READ_EXECUTE);
       }
@@ -2582,6 +2616,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    * Set the namespace quota and diskspace quota for a directory.
    * See {@link ClientProtocol#setQuota(String, long, long)} for the 
    * contract.
+   * 
+   * Note: This does not support ".inodes" relative path.
    */
   void setQuota(String path, long nsQuota, long dsQuota) throws IOException {
     checkSuperuserPrivilege();
@@ -2605,10 +2641,12 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
 
     NameNode.stateChangeLog.info("BLOCK* fsync: "
                                   + src + " for " + clientName);
+    byte[][] pathComponents = INode.getPathComponents(src);
     synchronized (this) {
       if (isInSafeMode()) {
         throw new SafeModeException("Cannot fsync " + src, safeMode);
       }
+      src = FSDirectory.resolvePath(src, pathComponents, dir);
       INodeFileUnderConstruction pendingFile  = checkLease(src, clientName);
       if (lastBlockLength > 0) {
         pendingFile.updateLengthOfLastBlock(lastBlockLength);
@@ -2847,7 +2885,9 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   public DirectoryListing getListing(String src, byte[] startAfter)
   throws IOException {
     FSPermissionChecker pc = getPermissionChecker();
+    byte[][] pathComponents = INode.getPathComponents(src);
     synchronized (this) {
+      src = FSDirectory.resolvePath(src, pathComponents, dir);
       if (isPermissionEnabled) {
         if (dir.isDir(src)) {
           checkPathAccess(pc, src, FsAction.READ_EXECUTE);

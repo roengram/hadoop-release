@@ -823,7 +823,7 @@ public class FSImage extends Storage {
     if (latestNameCheckpointTime > latestEditsCheckpointTime) {
       // the image is already current, discard edits
       needToSave |= true;
-      updateCountForQuota(FSNamesystem.getFSNamesystem().dir.rootDir);
+      updateCountForQuota(FSNamesystem.getFSNamesystem().dir);
     } else { // latestNameCheckpointTime == latestEditsCheckpointTime
       needToSave |= (loadFSEdits(latestEditsSD, recovery) > 0);
     }
@@ -852,7 +852,7 @@ public class FSImage extends Storage {
       edits.close();
     }
     // update the counts.
-    updateCountForQuota(FSNamesystem.getFSNamesystem().dir.rootDir);   
+    updateCountForQuota(FSNamesystem.getFSNamesystem().dir);   
     return numEdits;
   }
 
@@ -864,11 +864,11 @@ public class FSImage extends Storage {
    * This is an update of existing state of the filesystem and does not
    * throw QuotaExceededException.
    */
-  static void updateCountForQuota(INodeDirectoryWithQuota root) {
-    updateCountForQuotaRecursively(root, new Quota.Counts());
+  static void updateCountForQuota(FSDirectory fsd) {
+    updateCountForQuotaRecursively(fsd, fsd.rootDir, new Quota.Counts());
   }
 
-  private static void updateCountForQuotaRecursively(INodeDirectory dir,
+  private static void updateCountForQuotaRecursively(FSDirectory fsd, INodeDirectory dir,
       Quota.Counts counts) {
     final long parentNamespace = counts.get(Quota.NAMESPACE);
     final long parentDiskspace = counts.get(Quota.DISKSPACE);
@@ -876,8 +876,9 @@ public class FSImage extends Storage {
     dir.computeQuotaUsage4CurrentDirectory(counts);
 
     for (INode child : dir.getChildrenList(null)) {
+      fsd.addToInodeMap(child);
       if (child.isDirectory()) {
-        updateCountForQuotaRecursively(child.asDirectory(), counts);
+        updateCountForQuotaRecursively(fsd, child.asDirectory(), counts);
       } else {
         // file: count here to reduce recursive calls.
         child.computeQuotaUsage(counts, false);
