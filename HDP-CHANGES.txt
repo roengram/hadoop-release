@@ -22,3 +22,10 @@ Condor release branched from Apache @ https://svn.apache.org/repos/asf/hadoop/co
     No Apache Jira created yet
         
         Support execution bit for regular files
+
+    Changes with Apache jira in trunk
+        
+        HDFS-4334. Add a unique id to each INode.
+
+        HDFS-4635. Move BlockManager#computeCapacity to LightWeightGSet.
+
