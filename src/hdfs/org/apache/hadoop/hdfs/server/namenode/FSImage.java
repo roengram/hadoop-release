@@ -51,6 +51,7 @@ import org.apache.hadoop.hdfs.server.common.UpgradeManager;
 import org.apache.hadoop.hdfs.server.namenode.FSEditLog.EditLogFileInputStream;
 import org.apache.hadoop.hdfs.util.AtomicFileOutputStream;
 import org.apache.hadoop.io.IOUtils;
+import org.apache.hadoop.io.UTF8;
 import org.apache.hadoop.io.Writable;
 
 /**
@@ -1461,16 +1462,40 @@ public class FSImage extends Storage {
   }
   
   static Collection<File> getCheckpointEditsDirs(Configuration conf,
-      String defaultName) {
-    Collection<String> dirNames = conf
-        .getStringCollection("fs.checkpoint.edits.dir");
-    if (dirNames.size() == 0 && defaultName != null) {
-      dirNames.add(defaultName);
-    }
-    Collection<File> dirs = new ArrayList<File>(dirNames.size());
-    for (String name : dirNames) {
-      dirs.add(new File(name));
-    }
-    return dirs;
+                                                 String defaultName) {
+    Collection<String> dirNames = 
+                conf.getStringCollection("fs.checkpoint.edits.dir");
+ if (dirNames.size() == 0 && defaultName != null) {
+   dirNames.add(defaultName);
+ }
+ Collection<File> dirs = new ArrayList<File>(dirNames.size());
+ for(String name : dirNames) {
+   dirs.add(new File(name));
+ }
+ return dirs;    
+  }
+
+  static private final UTF8 U_STR = new UTF8();
+  public static String readString(DataInputStream in) throws IOException {
+    U_STR.readFields(in);
+    return U_STR.toString();
+  }
+
+  static String readString_EmptyAsNull(DataInputStream in) throws IOException {
+    final String s = readString(in);
+    return s.isEmpty()? null: s;
+  }
+
+  public static byte[] readBytes(DataInputStream in) throws IOException {
+    U_STR.readFields(in);
+    int len = U_STR.getLength();
+    byte[] bytes = new byte[len];
+    System.arraycopy(U_STR.getBytes(), 0, bytes, 0, len);
+    return bytes;
+  }
+
+  static void writeString(String str, DataOutputStream out) throws IOException {
+    U_STR.set(str);
+    U_STR.write(out);
   }
 }

@@ -84,6 +84,7 @@ print_usage()
   echo "  snapshotDiff         diff two snapshots of a directory or diff the"
   echo "                       current directory contents with a snapshot"
   echo "  lsSnapshottableDir   list all snapshottable dirs owned by the current user"
+  echo "  oiv                  apply the offline fsimage viewer to an fsimage"
   echo "  fetchdt              fetch a delegation token from the NameNode"
   echo "  jobtracker           run the MapReduce job Tracker node" 
   echo "  pipes                run a Pipes job"
@@ -294,6 +295,8 @@ elif [ "$COMMAND" = "fsck" ] ; then
 elif [ "$COMMAND" = "balancer" ] ; then
   CLASS=org.apache.hadoop.hdfs.server.balancer.Balancer
   HADOOP_OPTS="$HADOOP_OPTS $HADOOP_BALANCER_OPTS"
+elif [ "$COMMAND" = "oiv" ] ; then
+  CLASS=org.apache.hadoop.hdfs.tools.offlineImageViewer.OfflineImageViewer
 elif [ "$COMMAND" = "fetchdt" ] ; then
   CLASS=org.apache.hadoop.hdfs.tools.DelegationTokenFetcher
 elif [ "$COMMAND" = "jobtracker" ] ; then
