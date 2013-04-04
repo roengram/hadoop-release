@@ -1,0 +1,32 @@
+<project name="nexus-deploy" default="stage" basedir="." xmlns:artifact="urn:maven-artifact-ant">
+    <property name="modules" value="hadoop-core,hadoop-test,hadoop-tools,hadoop-examples,hadoop-streaming,hadoop-client,hadoop-minicluster"/>
+    <import file="build.xml" as="apache"/>
+    <target name="stage" depends="apache.mvn-taskdef, apache.package, apache.set-version" description="deploy artifact to a nexus repository">
+      <macrodef name="nexus-plugin" description="macro definition for publishing artifacts to nexus">
+        <attribute name="maven-jar"/>
+        <attribute name="pomname"/>
+        <attribute name="attachas" default=""/>
+        <sequential>
+          <artifact:mvn>
+            <arg value="org.apache.maven.plugins:maven-gpg-plugin:1.4:sign-and-deploy-file" />
+            <arg value="-Durl=${asfstagingrepo}"/>
+            <arg value="-DrepositoryId=${staging_repo_id}"/>
+            <arg value="-Dfile=@{maven-jar}"/>
+            <arg value="-Dpackaging=jar"/>
+            <arg value="-DpomFile=@{pomname}"/>
+            <arg value="-Dclassifier=@{attachas}"/>
+            <arg value="-Dtype=jar"/>
+            <arg value="-Pgpg"/>
+          </artifact:mvn>
+        </sequential>
+      </macrodef>
+      <nexus-plugin maven-jar="${hadoop-core.jar}" pomname="${hadoop-core.pom}"/>
+      <nexus-plugin maven-jar="${hadoop-test.jar}" pomname="${hadoop-test.pom}"/>
+      <nexus-plugin maven-jar="${hadoop-tools.jar}" pomname="${hadoop-tools.pom}"/>
+      <nexus-plugin maven-jar="${hadoop-examples.jar}" pomname="${hadoop-examples.pom}"/>
+      <nexus-plugin maven-jar="${hadoop-streaming.jar}" pomname="${hadoop-streaming.pom}"/>
+      <nexus-plugin maven-jar="${hadoop-client.jar}" pomname="${hadoop-client.pom}"/>
+      <nexus-plugin maven-jar="${hadoop-minicluster.jar}" pomname="${hadoop-minicluster.pom}"/>
+    </target>
+  </project>
+
