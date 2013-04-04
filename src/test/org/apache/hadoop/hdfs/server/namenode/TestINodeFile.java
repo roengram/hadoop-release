@@ -24,11 +24,14 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Arrays;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
@@ -598,5 +601,54 @@ public class TestINodeFile {
       }
     }
     
+  }
+
+  private boolean sameExtendHdfsFileStatus(ExtendedHdfsFileStatus status1,
+      ExtendedHdfsFileStatus status2) throws IOException {
+    ByteArrayOutputStream baos1 = new ByteArrayOutputStream();
+    DataOutputStream w1 = new DataOutputStream(baos1);
+    status1.write(w1);
+
+    ByteArrayOutputStream baos2 = new ByteArrayOutputStream();
+    DataOutputStream w2 = new DataOutputStream(baos2);
+    status1.write(w2);
+
+    return baos1.toString("UTF-8").equals(baos2.toString("UTF-8"));
+  }
+
+  @Test
+  public void testReplaceINode() throws Exception {
+    Configuration conf = new Configuration();
+    conf.setBoolean(DFSConfigKeys.DFS_NAMENODE_SUPPORT_FILEID_KEY, true);
+    MiniDFSCluster cluster = null;
+    try {
+      cluster = new MiniDFSCluster(0, conf, 1, true, true, null, null);
+      cluster.waitActive();
+      DistributedFileSystem fs = (DistributedFileSystem) cluster
+          .getFileSystem();
+      DFSClient client = new DFSClient(cluster.getNameNode()
+          .getNameNodeAddress(), conf);
+      Path file1 = new Path("/file1");
+      FSDataOutputStream fso = fs.create(file1);
+      ExtendedHdfsFileStatus status = client.getExtendedFileInfo("/file1");
+      long fileId = status.getFileId();
+      ExtendedHdfsFileStatus status2 = client.getExtendedFileInfo("/.inodes/"
+          + fileId);
+
+      assertTrue(sameExtendHdfsFileStatus(status, status2));
+
+      // Close stream will trigger inode replacement from underConstruction to
+      // complete inode. Sleep 1 second to make sure replacement is done.
+      fso.close();
+      Thread.sleep(1000);
+      ExtendedHdfsFileStatus status3 = client.getExtendedFileInfo("/.inodes/"
+          + fileId);
+      assertTrue(sameExtendHdfsFileStatus(status, status3));
+
+    } finally {
+      if (cluster != null) {
+        cluster.shutdown();
+      }
+    }
   }
 }

@@ -895,6 +895,9 @@ public class FSDirectory implements FSConstants, Closeable {
       newnode.setBlock(index, info); // inode refers to the block in BlocksMap
       index++;
     }
+    // Update inodeMap
+    removeFromInodeMap(oldnode);
+    addToInodeMap(newnode);
   }
 
   /**
