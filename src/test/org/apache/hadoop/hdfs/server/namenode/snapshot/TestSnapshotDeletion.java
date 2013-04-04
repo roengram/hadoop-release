@@ -34,12 +34,14 @@ import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants;
+import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 import org.apache.hadoop.hdfs.server.namenode.FSDirectory;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectoryWithQuota;
 import org.apache.hadoop.hdfs.server.namenode.INodeFile;
+import org.apache.hadoop.hdfs.server.namenode.Quota;
 import org.apache.hadoop.hdfs.server.namenode.SnapshotTestHelper;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectoryWithSnapshot.DirectoryDiffList;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
@@ -55,7 +57,6 @@ public class TestSnapshotDeletion {
   protected static final short REPLICATION = 3;
   protected static final short REPLICATION_1 = 2;
   protected static final long BLOCKSIZE = 1024;
-  public static final int SNAPSHOTNUMBER = 10;
   
   private final Path dir = new Path("/TestSnapshot");
   private final Path sub = new Path(dir, "sub1");
@@ -151,6 +152,12 @@ public class TestSnapshotDeletion {
         dirNode.getNamespace());
     assertEquals(dirNode.dumpTreeRecursively().toString(), expectedDs,
         dirNode.getDiskspace());
+    Quota.Counts counts = Quota.Counts.newInstance();
+    dirNode.computeQuotaUsage(counts, false);
+    assertEquals(dirNode.dumpTreeRecursively().toString(), expectedNs,
+        counts.get(Quota.NAMESPACE));
+    assertEquals(dirNode.dumpTreeRecursively().toString(), expectedDs,
+        counts.get(Quota.DISKSPACE));
   }
   
   /**
@@ -189,8 +196,22 @@ public class TestSnapshotDeletion {
     
     // create snapshot s0
     SnapshotTestHelper.createSnapshot(hdfs, dir, "s0");
+    
+    // after creating snapshot s0, create a directory tempdir under dir and then
+    // delete dir immediately
+    Path tempDir = new Path(dir, "tempdir");
+    Path tempFile = new Path(tempDir, "tempfile");
+    DFSTestUtil.createFile(hdfs, tempFile, BLOCKSIZE, REPLICATION, seed);
+    final INodeFile temp = TestSnapshotBlocksMap.checkINodeFile(
+        tempFile.toString(), 1, fsn);
+    BlockInfo[] blocks = temp.getBlocks();
+    hdfs.delete(tempDir, true);
     // check dir's quota usage
     checkQuotaUsageComputation(dir, 9L, BLOCKSIZE * REPLICATION * 3);
+    // check blocks of tempFile
+    for (BlockInfo b : blocks) {
+      assertNull(SnapshotTestHelper.getINodeFromBlocksMap(fsn, b));
+    }
     
     // make a change: create a new file under subsub
     Path newFileAfterS0 = new Path(subsub, "newFile");
@@ -234,11 +255,17 @@ public class TestSnapshotDeletion {
     INode noChangeFileSCopy = children.get(1);
     assertEquals(noChangeFile.getName(), noChangeFileSCopy.getLocalName());
     assertEquals(INodeFile.class, noChangeFileSCopy.getClass());
+    TestSnapshotBlocksMap.checkINodeFile(new Path(snapshotNoChangeDir,
+        noChangeFileSCopy.getLocalName()).toString(), 1, fsn);
+    
     INodeFileWithSnapshot metaChangeFile2SCopy = 
         (INodeFileWithSnapshot) children.get(0);
     assertEquals(metaChangeFile2.getName(), metaChangeFile2SCopy.getLocalName());
     assertEquals(INodeFileWithSnapshot.class, metaChangeFile2SCopy.getClass());
-    // check the replication factor of metaChangeFile1SCopy
+    TestSnapshotBlocksMap.checkINodeFile(new Path(snapshotNoChangeDir,
+        metaChangeFile2SCopy.getLocalName()).toString(), 1, fsn);
+    
+    // check the replication factor of metaChangeFile2SCopy
     assertEquals(REPLICATION_1,
         metaChangeFile2SCopy.getFileReplication(null));
     assertEquals(REPLICATION_1,
@@ -250,10 +277,17 @@ public class TestSnapshotDeletion {
     // before deleting sub, we first create a new file under sub
     Path newFile = new Path(sub, "newFile");
     DFSTestUtil.createFile(hdfs, newFile, BLOCKSIZE, REPLICATION, seed);
+    final INodeFile newFileNode = TestSnapshotBlocksMap.checkINodeFile(
+        newFile.toString(), 1, fsn);
+    blocks = newFileNode.getBlocks();
     checkQuotaUsageComputation(dir, 18L, BLOCKSIZE * REPLICATION * 5);
     hdfs.delete(sub, true);
-    // while deletion, we add diff for dir and metaChangeFile1
-    checkQuotaUsageComputation(dir, 20L, BLOCKSIZE * REPLICATION * 5);
+    // while deletion, we add diff for subsub and metaChangeFile1, and remove
+    // newFile
+    checkQuotaUsageComputation(dir, 19L, BLOCKSIZE * REPLICATION * 4);
+    for (BlockInfo b : blocks) {
+      assertNull(SnapshotTestHelper.getINodeFromBlocksMap(fsn, b));
+    }
     
     // make sure the whole subtree of sub is stored correctly in snapshot
     Path snapshotSub = SnapshotTestHelper.getSnapshotPath(dir, "s1",
@@ -384,6 +418,10 @@ public class TestSnapshotDeletion {
     DFSTestUtil.createFile(hdfs, metaChangeFile, BLOCKSIZE, REPLICATION, seed);
     DFSTestUtil.createFile(hdfs, toDeleteFile, BLOCKSIZE, REPLICATION, seed);
     
+    final INodeFile toDeleteFileNode = TestSnapshotBlocksMap.checkINodeFile(
+        toDeleteFile.toString(), 1, fsn);
+    BlockInfo[] blocks = toDeleteFileNode.getBlocks();
+    
     // create snapshot s0 on dir
     SnapshotTestHelper.createSnapshot(hdfs, dir, "s0");
     checkQuotaUsageComputation(dir, 8, 3 * BLOCKSIZE * REPLICATION);
@@ -408,6 +446,9 @@ public class TestSnapshotDeletion {
     // metaChangeDir's diff, dir's diff. diskspace: remove toDeleteFile, and 
     // metaChangeFile's replication factor decreases
     checkQuotaUsageComputation(dir, 7, 2 * BLOCKSIZE * REPLICATION - BLOCKSIZE);
+    for (BlockInfo b : blocks) {
+      assertNull(SnapshotTestHelper.getINodeFromBlocksMap(fsn, b));
+    }
     
     // check 1. there is no snapshot s0
     final INodeDirectorySnapshottable dirNode = 
@@ -428,6 +469,7 @@ public class TestSnapshotDeletion {
     final INodeFile noChangeFileNode = 
         (INodeFile) fsdir.getINode(noChangeFile.toString());
     assertEquals(INodeFile.class, noChangeFileNode.getClass());
+    TestSnapshotBlocksMap.checkINodeFile(noChangeFile.toString(), 1, fsn);
     
     // check 3: current metadata of metaChangeFile and metaChangeDir
     FileStatus status = hdfs.getFileStatus(metaChangeDir);
@@ -435,6 +477,7 @@ public class TestSnapshotDeletion {
     assertEquals("unknown", status.getGroup());
     status = hdfs.getFileStatus(metaChangeFile);
     assertEquals(REPLICATION_1, status.getReplication());
+    TestSnapshotBlocksMap.checkINodeFile(metaChangeFile.toString(), 1, fsn);
     
     // check 4: no snapshot copy for toDeleteFile
     try {
@@ -472,6 +515,57 @@ public class TestSnapshotDeletion {
   @Test
   public void testCombineSnapshotDiff2() throws Exception {
     testCombineSnapshotDiffImpl(sub, "subsub1/subsubsub1/", 3);
+  }
+  
+  /**
+   * When combine two snapshots, make sure files/directories created after the 
+   * prior snapshot get destroyed.
+   */
+  @Test (timeout=300000)
+  public void testCombineSnapshotDiff3() throws Exception {
+    // create initial dir and subdir
+    Path dir = new Path("/dir");
+    Path subDir1 = new Path(dir, "subdir1");
+    Path subDir2 = new Path(dir, "subdir2");
+    hdfs.mkdirs(subDir2);
+    Path subsubDir = new Path(subDir1, "subsubdir");
+    hdfs.mkdirs(subsubDir);
+    
+    // take snapshots on subdir and dir
+    SnapshotTestHelper.createSnapshot(hdfs, dir, "s1");
+    
+    // create new dir under initial dir
+    Path newDir = new Path(subsubDir, "newdir");
+    Path newFile = new Path(newDir, "newfile");
+    DFSTestUtil.createFile(hdfs, newFile, BLOCKSIZE, REPLICATION, seed);
+    Path newFile2 = new Path(subDir2, "newfile");
+    DFSTestUtil.createFile(hdfs, newFile2, BLOCKSIZE, REPLICATION, seed);
+    
+    // create another snapshot
+    SnapshotTestHelper.createSnapshot(hdfs, dir, "s2");
+    
+    checkQuotaUsageComputation(dir, 11, BLOCKSIZE * 2 * REPLICATION);
+    
+    // delete subsubdir and subDir2
+    hdfs.delete(subsubDir, true);
+    hdfs.delete(subDir2, true);
+    
+    // add diff of s2 to subDir1, subsubDir, and subDir2
+    checkQuotaUsageComputation(dir, 14, BLOCKSIZE * 2 * REPLICATION);
+    
+    // delete snapshot s2
+    hdfs.deleteSnapshot(dir, "s2");
+    
+    // delete s2 diff in dir, subDir2, and subsubDir. Delete newFile, newDir,
+    // and newFile2. Rename s2 diff to s1 for subDir1 
+    checkQuotaUsageComputation(dir, 8, 0);
+    // Check rename of snapshot diff in subDir1
+    Path subdir1_s1 = SnapshotTestHelper.getSnapshotPath(dir, "s1",
+        subDir1.getName());
+    Path subdir1_s2 = SnapshotTestHelper.getSnapshotPath(dir, "s2",
+        subDir1.getName());
+    assertTrue(hdfs.exists(subdir1_s1));
+    assertFalse(hdfs.exists(subdir1_s2));
   }
   
   /**
@@ -574,10 +668,18 @@ public class TestSnapshotDeletion {
         modDirStr + "file12");
     Path file13_s1 = SnapshotTestHelper.getSnapshotPath(snapshotRoot, "s1",
         modDirStr + "file13");
+    Path file14_s2 = SnapshotTestHelper.getSnapshotPath(snapshotRoot, "s2",
+        modDirStr + "file14");
+    Path file15_s2 = SnapshotTestHelper.getSnapshotPath(snapshotRoot, "s2",
+        modDirStr + "file15");
     FileStatus statusBeforeDeletion10 = hdfs.getFileStatus(file10_s1);
     FileStatus statusBeforeDeletion11 = hdfs.getFileStatus(file11_s1);
     FileStatus statusBeforeDeletion12 = hdfs.getFileStatus(file12_s1);
     FileStatus statusBeforeDeletion13 = hdfs.getFileStatus(file13_s1);
+    INodeFile file14Node = TestSnapshotBlocksMap.checkINodeFile(
+        file14_s2.toString(), 1, fsn);
+    BlockInfo[] blocks_14 = file14Node.getBlocks();
+    TestSnapshotBlocksMap.checkINodeFile(file15_s2.toString(), 1, fsn);
     
     // delete s2, in which process we need to combine the diff in s2 to s1
     hdfs.deleteSnapshot(snapshotRoot, "s2");
@@ -597,18 +699,26 @@ public class TestSnapshotDeletion {
         statusAfterDeletion12.toString());
     assertEquals(statusBeforeDeletion13.toString(),
         statusAfterDeletion13.toString());
+    TestSnapshotBlocksMap.checkINodeFile(file10_s1.toString(), 1, fsn);
+    TestSnapshotBlocksMap.checkINodeFile(file11_s1.toString(), 1, fsn);
+    TestSnapshotBlocksMap.checkINodeFile(file12_s1.toString(), 1, fsn);
+    TestSnapshotBlocksMap.checkINodeFile(file13_s1.toString(), 1, fsn);
     
     // make sure file14 and file15 are not included in s1
     Path file14_s1 = SnapshotTestHelper.getSnapshotPath(snapshotRoot, "s1",
         modDirStr + "file14");
-    assertFalse(hdfs.exists(file14_s1));
     Path file15_s1 = SnapshotTestHelper.getSnapshotPath(snapshotRoot, "s1",
         modDirStr + "file15");
+    assertFalse(hdfs.exists(file14_s1));
     assertFalse(hdfs.exists(file15_s1));
+    for (BlockInfo b : blocks_14) {
+      assertNull(SnapshotTestHelper.getINodeFromBlocksMap(fsn, b));
+    }
     
     INodeFile nodeFile13 = (INodeFile) fsdir.getINode(file13.toString());
     assertEquals(REPLICATION_1, nodeFile13.getBlockReplication());
-
+    TestSnapshotBlocksMap.checkINodeFile(file13.toString(), 1, fsn);
+    
     INodeFile nodeFile12 = (INodeFile) fsdir.getINode(file12_s1.toString());
     assertEquals(REPLICATION_1, nodeFile12.getBlockReplication());
   }

@@ -32,12 +32,12 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
+import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.ClientProtocol;
 import org.apache.hadoop.hdfs.protocol.DirectoryListing;
-import org.apache.hadoop.hdfs.protocol.ExtendedHdfsFileStatus;
-import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.protocol.ExtendedDirectoryListing;
+import org.apache.hadoop.hdfs.protocol.ExtendedHdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.NSQuotaExceededException;
@@ -57,9 +57,6 @@ import org.apache.hadoop.hdfs.util.ByteArray;
 import org.apache.hadoop.hdfs.util.GSet;
 import org.apache.hadoop.hdfs.util.LightWeightGSet;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
-import org.mortbay.log.Log;
-
-import com.sun.tools.example.debug.expr.ExpressionParser.GetFrame;
 
 /*************************************************
  * FSDirectory stores the filesystem directory state.
@@ -822,20 +819,31 @@ public class FSDirectory implements FSConstants, Closeable {
     iip.setLastINode(targetNode);
 
     // Remove the node from the namespace
-    removeLastINode(iip);
+    INode removed = removeLastINode(iip);
+    if (removed == null) {
+      return -1;
+    }
     
     // set the parent's modification time
-    targetNode.getParent().updateModificationTime(mtime, latestSnapshot);
+    final INodeDirectory parent = targetNode.getParent();
+    parent.updateModificationTime(mtime, latestSnapshot);
 
     // collect block
-    final long inodesRemoved = targetNode.cleanSubtree(null,
-        latestSnapshot, collectedBlocks).get(Quota.NAMESPACE);
+    long removedNum = 1;
+    if (!targetNode.isInLatestSnapshot(latestSnapshot)) {
+      targetNode.destroyAndCollectBlocks(collectedBlocks);
+    } else {
+      Quota.Counts counts = targetNode.cleanSubtree(null, latestSnapshot,
+          collectedBlocks);
+      parent.addSpaceConsumed(-counts.get(Quota.NAMESPACE),
+          -counts.get(Quota.DISKSPACE));
+      removedNum = counts.get(Quota.NAMESPACE);
+    }
     if (NameNode.stateChangeLog.isDebugEnabled()) {
       NameNode.stateChangeLog.debug("DIR* FSDirectory.unprotectedDelete: "
           + targetNode.getFullPathName() + " is removed");
     }
-    return inodesRemoved;
-
+    return removedNum;
   }
     
   /**
@@ -1581,18 +1589,18 @@ public class FSDirectory implements FSConstants, Closeable {
   private INode removeLastINode(final INodesInPath iip)
       throws QuotaExceededException {
     final Snapshot latestSnapshot = iip.getLatestSnapshot();
-    final INode[] inodes = iip.getINodes();
-    final int pos = inodes.length - 1;
-    final INodeDirectory parent = inodes[pos-1].asDirectory();
-    final boolean removed = parent.removeChild(inodes[pos], latestSnapshot);
-    if (removed && latestSnapshot == null) {
-      removeFromInodeMap(inodes[pos]);
-      iip.setINode(pos - 1, inodes[pos].getParent());
-      final Quota.Counts counts = inodes[pos].computeQuotaUsage();
-      updateCountNoQuotaCheck(iip, pos,
+    final INode last = iip.getLastINode();
+    final INodeDirectory parent = iip.getINode(-2).asDirectory();
+    final boolean removed = parent.removeChild(last, latestSnapshot);
+    
+    if (removed && !last.isInLatestSnapshot(latestSnapshot)) {
+      removeFromInodeMap(last);
+      iip.setINode(-2, last.getParent());
+      final Quota.Counts counts = last.computeQuotaUsage();
+      updateCountNoQuotaCheck(iip, iip.getINodes().length - 1,
           -counts.get(Quota.NAMESPACE), -counts.get(Quota.DISKSPACE));
     }
-    return removed? inodes[pos]: null;
+    return removed? last: null;
   }
 
   

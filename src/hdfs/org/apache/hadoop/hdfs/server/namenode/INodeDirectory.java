@@ -174,7 +174,7 @@ public class INodeDirectory extends INode {
           "this is already an INodeDirectoryWithQuota, this=" + this);
     }
 
-    if (latest == null) {
+    if (!this.isInLatestSnapshot(latest)) {
       final INodeDirectoryWithQuota q = new INodeDirectoryWithQuota(
           this, true, nsQuota, dsQuota);
       replaceSelf(q);
@@ -607,7 +607,7 @@ public class INodeDirectory extends INode {
     // the diff list, the snapshot to be deleted has been combined or renamed
     // to its latest previous snapshot. (besides, we also need to consider nodes
     // created after prior but before snapshot. this will be done in 
-    // INodeDirectoryWithSnapshot#cleanSubtree
+    // INodeDirectoryWithSnapshot#cleanSubtree)
     Snapshot s = snapshot != null && prior != null ? prior : snapshot;
     for (INode child : getChildrenList(s)) {
       Quota.Counts childCounts = child.cleanSubtree(snapshot, prior,
@@ -856,7 +856,7 @@ public class INodeDirectory extends INode {
     }
     
     void setINode(int i, INode inode) {
-      inodes[i] = inode;
+      inodes[i >= 0? i: inodes.length + i] = inode;
     }
   }
 
