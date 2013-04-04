@@ -1806,13 +1806,13 @@ public class FsShell extends Configured implements Tool {
                          " [-stat [format] <path>]");
     } else if ("-tail".equals(cmd)) {
       System.err.println("Usage: java FsShell [" + TAIL_USAGE + "]");
-    } else if ("createSnapshot".equalsIgnoreCase(cmd)) {
+    } else if ("-createSnapshot".equalsIgnoreCase(cmd)) {
       System.err.println("Usage: java FsShell" + " [" + cmd
           + " <snapshotDir> <snapshotName>]");
-    } else if ("deleteSnapshot".equalsIgnoreCase(cmd)) {
+    } else if ("-deleteSnapshot".equalsIgnoreCase(cmd)) {
       System.err.println("Usage: java FsShell" + " [" + cmd
           + " <snapshotDir> <snapshotName>]");
-    } else if ("renameSnapshot".equalsIgnoreCase(cmd)) {
+    } else if ("-renameSnapshot".equalsIgnoreCase(cmd)) {
       System.err.println("Usage: java FsShell" + " [" + cmd
           + " <snapshotDir> <oldName> <newName>]");
     } else {
@@ -1888,17 +1888,17 @@ public class FsShell extends Configured implements Tool {
         printUsage(cmd);
         return exitCode;
       }
-    } else if ("createSnapshot".equalsIgnoreCase(cmd)) {
+    } else if ("-createSnapshot".equalsIgnoreCase(cmd)) {
       if (argv.length < 3) {
         printUsage(cmd);
         return exitCode;
       }
-    } else if ("deleteSnapshot".equalsIgnoreCase(cmd)) {
+    } else if ("-deleteSnapshot".equalsIgnoreCase(cmd)) {
       if (argv.length < 3) {
         printUsage(cmd);
         return exitCode;
       }
-    } else if ("renameSnapshot".equalsIgnoreCase(cmd)) {
+    } else if ("-renameSnapshot".equalsIgnoreCase(cmd)) {
       if (argv.length < 4) {
         printUsage(cmd);
         return exitCode;
@@ -2006,11 +2006,11 @@ public class FsShell extends Configured implements Tool {
         } else {
           stat("%y".toCharArray(), argv[i]);
         }
-      } else if ("createSnapshot".equalsIgnoreCase(cmd)) {
+      } else if ("-createSnapshot".equalsIgnoreCase(cmd)) {
         exitCode = createSnapshot(argv, getConf());
-      } else if ("deleteSnapshot".equalsIgnoreCase(cmd)) {
+      } else if ("-deleteSnapshot".equalsIgnoreCase(cmd)) {
         exitCode = deleteSnapshot(argv, getConf());
-      } else if ("renameSnapshot".equalsIgnoreCase(cmd)) {
+      } else if ("-renameSnapshot".equalsIgnoreCase(cmd)) {
         exitCode = renameSnapshot(argv, getConf());
       } else if ("-help".equals(cmd)) {
         if (i < argv.length) {

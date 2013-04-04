@@ -880,7 +880,7 @@ public class DFSAdmin extends FsShell {
         return exitCode;
       }
     } else if ("-allowSnapshot".equalsIgnoreCase(cmd)) {
-      if (argv.length != 3) {
+      if (argv.length != 2) {
         printUsage(cmd);
         return exitCode;
       }
