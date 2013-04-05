@@ -86,7 +86,7 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
       for (INode c : createdList) {
         c.computeQuotaUsage(counts, true);
         c.destroyAndCollectBlocks(collectedBlocks);
-        // c should be contained in the children list, remove it
+        // c may be contained in the children list, remove it
         currentINode.removeChild(c);
       }
       createdList.clear();

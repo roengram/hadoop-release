@@ -139,9 +139,6 @@ public class INodeDirectory extends INode {
    * @return true if the child is removed; false if the child is not found.
    */
   protected final boolean removeChild(final INode child) {
-    if (children == null) {
-      throw new IllegalStateException("children is null");
-    }
     final int i = searchChildren(child.getLocalNameBytes());
     if (i < 0) {
       return false;
