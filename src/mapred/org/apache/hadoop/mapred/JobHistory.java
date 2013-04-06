@@ -1287,7 +1287,21 @@ public class JobHistory {
       }
       return user;
     }
-    
+
+    /**
+     * Get the queueName of the job
+     */
+    public static String getJobQueueName(JobConf jobConf) {
+      return jobConf.getQueueName();
+    }
+
+    /**
+     * Get the job-view-acl corresponding to the job.
+     */
+    public static String getJobViewACL(JobConf jobConf) {
+      return jobConf.get(JobACL.VIEW_JOB.getAclName(), " ");
+    }
+
     /**
      * Get the workflow adjacencies from the job conf
      * The string returned is of the form "key"="value" "key"="value" ...
@@ -1351,11 +1365,17 @@ public class JobHistory {
      * Generates the job history filename for a new job
      */
     private static String getNewJobHistoryFileName(JobConf jobConf, JobID id, long submitTime) {
+      // Put * in the file-name if acls aren't enabled
+      String jobViewACL =
+          aclsEnabled ? getJobViewACL(jobConf)
+              : AccessControlList.WILDCARD_ACL_VALUE;
       return
         id.toString() + "_"
         + submitTime + "_"
         + escapeUnderscores(getUserName(jobConf)) + "_" 
-        + escapeUnderscores(trimJobName(getJobName(jobConf)));
+        + escapeUnderscores(trimJobName(getJobName(jobConf))) + "_"
+        + escapeUnderscores(getJobQueueName(jobConf)) + "_"
+        + escapeUnderscores(jobViewACL);
     }
     
     /**

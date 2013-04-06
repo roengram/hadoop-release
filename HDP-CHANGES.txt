@@ -9,6 +9,8 @@ Condor release branched from Apache @ https://svn.apache.org/repos/asf/hadoop/co
 
   IMPROVEMENTS
 
+    MAPREDUCE-5109. Job view-acl should apply to job lists on JobTracker
+    & JobHistory listings too. (vinodkv via acmurthy) 
 
   BUG FIXES
 

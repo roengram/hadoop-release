@@ -28,6 +28,9 @@
   import="javax.servlet.jsp.*"
   import="java.text.SimpleDateFormat"
   import="org.apache.hadoop.http.HtmlQuoting"
+  import="org.apache.hadoop.security.AccessControlException"
+  import="org.apache.hadoop.security.authorize.AccessControlList"
+  import="org.apache.hadoop.security.UserGroupInformation"
 %>
 <%	
   JobConf jobConf = (JobConf) application.getAttribute("jobConf");
@@ -44,6 +47,8 @@
     trackerUrl = "http://" + trackerAddress;
     trackerName = StringUtils.simpleHostname(infoSocAddr.getHostName());
   }
+
+  ACLsManager aclsManager = (ACLsManager) application.getAttribute("aclManager");
 %>
 <%!private static SimpleDateFormat dateFormat = new SimpleDateFormat(
       "d/MM HH:mm:ss");%>
@@ -86,6 +91,10 @@ window.location.href = url;
     final int FILENAME_USER_PART = FILENAME_JOBID_END + 1;
 
     final int FILENAME_JOBNAME_PART = FILENAME_JOBID_END + 2;
+
+    final int FILENAME_JOBQUEUENAME_PART = FILENAME_JOBID_END + 3;
+
+    final int FILENAME_JOBVIEWACL_PART = FILENAME_JOBID_END + 4;
 
     final int[] SCAN_SIZES = { 20, 50, 200, 1000 };
 
@@ -480,6 +489,15 @@ window.location.href = url;
                   marker, JobHistory.UNDERSCORE_ESCAPE);
       String jobName = JobHistory.replaceStringInstances(jobDetails[FILENAME_JOBNAME_PART],
                   marker, JobHistory.UNDERSCORE_ESCAPE);
+      String jobQueueName = null;
+      String jobViewAcl = null;
+      if (jobDetails.length == 8) {
+        // New version of JHS which writes queue-name and job-vew-acl also
+        jobQueueName = JobHistory.replaceStringInstances(jobDetails[FILENAME_JOBQUEUENAME_PART],
+          marker, JobHistory.UNDERSCORE_ESCAPE);
+        jobViewAcl = JobHistory.replaceStringInstances(jobDetails[FILENAME_JOBVIEWACL_PART],
+          marker, JobHistory.UNDERSCORE_ESCAPE);
+      }
       
       // Check if the job is already displayed. There can be multiple job 
       // history files for jobs that have restarted
@@ -498,9 +516,10 @@ window.location.href = url;
 %>
 <center>
 <%	
-      printJob(submitTimestamp, jobId,
-               jobName, userName, new Path(jobFile.getParent(), encodedJobFileName), 
-               out) ; 
+      printJob(request, aclsManager, submitTimestamp, jobId,
+               jobName, userName, jobQueueName, jobViewAcl,
+               new Path(jobFile.getParent(), encodedJobFileName), out,
+               jobConf) ; 
 %>
 </center> 
 <%
@@ -511,10 +530,34 @@ window.location.href = url;
     printNavigationTool(pageno, size, maxPageNo, searchPlusScan, out);
 %>
 <%!
-    private void printJob(String timestamp,
-                          String jobId, String jobName,
-                          String user, Path logFile, JspWriter out)
+    private void printJob(HttpServletRequest request, ACLsManager aclsManager,
+                          String timestamp, String jobId, String jobName,
+                          String user, String jobQueueName, String jobViewAcl,
+                          Path logFile, JspWriter out, JobConf conf)
     throws IOException {
+
+      if(JSPUtil.applyACLsToJobListings(conf)) {
+        // Check ACLs only if it is new version of JobHistory that also puts
+        // queueName and the viewACL also as part of the history file-name
+        if (jobQueueName != null && jobViewAcl != null) {
+
+          UserGroupInformation currentUser =
+              UserGroupInformation.createRemoteUser(request.getRemoteUser());
+          AccessControlList viewACL =
+              new AccessControlList(unescapeUnderscores(jobViewAcl));
+
+          // Authorize the user for view access of this job
+          try {
+            aclsManager.checkAccess(jobId, currentUser,
+              jobQueueName, Operation.VIEW_JOB_DETAILS,
+              user, viewACL, false);
+          } catch (AccessControlException e) {
+            // This user is not allowed to view this job, skip it.
+            return;
+          }
+        }
+      }
+
       out.print("<tr>"); 
       out.print("<td>" + new Date(Long.parseLong(timestamp)) + "</td>"); 
       out.print("<td>" + "<a href=\"jobdetailshistory.jsp?logFile=" 

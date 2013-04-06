@@ -84,7 +84,7 @@ if(jobs == null || jobs.isEmpty()) {
 <br/>
 <hr/>
 <%=
-  JSPUtil.generateJobTable("Job List", jobs, 30, 0, tracker.conf)
+  JSPUtil.generateJobTable(request, tracker, "Job List", jobs, 30, 0, tracker.conf)
 %>
 <hr>
 <% } %>

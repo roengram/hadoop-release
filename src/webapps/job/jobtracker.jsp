@@ -23,6 +23,7 @@
   import="org.apache.hadoop.http.HtmlQuoting"
   import="org.apache.hadoop.mapred.*"
   import="org.apache.hadoop.mapreduce.*"
+  import="org.apache.hadoop.mapred.JSPUtil.JobWithViewAccessCheck"  
   import="org.apache.hadoop.util.*"
   import="org.codehaus.jackson.map.ObjectMapper"
 %>
@@ -278,16 +279,28 @@
     private final Collection<JobSummaryInfo> completedJobsSummaryInfo;
     private final Collection<JobSummaryInfo> failedJobsSummaryInfo;
 
-    private void populateJobsSummaryInfo
-      (Collection<JobInProgress> jips, Collection<JobSummaryInfo> jsis) {
+    private void populateJobsSummaryInfo(HttpServletRequest request,
+       JobTracker jt, Collection<JobInProgress> jips,
+       Collection<JobSummaryInfo> jsis) throws ServletException, IOException {
 
       for (JobInProgress jip : jips) {
-        jsis.add(new JobSummaryInfo(jip));
+        if (JSPUtil.applyACLsToJobListings(jt.conf)) {
+          // Pass null as response so as to not mess it up for one or more
+          // unaccessible jobs.
+          JobWithViewAccessCheck job = JSPUtil.checkAccessAndGetJob(
+                    jt, jip.getJobID(), request, null);
+          if (job.isViewJobAllowed()) {
+            jsis.add(new JobSummaryInfo(jip));
+          }
+        } else {
+          jsis.add(new JobSummaryInfo(jip));          
+        }
       }
     }
 
     // Constructor
-    JobTrackerResponse(JobTracker jt) {
+    JobTrackerResponse(HttpServletRequest request, JobTracker jt)
+        throws ServletException, IOException {
 
       metaInfo = new JobTrackerMetaInfo(jt);
       clusterSummary = new JobTrackerClusterSummary(jt);
@@ -295,17 +308,17 @@
       Collection<JobInProgress> runningJobs = jt.runningJobs();
       runningJobsSummaryInfo = (runningJobs.size() > 0) ? 
         new ArrayList<JobSummaryInfo>() : null;
-      populateJobsSummaryInfo(runningJobs, runningJobsSummaryInfo);
+      populateJobsSummaryInfo(request, jt, runningJobs, runningJobsSummaryInfo);
 
       Collection<JobInProgress> completedJobs = jt.completedJobs();
       completedJobsSummaryInfo = (completedJobs.size() > 0) ? 
         new ArrayList<JobSummaryInfo>() : null;
-      populateJobsSummaryInfo(completedJobs, completedJobsSummaryInfo);
+      populateJobsSummaryInfo(request, jt, completedJobs, completedJobsSummaryInfo);
 
       Collection<JobInProgress> failedJobs = jt.failedJobs();
       failedJobsSummaryInfo = (failedJobs.size() > 0) ? 
         new ArrayList<JobSummaryInfo>() : null;
-      populateJobsSummaryInfo(failedJobs, failedJobsSummaryInfo);
+      populateJobsSummaryInfo(request, jt, failedJobs, failedJobsSummaryInfo);
     }
 
     // Getters
@@ -331,7 +344,7 @@
 
     JobTracker tracker = (JobTracker) application.getAttribute("job.tracker");
 
-    theJobTrackerResponse = new JobTrackerResponse(tracker);
+    theJobTrackerResponse = new JobTrackerResponse(request, tracker);
 
     /* ------------ Response generation begins here ------------ */
 
@@ -445,13 +458,13 @@ for(JobQueueInfo queue: queues) {
 <hr>
 
 <h2 id="running_jobs">Running Jobs</h2>
-<%=JSPUtil.generateJobTable("Running", runningJobs, 30, 0, tracker.conf)%>
+<%=JSPUtil.generateJobTable(request, tracker, "Running", runningJobs, 30, 0, tracker.conf)%>
 <hr>
 
 <%
 if (completedJobs.size() > 0) {
   out.print("<h2 id=\"completed_jobs\">Completed Jobs</h2>");
-  out.print(JSPUtil.generateJobTable("Completed", completedJobs, 0, 
+  out.print(JSPUtil.generateJobTable(request, tracker, "Completed", completedJobs, 0, 
     runningJobs.size(), tracker.conf));
   out.print("<hr>");
 }
@@ -460,14 +473,14 @@ if (completedJobs.size() > 0) {
 <%
 if (failedJobs.size() > 0) {
   out.print("<h2 id=\"failed_jobs\">Failed Jobs</h2>");
-  out.print(JSPUtil.generateJobTable("Failed", failedJobs, 0, 
+  out.print(JSPUtil.generateJobTable(request, tracker, "Failed", failedJobs, 0, 
     (runningJobs.size()+completedJobs.size()), tracker.conf));
   out.print("<hr>");
 }
 %>
 
 <h2 id="retired_jobs">Retired Jobs</h2>
-<%=JSPUtil.generateRetiredJobTable(tracker, 
+<%=JSPUtil.generateRetiredJobTable(request, tracker, 
   (runningJobs.size()+completedJobs.size()+failedJobs.size()))%>
 <hr>
 

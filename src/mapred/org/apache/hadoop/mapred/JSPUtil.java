@@ -50,6 +50,8 @@ import org.apache.hadoop.util.StringUtils;
 
 class JSPUtil {
   static final String PRIVATE_ACTIONS_KEY = "webinterface.private.actions";
+  static final String APPLY_ALCS_TO_JOB_LISTING =
+      "webinterface.apply-acls-to-job-listings";
 
   //LRU based cache
   private static final Map<String, JobInfo> jobHistoryCache = 
@@ -97,7 +99,26 @@ class JSPUtil {
    */
   public static JobWithViewAccessCheck checkAccessAndGetJob(final JobTracker jt,
       JobID jobid, HttpServletRequest request, HttpServletResponse response)
-      throws ServletException, IOException {
+          throws ServletException, IOException {
+    return checkAccessAndGetJob(jt, jobid, request, response, false);
+  }
+
+  /**
+   * Validates if current user can view the job.
+   * If user is not authorized to view the job, this method will modify the
+   * response and forwards to an error page and returns Job with
+   * viewJobAccess flag set to false.
+   * @param duringJobListing If set to true, this won't forward response to
+   * error pages in case of auth-failures. Used when doing access-check during
+   * job-listing
+   * @return JobWithViewAccessCheck object(contains JobInProgress object and
+   *         viewJobAccess flag). Callers of this method will check the flag
+   *         and decide if view should be allowed or not. Job will be null if
+   *         the job with given jobid doesnot exist at the JobTracker.
+   */
+  public static JobWithViewAccessCheck checkAccessAndGetJob(final JobTracker jt,
+      JobID jobid, HttpServletRequest request, HttpServletResponse response,
+      boolean duringJobListing) throws ServletException, IOException {
     final JobInProgress job = jt.getJob(jobid);
     JobWithViewAccessCheck myJob = new JobWithViewAccessCheck(job);
 
@@ -107,7 +128,9 @@ class JSPUtil {
     
     String user = request.getRemoteUser();
     if (user == null) {
-      JSPUtil.setErrorAndForward("Null user", request, response);
+      if (!duringJobListing) {
+        JSPUtil.setErrorAndForward("Null user", request, response);
+      }
       myJob.setViewAccess(false);
       return myJob;
     }
@@ -124,15 +147,19 @@ class JSPUtil {
         }
       });
     } catch (AccessControlException e) {
-      String errMsg = "User " + ugi.getShortUserName() +
-          " failed to view " + jobid + "!<br><br>" + e.getMessage() +
-          "<hr><a href=\"jobtracker.jsp\">Go back to JobTracker</a><br>";
-      JSPUtil.setErrorAndForward(errMsg, request, response);
+      if (!duringJobListing) {
+        String errMsg = "User " + ugi.getShortUserName() +
+            " failed to view " + jobid + "!<br><br>" + e.getMessage() +
+            "<hr><a href=\"jobtracker.jsp\">Go back to JobTracker</a><br>";
+        JSPUtil.setErrorAndForward(errMsg, request, response);
+      }
       myJob.setViewAccess(false);
     } catch (InterruptedException e) {
-      String errMsg = " Interrupted while trying to access " + jobid +
-      "<hr><a href=\"jobtracker.jsp\">Go back to JobTracker</a><br>";
-      JSPUtil.setErrorAndForward(errMsg, request, response);
+      if (!duringJobListing) {
+        String errMsg = " Interrupted while trying to access " + jobid +
+          "<hr><a href=\"jobtracker.jsp\">Go back to JobTracker</a><br>";
+        JSPUtil.setErrorAndForward(errMsg, request, response);
+      }
       myJob.setViewAccess(false);
     }
     return myJob;
@@ -258,6 +285,8 @@ class JSPUtil {
   /**
    * Method used to generate the Job table for Job pages.
    * 
+   * @param request the request object
+   * @param jt the JobTracker reference
    * @param label display heading to be used in the job table.
    * @param jobs vector of jobs to be displayed in table.
    * @param refresh refresh interval to be used in jobdetails page.
@@ -265,8 +294,9 @@ class JSPUtil {
    * @return
    * @throws IOException
    */
-  public static String generateJobTable(String label, Collection<JobInProgress> jobs
-      , int refresh, int rowId, JobConf conf) throws IOException {
+  public static String generateJobTable(HttpServletRequest request,
+      JobTracker jt, String label, Collection<JobInProgress> jobs, int refresh,
+      int rowId, JobConf conf) throws ServletException, IOException {
 
     boolean isModifiable = label.equals("Running") 
                                 && privateActionsAllowed(conf);
@@ -319,6 +349,20 @@ class JSPUtil {
 
       for (Iterator<JobInProgress> it = jobs.iterator(); it.hasNext(); ++rowId) {
         JobInProgress job = it.next();
+
+        if (applyACLsToJobListings(conf)) {
+          // Check if this job is accessible
+          // Pass duringJobListing as true, request doesn't need to be sent, set
+          // it to null
+          JobWithViewAccessCheck jobWVAC =
+              JSPUtil.checkAccessAndGetJob(jt, job.getJobID(), request, null,
+                true);
+          if (!jobWVAC.isViewJobAllowed()) {
+            // The current user isn't allowed to look at this job, skip it.
+            continue;
+          }
+        }
+
         Date time = new Date(job.getStartTime());
         JobProfile profile = job.getProfile();
         JobStatus status = job.getStatus();
@@ -374,9 +418,8 @@ class JSPUtil {
     return sb.toString();
   }
 
-  @SuppressWarnings("unchecked")
-  public static String generateRetiredJobTable(JobTracker tracker, int rowId) 
-    throws IOException {
+  public static String generateRetiredJobTable(HttpServletRequest request,
+      JobTracker tracker, int rowId) throws IOException {
 
     StringBuffer sb = new StringBuffer();
     sb.append("<table border=\"1\" cellpadding=\"5\" cellspacing=\"0\">\n");
@@ -403,6 +446,24 @@ class JSPUtil {
       sb.append("</tr>\n");
       for (int i = 0; i < 100 && iterator.hasNext(); i++) {
         RetireJobInfo info = iterator.next();
+
+        if (JSPUtil.applyACLsToJobListings(tracker.conf)) {
+
+          UserGroupInformation currentUser =
+              UserGroupInformation.createRemoteUser(request.getRemoteUser());
+
+          // Authorize the user for view access of this job
+          try {
+            tracker.getACLsManager().checkAccess(info.status.getJobId(),
+              currentUser, info.profile.getQueueName(),
+              Operation.VIEW_JOB_DETAILS, info.profile.getUser(),
+              info.status.getJobACLs().get(JobACL.VIEW_JOB), false);
+          } catch (AccessControlException e) {
+            // This user is not allowed to view this job, skip it.
+            continue;
+          }
+        }
+        
         String historyFile = info.getHistoryFile();
         String historyFileUrl = null;
         if (historyFile != null && !historyFile.equals("")) {
@@ -611,5 +672,9 @@ class JSPUtil {
 
   static boolean privateActionsAllowed(JobConf conf) {
     return conf.getBoolean(PRIVATE_ACTIONS_KEY, false);
+  }
+
+  static boolean applyACLsToJobListings(JobConf conf) {
+    return conf.getBoolean(APPLY_ALCS_TO_JOB_LISTING, false);
   }
 }

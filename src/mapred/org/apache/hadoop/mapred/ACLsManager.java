@@ -155,6 +155,28 @@ class ACLsManager {
   void checkAccess(String jobId, UserGroupInformation callerUGI,
       String queue, Operation operation, String jobOwner,
       AccessControlList jobAcl) throws AccessControlException {
+    checkAccess(jobId, callerUGI, queue, operation, jobOwner, jobAcl, true);
+  }
+
+  /**
+   * Check the ACLs for a user doing the passed operation.
+   * <ul>
+   * <li>If ACLs are disabled, allow all users.</li>
+   * <li>If the operation is not a job operation(for eg. submit-job-to-queue),
+   *  then allow only (a) clusterOwner(who started the cluster), (b)cluster 
+   *  administrators and (c) members of queue-submit-job-acl for the queue.</li>
+   * <li>If the operation is a job operation, then allow only (a) jobOwner,
+   * (b) clusterOwner(who started the cluster), (c) cluster administrators,
+   * (d) members of queue admins acl for the queue and (e) members of job
+   * acl for the jobOperation</li>
+   * </ul>
+   * 
+   * callerUGI is the user who is trying to perform the operation.
+   * jobAcl could be job-view-acl or job-modify-acl depending on job operation.
+   */
+  void checkAccess(String jobId, UserGroupInformation callerUGI, String queue,
+      Operation operation, String jobOwner, AccessControlList jobAcl,
+      boolean shouldEnableAuditLogging) throws AccessControlException {
     if (!aclsEnabled) {
       return;
     }
@@ -165,16 +187,20 @@ class ACLsManager {
     // Allow mapreduce cluster admins to do any queue operation and
     // any job operation
     if (isMRAdmin(callerUGI)) {
-      AuditLogger.logSuccess(user, operation.name(), targetResource);
+      if (shouldEnableAuditLogging) {
+        AuditLogger.logSuccess(user, operation.name(), targetResource);
+      }
       return;
     }
 
     if (operation == Operation.SUBMIT_JOB) {
       // This is strictly queue operation(not a job operation)
       if (!queueManager.hasAccess(queue, operation.qACLNeeded, callerUGI)) {
-        AuditLogger.logFailure(user, operation.name(),
-            queueManager.getQueueACL(queue, operation.qACLNeeded).toString(),
-            targetResource, Constants.UNAUTHORIZED_USER);
+        if (shouldEnableAuditLogging) {
+          AuditLogger.logFailure(user, operation.name(),
+              queueManager.getQueueACL(queue, operation.qACLNeeded).toString(),
+              targetResource, Constants.UNAUTHORIZED_USER);
+        }
 
         throw new AccessControlException("User "
             + callerUGI.getShortUserName() + " cannot perform "
@@ -182,7 +208,9 @@ class ACLsManager {
             + ".\n Please run \"hadoop queue -showacls\" "
             + "command to find the queues you have access to .");
       } else {
-        AuditLogger.logSuccess(user, operation.name(), targetResource);
+        if (shouldEnableAuditLogging) {
+          AuditLogger.logSuccess(user, operation.name(), targetResource);
+        }
         return;
       }
     }
@@ -195,18 +223,24 @@ class ACLsManager {
     if (operation == Operation.VIEW_TASK_LOGS) {
       if (jobACLsManager.checkAccess(callerUGI, operation.jobACLNeeded,
           jobOwner, jobAcl)) {
-        AuditLogger.logSuccess(user, operation.name(), targetResource);
+        if (shouldEnableAuditLogging) {
+          AuditLogger.logSuccess(user, operation.name(), targetResource);
+        }
         return;
       }
     } else if (queueManager.hasAccess(queue, operation.qACLNeeded, callerUGI) ||
                jobACLsManager.checkAccess(callerUGI, operation.jobACLNeeded,
                jobOwner, jobAcl)) {
-      AuditLogger.logSuccess(user, operation.name(), targetResource);
+      if (shouldEnableAuditLogging) {
+        AuditLogger.logSuccess(user, operation.name(), targetResource);
+      }
       return;
     }
 
-    AuditLogger.logFailure(user, operation.name(), jobAcl.toString(),
-        targetResource, Constants.UNAUTHORIZED_USER);
+    if (shouldEnableAuditLogging) {
+      AuditLogger.logFailure(user, operation.name(), jobAcl.toString(),
+          targetResource, Constants.UNAUTHORIZED_USER);
+    }
 
     throw new AccessControlException("User "
         + callerUGI.getShortUserName() + " cannot perform operation "
