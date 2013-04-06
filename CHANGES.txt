@@ -227,6 +227,9 @@ Release 1.2.0 - unreleased
     HADOOP-8971. PureJavaCrc32 cache hit-ratio is low for static data
     (Backport of HADOOP-8926) (Gopal V via suresh)
 
+    MAPREDUCE-5129. Allow tags to JobHistory for deeper analytics. (billie via
+    acmurthy)
+
   BUG FIXES
 
     MAPREDUCE-4904. OTHER_LOCAL_MAPS counter is not correct.
