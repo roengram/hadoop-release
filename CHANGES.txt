@@ -31,6 +31,9 @@ Release 1.3.0 - unreleased
     HDFS-4581. DataNode.checkDiskError should not be called on network errors.
     (Rohit Kochar via kihwal)
 
+    MAPREDUCE-2817. MiniRMCluster hardcodes 'mapred.local.dir' configuration 
+    to 'build/test/mapred/local'. (rkanter via tucu)
+
 Release 1.2.0 - unreleased
 
   INCOMPATIBLE CHANGES
@@ -227,10 +230,16 @@ Release 1.2.0 - unreleased
     HADOOP-8971. PureJavaCrc32 cache hit-ratio is low for static data
     (Backport of HADOOP-8926) (Gopal V via suresh)
 
+    HADOOP-9071. Configure ivy log levels for resolve/retrieve.
+    (Giridharan Kesavan via suresh)
+
     MAPREDUCE-5129. Allow tags to JobHistory for deeper analytics. (billie via
     acmurthy)
 
   BUG FIXES
+
+    HADOOP-9451. Fault single-layer config if node group topology is enabled.
+    (Junping Du via llu)
 
     MAPREDUCE-4904. OTHER_LOCAL_MAPS counter is not correct.
     (Junping Du via llu)
