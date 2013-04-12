@@ -1079,6 +1079,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    */
   LocatedBlocks getBlockLocations(String clientMachine, String src,
       long offset, long length) throws IOException {
+    src = FSDirectory.resolvePath(src, INode.getPathComponents(src), dir);
     LocatedBlocks blocks = getBlockLocations(src, offset, length, true, true,
         true);
     if (blocks != null) {
@@ -1128,6 +1129,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   public LocatedBlocks getBlockLocations(String src, long offset, long length,
       boolean doAccessTime, boolean needBlockToken, boolean checkSafeMode)
       throws IOException {
+    src = FSDirectory.resolvePath(src, INode.getPathComponents(src), dir);
     if (isPermissionEnabled) {
       FSPermissionChecker pc = getPermissionChecker();
       checkPathAccess(pc, src, FsAction.READ);
