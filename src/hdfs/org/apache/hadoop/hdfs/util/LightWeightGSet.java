@@ -292,6 +292,7 @@ public class LightWeightGSet<K, E extends K> implements GSet<K, E> {
         mapName);
   }
   
+  /** Visible for testing */
   static int computeCapacity(long maxMemory, double percentage,
       String mapName) {
     if (percentage > 100.0 || percentage < 0.0) {
@@ -325,5 +326,12 @@ public class LightWeightGSet<K, E extends K> implements GSet<K, E> {
     LOG.info(percentage + "% max memory = " + maxMemory);
     LOG.info("capacity      = 2^" + exponent + " = " + c + " entries");
     return c;
+  }
+  
+  public void clear() {
+    for (int i = 0; i < entries.length; i++) {
+      entries[i] = null;
+    }
+    size = 0;
   }
 }

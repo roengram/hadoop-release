@@ -1982,4 +1982,8 @@ public class FSDirectory implements FSConstants, Closeable {
   int getInodeMapSize() {
     return inodeMap != null ? inodeMap.size() : 0;
   }
+
+  void shutdown() {
+    nameCache.reset();
+  }
 }
