@@ -23,8 +23,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import com.google.common.annotations.VisibleForTesting;
-
 /**
  * This class is used for handling the duplicate <em>non-idempotenty</em> Rpc
  * calls. A non-idempotent request is processed as follows:
@@ -162,8 +160,9 @@ public class RpcCallCache {
   /** 
    * Iterator to the cache entries 
    * @return iterator
+   * 
+   * Visible for testing.
    */
-  @VisibleForTesting
   public Iterator<Entry<ClientRequest, CacheEntry>> iterator() {
     return map.entrySet().iterator();
   }

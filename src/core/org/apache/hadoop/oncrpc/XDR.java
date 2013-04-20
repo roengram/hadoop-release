@@ -23,8 +23,6 @@ import java.util.Arrays;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 
-import com.google.common.annotations.VisibleForTesting;
-
 /**
  * Utility class for building XDR messages based on RFC 4506.
  * <p>
@@ -342,7 +340,7 @@ public class XDR {
     }
   }
 
-  @VisibleForTesting
+  /** Visible for testing */
   public byte[] getBytes() {
     return bytearr;
   }
