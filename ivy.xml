@@ -318,5 +318,10 @@
       rev="${jdeb.version}"
       conf="common->master">
     </dependency>
+    <dependency org="io.netty" 
+      name="netty" 
+      rev="${netty.version}"
+      conf="common->master">
+    </dependency>
  </dependencies>
 </ivy-module>
