@@ -609,6 +609,9 @@ Release 1.2.0 - unreleased
     HADOOP-9458. Fix RPC.getProxy to ensure it uses retries for
     getProtocolVersion too. (szetszwo via acmurthy)
 
+    HDFS-4715. Backport HDFS-3577, HDFS-3318 and HDFS-3788: fix some WebHDFS
+    performance issues.  (Mark Wagner via szetszwo)
+
 Release 1.1.2 - 2013.01.30
 
   INCOMPATIBLE CHANGES
