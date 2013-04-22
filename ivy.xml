@@ -323,5 +323,10 @@
       rev="${netty.version}"
       conf="common->master">
     </dependency>
+    <dependency org="com.google.guava"
+      name="guava"
+      rev="${guava.version}"
+      conf="common->master">
+    </dependency>
  </dependencies>
 </ivy-module>
