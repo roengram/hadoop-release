@@ -118,8 +118,8 @@ public class FSImageSerialization {
     U_STR.write(out);
   }
   
-  private static void writePermissionStatus(INode inode, DataOutput out
-      ) throws IOException {
+  private static void writePermissionStatus(INodeWithAdditionalFields inode,
+      DataOutput out) throws IOException {
     final FsPermission p = FILE_PERM;
     p.fromShort(inode.getFsPermissionShort());
     PermissionStatus.write(out, inode.getUserName(), inode.getGroupName(), p);

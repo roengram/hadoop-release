@@ -250,7 +250,8 @@ public class FSImageFormat {
       if (in.readShort() != 0) {
         throw new IOException("First node is not root");
       }
-      final INode root = loadINode(INodeId.ROOT_INODE_ID, null, false, in);
+      final INodeWithAdditionalFields root = loadINode(INodeId.ROOT_INODE_ID,
+          null, false, in);
       // update the root's attributes
       updateRootAttr(root);
     }
@@ -265,7 +266,7 @@ public class FSImageFormat {
       for (long i = 0; i < numFiles; i++) {
         pathComponents = FSImageSerialization.readPathComponents(in);
         long id = FSNamesystem.getFSNamesystem().allocateNewInodeId();
-        final INode newNode = loadINode(id,
+        final INodeWithAdditionalFields newNode = loadINode(id,
             pathComponents[pathComponents.length - 1], false, in);
         
         if (isRoot(pathComponents)) { // it is the root
@@ -321,7 +322,7 @@ public class FSImageFormat {
     }
     
     /** Update the root node's attributes */
-    private void updateRootAttr(INode root) {                                                           
+    private void updateRootAttr(INodeWithAdditionalFields root) {                                                           
       long nsQuota = root.getNsQuota();
       long dsQuota = root.getDsQuota();
       if (nsQuota != -1 || dsQuota != -1) {
@@ -363,8 +364,9 @@ public class FSImageFormat {
       return isParent;
     }
     
-    private INode loadINode(long id, final byte[] localName, boolean isSnapshotINode,
-        DataInputStream in) throws IOException {
+    private INodeWithAdditionalFields loadINode(long id,
+        final byte[] localName, boolean isSnapshotINode, DataInputStream in)
+        throws IOException {
       int layoutVersion = storage.getLayoutVersion();
       short replication = FSEditLog.adjustReplication(in.readShort());
       long modificationTime = in.readLong();

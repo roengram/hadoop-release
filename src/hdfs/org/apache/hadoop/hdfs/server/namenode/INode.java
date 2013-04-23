@@ -47,112 +47,28 @@ import org.apache.hadoop.hdfs.util.LightWeightGSet.LinkedElement;
 public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
     LinkedElement {
   public static final Log LOG = LogFactory.getLog(INode.class);
-
-  private static enum PermissionStatusFormat {
-    MODE(0, 16),
-    GROUP(MODE.OFFSET + MODE.LENGTH, 25),
-    USER(GROUP.OFFSET + GROUP.LENGTH, 23);
-
-    final int OFFSET;
-    final int LENGTH; //bit length
-    final long MASK;
-
-    PermissionStatusFormat(int offset, int length) {
-      OFFSET = offset;
-      LENGTH = length;
-      MASK = ((-1L) >>> (64 - LENGTH)) << OFFSET;
-    }
-
-    long retrieve(long record) {
-      return (record & MASK) >>> OFFSET;
-    }
-
-    long combine(long bits, long record) {
-      return (record & ~MASK) | (bits << OFFSET);
-    }
-
-    /** Encode the {@link PermissionStatus} to a long. */
-    static long toLong(PermissionStatus ps) {
-      long permission = 0L;
-      final int user = SerialNumberManager.INSTANCE.getUserSerialNumber(
-          ps.getUserName());
-      permission = USER.combine(user, permission);
-      final int group = SerialNumberManager.INSTANCE.getGroupSerialNumber(
-          ps.getGroupName());
-      permission = GROUP.combine(group, permission);
-      final int mode = ps.getPermission().toShort();
-      permission = MODE.combine(mode, permission);
-      return permission;
-    }
-  }
-
-  /** Get inode id */
-  public long getId() {
-    return this.id;
-  }
- 
-  /** File ID */
-  final private long id;
   
-  /**
-   *  The inode name is in java UTF8 encoding; 
-   *  The name in HdfsFileStatus should keep the same encoding as this.
-   *  if this encoding is changed, implicitly getFileInfo and listStatus in
-   *  clientProtocol are changed; The decoding at the client
-   *  side should change accordingly.
-   */
-  private byte[] name = null;
-  /** 
-   * Permission encoded using {@link PermissionStatusFormat}.
-   * Codes other than {@link #clonePermissionStatus(INode)}
-   * and {@link #updatePermissionStatus(PermissionStatusFormat, long)}
-   * should not modify it.
-   */
-  private long permission = 0L;
-  private INodeDirectory parent = null;
-  protected long modificationTime = 0L;
-  private long accessTime = 0L;
+  /** parent is either an {@link INodeDirectory} or an {@link INodeReference}.*/
+  private INode parent = null;
   protected LinkedElement next = null;
-
-  private INode(long id, byte[] name, long permission, INodeDirectory parent,
-      long modificationTime, long accessTime) {
-    this.id = id;
-    this.name = name;
-    this.permission = permission;
+  
+  INode(INode parent) {
     this.parent = parent;
-    this.modificationTime = modificationTime;
-    this.accessTime = accessTime;
-  }
-
-  INode(long id, byte[] name, PermissionStatus permissions, long modificationTime,
-      long accessTime) {
-    this(id, name, PermissionStatusFormat.toLong(permissions), null,
-        modificationTime, accessTime);
   }
   
-  /** @param other Other node to be copied */
-  INode(INode other) {
-    this(other.id, other.name, other.permission, other.parent, 
-        other.modificationTime, other.accessTime);
-  }
+  /** Get inode id */
+  public abstract long getId();
   
   /**
    * Check whether this is the root inode.
    */
-  boolean isRoot() {
-    return name.length == 0;
-  }
-
-  /** Clone the {@link PermissionStatus}. */
-  void clonePermissionStatus(INode that) {
-    this.permission = that.permission;
+  final boolean isRoot() {
+    return getLocalNameBytes().length == 0;
   }
 
   /** Get the {@link PermissionStatus} */
-  public final PermissionStatus getPermissionStatus(Snapshot snapshot) {
-    return new PermissionStatus(getUserName(snapshot), getGroupName(snapshot),
-        getFsPermission(snapshot));
-  }
+  abstract PermissionStatus getPermissionStatus(Snapshot snapshot);
+
   /** The same as getPermissionStatus(null). */
   public final PermissionStatus getPermissionStatus() {
     return getPermissionStatus(null);
@@ -166,34 +82,22 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
     return this;
   }
   
-  private void updatePermissionStatus(PermissionStatusFormat f, long n) {
-    this.permission = f.combine(n, permission);
-  }
-  
   /**
    * @param snapshot
    *          if it is not null, get the result from the given snapshot;
    *          otherwise, get the result from the current inode.
    * @return user name
    */
-  public final String getUserName(Snapshot snapshot) {
-    if (snapshot != null) {
-      return getSnapshotINode(snapshot).getUserName();
-    }
+  abstract String getUserName(Snapshot snapshot);
 
-    int n = (int)PermissionStatusFormat.USER.retrieve(permission);
-    return SerialNumberManager.INSTANCE.getUser(n);
-  }
   /** The same as getUserName(null). */
   public final String getUserName() {
     return getUserName(null);
   }
 
   /** Set user */
-  final void setUser(String user) {
-    int n = SerialNumberManager.INSTANCE.getUserSerialNumber(user);
-    updatePermissionStatus(PermissionStatusFormat.USER, n);
-  }
+  abstract void setUser(String user);
+
   /** Set user */
   final INode setUser(String user, Snapshot latest)
       throws QuotaExceededException {
@@ -207,23 +111,16 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
    *          otherwise, get the result from the current inode.
    * @return group name
    */
-  public final String getGroupName(Snapshot snapshot) {
-    if (snapshot != null) {
-      return getSnapshotINode(snapshot).getGroupName();
-    }
+  abstract String getGroupName(Snapshot snapshot);
 
-    int n = (int)PermissionStatusFormat.GROUP.retrieve(permission);
-    return SerialNumberManager.INSTANCE.getGroup(n);
-  }
   /** The same as getGroupName(null). */
   public final String getGroupName() {
     return getGroupName(null);
   }
+
   /** Set group */
-  final void setGroup(String group) {
-    int n = SerialNumberManager.INSTANCE.getGroupSerialNumber(group);
-    updatePermissionStatus(PermissionStatusFormat.GROUP, n);
-  }
+  abstract void setGroup(String group);
+
   /** Set group */
   final INode setGroup(String group, Snapshot latest)
       throws QuotaExceededException {
@@ -231,32 +128,23 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
     nodeToUpdate.setGroup(group);
     return nodeToUpdate;
   }
+
   /**
    * @param snapshot
    *          if it is not null, get the result from the given snapshot;
    *          otherwise, get the result from the current inode.
    * @return permission.
    */
-  public final FsPermission getFsPermission(Snapshot snapshot) {
-    if (snapshot != null) {
-      return getSnapshotINode(snapshot).getFsPermission();
-    }
-
-    return new FsPermission(
-        (short)PermissionStatusFormat.MODE.retrieve(permission));
-  }
+  abstract FsPermission getFsPermission(Snapshot snapshot);
+  
   /** The same as getFsPermission(null). */
   public final FsPermission getFsPermission() {
     return getFsPermission(null);
   }
-  protected short getFsPermissionShort() {
-    return (short)PermissionStatusFormat.MODE.retrieve(permission);
-  }
+
   /** Set the {@link FsPermission} of this {@link INode} */
-  void setPermission(FsPermission permission) {
-    final short mode = permission.toShort();
-    updatePermissionStatus(PermissionStatusFormat.MODE, mode);
-  }
+  abstract void setPermission(FsPermission permission);
+
   /** Set the {@link FsPermission} of this {@link INode} */
   INode setPermission(FsPermission permission, Snapshot latest)
       throws QuotaExceededException {
@@ -267,15 +155,40 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
 
   /** Is this inode in the latest snapshot? */
   public final boolean isInLatestSnapshot(final Snapshot latest) {
-    return latest != null
-        && (parent == null
-            || (parent.isInLatestSnapshot(latest)
-                && this == parent.getChild(getLocalNameBytes(), latest)));
+    if (latest == null) {
+      return false;
+    }
+    final INodeDirectory parentDir = getParent();
+    if (parentDir == null) { // root
+      return true;
+    }
+    if (!parentDir.isInLatestSnapshot(latest)) {
+      return false;
+    }
+    final INode child = parentDir.getChild(getLocalNameBytes(), latest);
+    if (this == child) {
+      return true;
+    }
+    if (child == null || !(child.isReference())) {
+      return false;
+    }
+    return this == child.asReference().getReferredINode();
   }
 
   /** Cast this inode to an {@link INodeFile}.  */
   public INodeFile asFile() {
     throw new IllegalStateException("Current inode is not a file: "
+        + this.toDetailString());
+  }
+
+  /** Check whether it's a reference. */
+  public boolean isReference() {
+    return false;
+  }
+
+  /** Cast this inode to an {@link INodeReference}.  */
+  public INodeReference asReference() {
+    throw new IllegalStateException("Current inode is not a reference: "
         + this.toDetailString());
   }
 
@@ -306,7 +219,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
   public boolean isDirectory() {
     return false;
   }
-  
+
   /**
    * Clean the subtree under this inode and collect the blocks from the descents
    * for further block deletion/update. The current inode can either resides in
@@ -418,8 +331,9 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
    */
   public void addSpaceConsumed(long nsDelta, long dsDelta)
       throws QuotaExceededException {
-    if (parent != null) {
-      parent.addSpaceConsumed(nsDelta, dsDelta);
+    final INodeDirectory parentDir = getParent();
+    if (parentDir != null) {
+      parentDir.addSpaceConsumed(nsDelta, dsDelta);
     }
   }
 
@@ -458,7 +372,8 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
   /**
    * @return null if the local name is null; otherwise, return the local name.
    */
-  public String getLocalName() {
+  public final String getLocalName() {
+    final byte[] name = getLocalNameBytes();
     return name == null? null: DFSUtil.bytes2String(name);
   }
 
@@ -466,21 +381,17 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
    * @return null if the local name is null;
    *         otherwise, return the local name byte array.
    */
-  public byte[] getLocalNameBytes() {
-    return name;
-  }
+  public abstract byte[] getLocalNameBytes();
 
   @Override
-  public byte[] getKey() {
+  public final byte[] getKey() {
     return getLocalNameBytes();
   }
 
   /**
    * Set local file name
    */
-  public void setLocalName(byte[] name) {
-    this.name = name;
-  }
+  public abstract void setLocalName(byte[] name);
 
   /** {@inheritDoc} */
   public String getFullPathName() {
@@ -491,7 +402,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
   /**
    * @return The full path name represented in a list of byte array
    */
-  public byte[][] getRelativePathNameBytes(INode ancestor) {
+  public final byte[][] getRelativePathNameBytes(INode ancestor) {
     return FSDirectory.getRelativePathNameBytes(this, ancestor);
   }
   
@@ -510,36 +421,47 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
   }
 
   public String toDetailString() {
-    return toStringWithObjectType() + ", parent="
-        + (parent == null ? null : parent.toStringWithObjectType());
+    final INodeDirectory p = getParent();
+    return toStringWithObjectType()
+        + ", parent=" + (p == null? null: p.toStringWithObjectType());
+  }
+
+  /** @return the parent directory */
+  public final INodeDirectory getParent() {
+    return parent == null? null
+        : parent.isReference()? getParentReference().getParent(): parent.asDirectory();
   }
 
   /**
-   * Get parent directory 
-   * @return parent INode
+   * @return the parent as a reference if this is a referred inode;
+   *         otherwise, return null.
    */
-  public final INodeDirectory getParent() {
-    return this.parent;
+  public INodeReference getParentReference() {
+    return parent == null || !parent.isReference()? null: (INodeReference)parent;
   }
-  
+
   /** Set parent directory */
-  public void setParent(INodeDirectory parent) {
+  public final void setParent(INodeDirectory parent) {
     this.parent = parent;
   }
 
+  /** Set container. */
+  public final void setParentReference(INodeReference parent) {
+    this.parent = parent;
+  }
+
+  /** Clear references to other objects. */
+  public void clear() {
+    setParent(null);
+  }
+  
   /**
    * @param snapshot
    *          if it is not null, get the result from the given snapshot;
    *          otherwise, get the result from the current inode.
    * @return modification time.
    */
-  public final long getModificationTime(Snapshot snapshot) {
-    if (snapshot != null) {
-      return getSnapshotINode(snapshot).modificationTime;
-    }
-
-    return this.modificationTime;
-  }
+  abstract long getModificationTime(Snapshot snapshot);
 
   /** The same as getModificationTime(null). */
   public final long getModificationTime() {
@@ -547,26 +469,12 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
   }
 
   /** Update modification time if it is larger than the current value. */
-  public final INode updateModificationTime(long mtime, Snapshot latest)
-      throws QuotaExceededException {
-    if (!isDirectory()) {
-      throw new IllegalStateException("this is not a directory: "
-          + this.toDetailString());
-    }
-    if (mtime <= modificationTime) {
-      return this;
-    }
-    return setModificationTime(mtime, latest);
-  }
-  
-  void cloneModificationTime(INode that) {
-    this.modificationTime = that.modificationTime;
-  }
+  public abstract INode updateModificationTime(long mtime, Snapshot latest)
+      throws QuotaExceededException;
 
   /** Set the last modification time of inode. */
-  public final void setModificationTime(long modificationTime) {
-    this.modificationTime = modificationTime;
-  }
+  public abstract void setModificationTime(long modificationTime);
+
   /** Set the last modification time of inode. */
   public final INode setModificationTime(long modificationTime, Snapshot latest)
       throws QuotaExceededException {
@@ -581,13 +489,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
    *          otherwise, get the result from the current inode.
    * @return access time
    */
-  public final long getAccessTime(Snapshot snapshot) {
-    if (snapshot != null) {
-      return getSnapshotINode(snapshot).accessTime;
-    }
-
-    return accessTime;
-  }
+  abstract long getAccessTime(Snapshot snapshot);
 
   /** The same as getAccessTime(null). */
   public final long getAccessTime() {
@@ -597,13 +499,12 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
   /**
    * Set last access time of inode.
    */
-  public void setAccessTime(long accessTime) {
-    this.accessTime = accessTime;
-  }
+  public abstract void setAccessTime(long accessTime);
+
   /**
    * Set last access time of inode.
    */
-  public INode setAccessTime(long accessTime, Snapshot latest)
+  public final INode setAccessTime(long accessTime, Snapshot latest)
       throws QuotaExceededException {
     final INode nodeToUpdate = recordModification(latest);
     nodeToUpdate.setAccessTime(accessTime);
@@ -647,7 +548,7 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
   // Comparable interface
   //
   public int compareTo(byte[] o) {
-    return DFSUtil.compareBytes(name, o);
+    return DFSUtil.compareBytes(getLocalNameBytes(), o);
   }
 
   public boolean equals(Object o) {
@@ -656,12 +557,15 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
     }
     // Null name is used for InodeMap lookup. Use id for equality in that case
     INode thatInode = (INode) o;
-    return thatInode.name == null ? this.id == thatInode.id : Arrays.equals(
-        this.name, thatInode.name);
+    byte[] name = this.getLocalNameBytes();
+    byte[] thatName = thatInode.getLocalNameBytes();
+    return thatName == null ? this.getId() == thatInode.getId() : Arrays
+        .equals(name, thatName);
   }
 
   public int hashCode() {
-    return (int)(id^(id>>>32));  
+    long id = this.getId();
+    return (int) (id ^ (id >>> 32));  
   }
 
   /**
@@ -687,13 +591,10 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
     out.print("   (");
     out.print(getObjectString());
     out.print("), parent=");
-    out.print(parent == null? null: parent.getLocalName() + "/");
-    out.print(", " + getPermissionStatus(snapshot));
-  }
 
-  /** Clear references to other objects. */
-  public void clearReferences() {
-    setParent(null);
+    final INodeDirectory p = getParent();
+    out.print(p == null? null: p.getLocalName() + "/");
+    out.print(", " + getPermissionStatus(snapshot));
   }
 
   /**

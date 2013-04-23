@@ -40,7 +40,6 @@ import org.apache.hadoop.hdfs.protocol.ExtendedDirectoryListing;
 import org.apache.hadoop.hdfs.protocol.ExtendedHdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
-import org.apache.hadoop.hdfs.protocol.NSQuotaExceededException;
 import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants.StartupOption;
@@ -50,6 +49,7 @@ import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
 import org.apache.hadoop.hdfs.server.namenode.Quota.Counts;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectoryWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot.Root;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotAccessControlException;
@@ -456,24 +456,22 @@ public class FSDirectory implements FSConstants, Closeable {
       verifyQuotaForRename(srcIIP.getINodes(), dstIIP.getINodes());
       
       boolean added = false;
-      INode srcChild = null;
-      byte[] srcChildName = null;
+      final INode srcChild = srcIIP.getLastINode();
+      final byte[] srcChildName = srcChild.getLocalNameBytes();
       try {
         // remove src
-        srcChild = removeLastINode(srcIIP);
-        if (srcChild == null) {
+        final long removedSrc = removeLastINode(srcIIP);
+        if (removedSrc == -1) {
           NameNode.stateChangeLog.warn("DIR* FSDirectory.unprotectedRenameTo: "
               + "failed to rename " + src + " to " + dst
               + " because the source can not be removed");
           return false;
         }
-        srcChildName = srcChild.getLocalNameBytes();
         srcChild.setLocalName(dstComponents[dstComponents.length-1]);
         
         // add src to the destination
         added = addLastINodeNoQuotaCheck(dstIIP, srcChild, false);
         if (added) {
-          srcChild = null;
           if (NameNode.stateChangeLog.isDebugEnabled()) {
             NameNode.stateChangeLog.debug("DIR* FSDirectory.unprotectedRenameTo: " + src
                     + " is renamed to " + dst);
@@ -484,10 +482,16 @@ public class FSDirectory implements FSConstants, Closeable {
               srcIIP.getLatestSnapshot());
           dstParent.updateModificationTime(timestamp,
               dstIIP.getLatestSnapshot());
+          if (srcIIP.getLatestSnapshot() != null) {
+            createReferences4Rename(srcChild, srcChildName,
+                (INodeDirectoryWithSnapshot) srcParent.asDirectory(),
+                dstParent.asDirectory());
+          }
+          
           return true;
         }
       } finally {
-        if (!added && srcChild != null) {
+        if (!added) {
           // put it back
           srcChild.setLocalName(srcChildName);
           addLastINodeNoQuotaCheck(srcIIP, srcChild, false);
@@ -499,6 +503,18 @@ public class FSDirectory implements FSConstants, Closeable {
     }
   }
 
+  /** The renamed inode is also in a snapshot, create references */
+  private static void createReferences4Rename(final INode srcChild,
+      final byte[] srcChildName, final INodeDirectoryWithSnapshot srcParent,
+      final INodeDirectory dstParent) {
+    final INodeReference.WithCount ref;
+    if (srcChild.isReference()) {
+      ref = (INodeReference.WithCount)srcChild.asReference().getReferredINode();
+    } else {
+      ref = dstParent.asDirectory().replaceChild4Reference(srcChild);
+    }
+    srcParent.replaceRemovedChild4Reference(srcChild, ref, srcChildName);
+  }
   /**
    * Set file replication
    * 
@@ -821,14 +837,17 @@ public class FSDirectory implements FSConstants, Closeable {
     iip.setLastINode(targetNode);
 
     // Remove the node from the namespace
-    INode removed = removeLastINode(iip);
-    if (removed == null) {
+    final long removed = removeLastINode(iip);
+    if (removed == -1) {
       return -1;
     }
     
     // set the parent's modification time
     final INodeDirectory parent = targetNode.getParent();
     parent.updateModificationTime(mtime, latestSnapshot);
+    if (removed == 0) {
+      return 0;
+    }
 
     // collect block
     long removedNum = 1;
@@ -920,6 +939,7 @@ public class FSDirectory implements FSConstants, Closeable {
   void unprotectedReplaceINodeFile(final String path, final INodeFile oldnode,
       final INodeFile newnode) {
     oldnode.getParent().replaceChild(oldnode, newnode);
+    oldnode.clear();
     /* Currently oldnode and newnode are assumed to contain the same
      * blocks. Otherwise, blocks need to be removed from the blocksMap.
      */
@@ -1602,28 +1622,41 @@ public class FSDirectory implements FSConstants, Closeable {
     return false;
   }
   
-  /** 
+  /**
    * Remove the last inode in the path from the namespace.
-   * Its ancestors are stored at [0, pos-1].
    * Count of each ancestor with quota is also updated.
-   * @return the removed node; null if the removal fails.
-   * @throws NSQuotaExceededException 
+   * @return -1 for failing to remove;
+   *          0 for removing a reference whose referred inode has other 
+   *            reference nodes;
+   *         >0 otherwise. 
    */
-  private INode removeLastINode(final INodesInPath iip)
+  private long removeLastINode(final INodesInPath iip)
       throws QuotaExceededException {
     final Snapshot latestSnapshot = iip.getLatestSnapshot();
     final INode last = iip.getLastINode();
     final INodeDirectory parent = iip.getINode(-2).asDirectory();
-    final boolean removed = parent.removeChild(last, latestSnapshot);
+    if (!parent.removeChild(last, latestSnapshot)) {
+      return -1;
+    }
     
-    if (removed && !last.isInLatestSnapshot(latestSnapshot)) {
-      removeFromInodeMap(last);
+    if (parent != last.getParent()) {
+      // parent is changed
       iip.setINode(-2, last.getParent());
+    }
+    
+    if (!last.isInLatestSnapshot(latestSnapshot)) {
+      removeFromInodeMap(last);
       final Quota.Counts counts = last.computeQuotaUsage();
       updateCountNoQuotaCheck(iip, iip.getINodes().length - 1,
           -counts.get(Quota.NAMESPACE), -counts.get(Quota.DISKSPACE));
+      
+      if (INodeReference.tryRemoveReference(last) > 0) {
+        return 0;
+      } else {
+        return counts.get(Quota.NAMESPACE);
+      }
     }
-    return removed? last: null;
+    return 1;
   }
 
   
@@ -1843,7 +1876,7 @@ public class FSDirectory implements FSConstants, Closeable {
   }
   
   INode getInode(long id) {
-    INode inode = new INode(id, null, new PermissionStatus(
+    INode inode = new INodeWithAdditionalFields(id, null, new PermissionStatus(
         "", "", new FsPermission((short) 0)), 0, 0) {
       @Override
       public boolean isDirectory() {
@@ -1872,8 +1905,7 @@ public class FSDirectory implements FSConstants, Closeable {
       }
 
       @Override
-      public org.apache.hadoop.hdfs.server.namenode.Content.Counts computeContentSummary(
-          org.apache.hadoop.hdfs.server.namenode.Content.Counts counts) {
+      public Content.Counts computeContentSummary(Content.Counts counts) {
         return null;
       }
 

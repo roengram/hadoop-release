@@ -36,9 +36,11 @@ import org.apache.hadoop.hdfs.server.namenode.FSImageSerialization;
 import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectoryWithQuota;
+import org.apache.hadoop.hdfs.server.namenode.INodeReference;
 import org.apache.hadoop.hdfs.server.namenode.Quota;
 import org.apache.hadoop.hdfs.util.Diff;
 import org.apache.hadoop.hdfs.util.Diff.Container;
+import org.apache.hadoop.hdfs.util.Diff.ListType;
 import org.apache.hadoop.hdfs.util.Diff.UndoInfo;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
 
@@ -59,12 +61,30 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
       super(created, deleted);
     }
     
-    private final INode setCreatedChild(final int c, final INode newChild) {
-      return getCreatedList().set(c, newChild);
+    /**
+     * Replace the given child from the created/deleted list.
+     * @return true if the child is replaced; false if the child is not found.
+     */
+    private final boolean replace(final ListType type,
+        final INode oldChild, final INode newChild) {
+      final List<INode> list = getList(type); 
+      final int i = search(list, oldChild.getLocalNameBytes());
+      if (i < 0) {
+        return false;
+      }
+
+      final INode removed = list.set(i, newChild);
+      if (removed != oldChild) {
+        throw new IllegalStateException(
+            "removed child is not the same with the given child, removed="
+                + removed.toDetailString() + ", oldChild="
+                + oldChild.toDetailString());
+      }
+      return true;
     }
     
     private final boolean removeCreatedChild(final int c, final INode child) {
-      final List<INode> created = getCreatedList();
+      final List<INode> created = getList(ListType.CREATED);
       if (created.get(c) == child) {
         final INode removed = created.remove(c);
         if (removed != child) {
@@ -82,7 +102,7 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
         final INodeDirectoryWithSnapshot currentINode,
         final BlocksMapUpdateInfo collectedBlocks) {
       Quota.Counts counts = Quota.Counts.newInstance();
-      List<INode> createdList = getCreatedList();
+      List<INode> createdList = getList(ListType.CREATED);
       for (INode c : createdList) {
         c.computeQuotaUsage(counts, true);
         c.destroyAndCollectBlocks(collectedBlocks);
@@ -97,10 +117,12 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
     private Quota.Counts destroyDeletedList(
         final BlocksMapUpdateInfo collectedBlocks) {
       Quota.Counts counts = Quota.Counts.newInstance();
-      List<INode> deletedList = getDeletedList();
+      final List<INode> deletedList = getList(ListType.DELETED);
       for (INode d : deletedList) {
-        d.computeQuotaUsage(counts, false);
-        d.destroyAndCollectBlocks(collectedBlocks);
+        if (INodeReference.tryRemoveReference(d) <= 0) {
+          d.computeQuotaUsage(counts, false);
+          d.destroyAndCollectBlocks(collectedBlocks);
+        }
       }
       deletedList.clear();
       return counts;
@@ -108,7 +130,7 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
 
     /** Serialize {@link #created} */
     private void writeCreated(DataOutputStream out) throws IOException {
-      final List<INode> created = getCreatedList();
+      final List<INode> created = getList(ListType.CREATED);
       out.writeInt(created.size());
       for (INode node : created) {
         // For INode in created list, we only need to record its local name 
@@ -120,7 +142,7 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
 
     /** Serialize {@link #deleted} */
     private void writeDeleted(DataOutputStream out) throws IOException {
-      final List<INode> deleted = getDeletedList();
+      final List<INode> deleted = getList(ListType.DELETED);
       out.writeInt(deleted.size());
       for (INode node : deleted) {
         FSImageSerialization.saveINode2Image(node, out, true);
@@ -136,7 +158,7 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
     /** @return The list of INodeDirectory contained in the deleted list */
     private List<INodeDirectory> getDirsInDeleted() {
       List<INodeDirectory> dirList = new ArrayList<INodeDirectory>();
-      for (INode node : getDeletedList()) {
+      for (INode node : getList(ListType.DELETED)) {
         if (node.isDirectory()) {
           dirList.add(node.asDirectory());
         }
@@ -158,8 +180,8 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
       List<DiffReportEntry> cList = new ArrayList<DiffReportEntry>();
       List<DiffReportEntry> dList = new ArrayList<DiffReportEntry>();
       int c = 0, d = 0;
-      List<INode> created = getCreatedList();
-      List<INode> deleted = getDeletedList();
+      List<INode> created = getList(ListType.CREATED);
+      List<INode> deleted = getList(ListType.DELETED);
       byte[][] parentPath = parent.getRelativePathNameBytes(root);
       byte[][] fullPath = new byte[parentPath.length + 1][];
       System.arraycopy(parentPath, 0, fullPath, 0, parentPath.length);
@@ -246,8 +268,10 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
         @Override
         public void process(INode inode) {
           if (inode != null) {
-            inode.computeQuotaUsage(counts, false);
-            inode.destroyAndCollectBlocks(collectedBlocks);
+            if (INodeReference.tryRemoveReference(inode) <= 0) {
+              inode.computeQuotaUsage(counts, false);
+              inode.destroyAndCollectBlocks(collectedBlocks);
+            }
           }
         }
       });
@@ -379,6 +403,19 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
       extends AbstractINodeDiffList<INodeDirectory, DirectoryDiff> {
     DirectoryDiffList() {
       setFactory(DirectoryDiffFactory.INSTANCE);
+    }
+    
+    /** Replace the given child in the created/deleted list, if there is any. */
+    private boolean replaceChild(final ListType type, final INode oldChild,
+        final INode newChild) {
+      final List<DirectoryDiff> diffList = asList();
+      for(int i = diffList.size() - 1; i >= 0; i--) {
+        final ChildrenDiff diff = diffList.get(i).diff;
+        if (diff.replace(type, oldChild, newChild)) {
+          return true;
+        }
+      }
+      return false;
     }
   }
   
@@ -557,7 +594,7 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
     final List<DirectoryDiff> diffList = diffs.asList();
     for(int i = diffList.size() - 1; i >= 0; i--) {
       final ChildrenDiff diff = diffList.get(i).diff;
-      final int c = diff.searchCreatedIndex(name);
+      final int c = diff.searchIndex(ListType.CREATED, name);
       if (c >= 0) {
         if (diff.removeCreatedChild(c, child)) {
           return true;
@@ -570,23 +607,22 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
   @Override
   public void replaceChild(final INode oldChild, final INode newChild) {
     super.replaceChild(oldChild, newChild);
+    diffs.replaceChild(ListType.CREATED, oldChild, newChild);
+  }
 
-    // replace the created child, if there is any.
-    final byte[] name = oldChild.getLocalNameBytes();
-    final List<DirectoryDiff> diffList = diffs.asList();
-    for(int i = diffList.size() - 1; i >= 0; i--) {
-      final ChildrenDiff diff = diffList.get(i).diff;
-      final int c = diff.searchCreatedIndex(name);
-      if (c >= 0) {
-        final INode removed = diff.setCreatedChild(c, newChild);
-        if (removed != oldChild) {
-          throw new IllegalStateException("removed != oldChild. removed = "
-              + removed.toDetailString() + ". oldChild = "
-              + oldChild.toDetailString());
-        }
-        return;
-      }
+  /** The child just has been removed, replace it with a reference. */
+  public INodeReference.WithName replaceRemovedChild4Reference(
+      INode oldChild, INodeReference.WithCount newChild, byte[] childName) {
+    final INodeReference.WithName ref = new INodeReference.WithName(
+        newChild, childName);
+    newChild.incrementReferenceCount();
+    diffs.replaceChild(ListType.CREATED, oldChild, ref);
+    // the old child must be in the deleted list
+    boolean replace = diffs.replaceChild(ListType.DELETED, oldChild, ref);
+    if (!replace) {
+      throw new IllegalStateException("fail to replace child in deleted list");
     }
+    return ref;
   }
 
   @Override
@@ -656,7 +692,8 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
           // use null as prior in the cleanSubtree call. Files/directories that
           // were created before "prior" will be covered by the later
           // cleanSubtreeRecursively call.
-          for (INode cNode : priorDiff.getChildrenDiff().getCreatedList()) {
+          for (INode cNode : priorDiff.getChildrenDiff().getList(
+              ListType.CREATED)) {
             counts.add(cNode.cleanSubtree(snapshot, null, collectedBlocks));
           }
           // When a directory is moved from the deleted list of the posterior
@@ -666,7 +703,8 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
 
           // For files moved from posterior's deleted list, we also need to
           // delete its snapshot copy associated with the posterior snapshot.
-          for (INode dNode : priorDiff.getChildrenDiff().getDeletedList()) {
+          for (INode dNode : priorDiff.getChildrenDiff().getList(
+              ListType.DELETED)) {
             counts.add(cleanDeletedINode(dNode, snapshot, prior,
                 collectedBlocks));
           }
@@ -738,7 +776,7 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
     super.computeQuotaUsage4CurrentDirectory(counts);
 
     for(DirectoryDiff d : diffs) {
-      for(INode deleted : d.getChildrenDiff().getDeletedList()) {
+      for(INode deleted : d.getChildrenDiff().getList(ListType.DELETED)) {
         deleted.computeQuotaUsage(counts, false);
       }
     }
@@ -763,7 +801,7 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
 
   private void computeContentSummary4Snapshot(final Content.Counts counts) {
     for(DirectoryDiff d : diffs) {
-      for(INode deleted : d.getChildrenDiff().getDeletedList()) {
+      for(INode deleted : d.getChildrenDiff().getList(ListType.DELETED)) {
         deleted.computeContentSummary(counts);
       }
     }

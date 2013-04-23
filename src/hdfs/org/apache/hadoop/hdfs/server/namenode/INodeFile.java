@@ -37,7 +37,7 @@ import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot.FileDiff
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot.Util;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 
-public class INodeFile extends INode {
+public class INodeFile extends INodeWithAdditionalFields {
   /** The same as valueOf(inode, path, false). */
   public static INodeFile valueOf(INode inode, String path
       ) throws FileNotFoundException {
@@ -315,7 +315,7 @@ public class INodeFile extends INode {
       }
     }
     setBlocks(null);
-    clearReferences();
+    clear();
     if (this instanceof FileWithSnapshot) {
       ((FileWithSnapshot) this).getDiffs().clear();
     }
@@ -444,7 +444,7 @@ public class INodeFile extends INode {
       return (INodeFileUnderConstruction)this;
     }
     return new INodeFileUnderConstruction(this.getId(), this.getLocalNameBytes(),
-        getBlockReplication(), modificationTime, getPreferredBlockSize(),
+        getBlockReplication(), getModificationTime(), getPreferredBlockSize(),
         blocks, getPermissionStatus(),
         clientName, clientMachine, clientNode);
   }

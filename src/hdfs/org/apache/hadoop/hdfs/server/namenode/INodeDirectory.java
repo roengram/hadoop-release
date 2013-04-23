@@ -42,7 +42,7 @@ import org.apache.hadoop.hdfs.util.ReadOnlyList;
 /**
  * Directory INode class.
  */
-public class INodeDirectory extends INode {
+public class INodeDirectory extends INodeWithAdditionalFields {
   /** Cast INode to INodeDirectory. */
   public static INodeDirectory valueOf(INode inode, Object path
       ) throws FileNotFoundException {
@@ -88,19 +88,6 @@ public class INodeDirectory extends INode {
 
   private int searchChildren(byte[] name) {
     return children == null? -1: Collections.binarySearch(children, name);
-  }
-
-  private int searchChildrenForExistingINode(final INode inode) {
-    if (children == null) {
-      throw new IllegalStateException("children is null");
-    }
-    final byte[] name = inode.getLocalNameBytes();
-    final int i = searchChildren(name);
-    if (i < 0) {
-      throw new AssertionError("Child not found: name="
-          + DFSUtil.bytes2String(name));
-    }
-    return i;
   }
 
   /** @return this object. */
@@ -215,24 +202,60 @@ public class INodeDirectory extends INode {
 
   /** Replace itself with the given directory. */
   private final <N extends INodeDirectory> N replaceSelf(final N newDir) {
-    final INodeDirectory parent = getParent();
-    if (parent == null) {
-      throw new IllegalStateException("parent is null, this=" + this);
+    final INodeReference ref = getParentReference();
+    if (ref != null) {
+      ref.setReferredINode(newDir);
+    } else {
+      final INodeDirectory parent = getParent();
+      if (parent == null) {
+        throw new IllegalStateException("parent is null, this=" + this);
+      }
+      parent.replaceChild(this, newDir);
     }
-    parent.replaceChild(this, newDir);
+    clear();
     return newDir;
   }
   
+  /** Replace the given child with a new child. */
   public void replaceChild(final INode oldChild, final INode newChild) {
     if (children == null) {
-      throw new IllegalStateException("children is null");
+      throw new IllegalStateException("children is null, this=" + this);
     }
-    final int i = searchChildrenForExistingINode(newChild);
-    final INode removed = children.set(i, newChild);
-    if (removed != oldChild) {
-      throw new IllegalStateException();
+    final int i = searchChildren(newChild.getLocalNameBytes());
+    if (i < 0) {
+      throw new IllegalStateException("cannot find a child with name "
+          + newChild.getLocalName() + ", this=" + this);
     }
-    oldChild.clearReferences();
+    if (oldChild != children.get(i)) {
+      throw new IllegalStateException("current child with name "
+          + newChild.getLocalName() + " is not the same with " + oldChild
+          + ", this=" + this);
+    }
+    
+    if (oldChild.isReference()) {
+      final INode withCount = oldChild.asReference().getReferredINode();
+      withCount.asReference().setReferredINode(newChild);
+    } else {
+      final INode removed = children.set(i, newChild);
+      if (removed != oldChild) {
+        throw new IllegalStateException(
+            "the removed child is not the same with " + oldChild + ", this="
+                + this);
+      }
+    }
+  }
+
+  INodeReference.WithCount replaceChild4Reference(INode oldChild) {
+    if (oldChild.isReference()) {
+      throw new IllegalStateException(
+          "the old child is already a reference node: " + oldChild);
+    }
+    final INodeReference.WithCount withCount
+        = new INodeReference.WithCount(oldChild);
+    final INodeReference ref = new INodeReference(withCount);
+    withCount.incrementReferenceCount();
+    replaceChild(oldChild, ref);
+    return withCount;
   }
   
   private void replaceChildFile(final INodeFile oldChild, final INodeFile newChild) {
@@ -583,15 +606,12 @@ public class INodeDirectory extends INode {
 
   /** Set the children list to null. */
   public void clearChildren() {
-    if (children != null) {
-      children.clear();
-      children = null;
-    }
+    children = null;
   }
 
   @Override
-  public void clearReferences() {
-    super.clearReferences();
+  public void clear() {
+    super.clear();
     clearChildren();
   }
 
@@ -624,7 +644,7 @@ public class INodeDirectory extends INode {
       child.destroyAndCollectBlocks(collectedBlocks);
     }
     // Do not set the children to null. It will be done later
-    super.clearReferences();
+    clear();
   }
   
   @Override
