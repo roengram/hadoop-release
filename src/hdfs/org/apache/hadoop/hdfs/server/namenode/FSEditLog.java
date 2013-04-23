@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -1044,12 +1045,15 @@ public class FSEditLog {
         }
         case OP_DELETE_SNAPSHOT: {
           BlocksMapUpdateInfo collectedBlocks = new BlocksMapUpdateInfo();
+          List<INode> removedINodes = new ArrayList<INode>();
           String snapshotRoot = FSImageSerialization.readString(in);
           String snapshotName = FSImageSerialization.readString(in);
           fsNamesys.getSnapshotManager().deleteSnapshot(snapshotRoot,
-              snapshotName, collectedBlocks);
+              snapshotName, collectedBlocks, removedINodes);
           fsNamesys.removeBlocks(collectedBlocks);
           collectedBlocks.clear();
+          fsNamesys.dir.removeFromInodeMap(removedINodes);
+          removedINodes.clear();
           break;
         }
         case OP_RENAME_SNAPSHOT: {

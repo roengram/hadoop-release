@@ -238,10 +238,15 @@ public class FSImageFormat {
     
     public INode loadINodeWithLocalName(boolean isSnapshotINode,
         DataInput in) throws IOException {
-      final long id = (storage.layoutVersion <= -42) ? in.readLong()
+      boolean supportINodeId = storage.layoutVersion <= -42;
+      final long id = supportINodeId ? in.readLong()
           : namesystem.allocateNewInodeId();
       final byte[] localName = FSImageSerialization.readLocalName(in);
-      return loadINode(id, localName, isSnapshotINode, in);
+      INode inode = loadINode(id, localName, isSnapshotINode, in);
+      if (supportINodeId) {
+        namesystem.dir.addToInodeMapUnprotected(inode);
+      }
+      return inode;
     }
     
     /**

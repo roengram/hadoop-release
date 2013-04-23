@@ -2444,6 +2444,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       boolean enforcePermission) throws IOException {
     FSPermissionChecker pc = getPermissionChecker();
     BlocksMapUpdateInfo collectedBlocks = new BlocksMapUpdateInfo();
+    List<INode> removedINodes = new ArrayList<INode>();
     synchronized (this) {
       if (isInSafeMode()) {
         throw new SafeModeException("Cannot delete " + src, safeMode);
@@ -2456,7 +2457,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
             FsAction.ALL);
       }
       // Unlink the target directory from directory tree
-      if (!dir.delete(src, collectedBlocks)) {
+      if (!dir.delete(src, collectedBlocks, removedINodes)) {
         return false;
       }
     }
@@ -2465,6 +2466,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     getEditLog().logSync();
     removeBlocks(collectedBlocks); // Incremental deletion of blocks
     collectedBlocks.clear();
+    dir.removeFromInodeMap(removedINodes);
+    removedINodes.clear();
     if (NameNode.stateChangeLog.isDebugEnabled()) {
       NameNode.stateChangeLog.debug("DIR* delete: " + src
           + " is removed");
@@ -2504,14 +2507,21 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   }
 
   /**
-   * Remove leases and blocks related to a given path
+   * Remove leases, inodes and blocks related to a given path
    * @param src The given path
    * @param blocks Containing the list of blocks to be deleted from blocksMap
+   * @param removedINodes Containing the list of inodes to be removed from 
+   *                      inodesMap
    * @throws FileNotFoundException 
    */
-  void removePathAndBlocks(String src, BlocksMapUpdateInfo blocks)
-      throws FileNotFoundException {
+  void removePathAndBlocks(String src, BlocksMapUpdateInfo blocks,
+      List<INode> removedINodes) throws FileNotFoundException {
     leaseManager.removeLeaseWithPrefixPath(src);
+    // remove inodes from inodesMap
+    if (removedINodes != null) {
+      dir.removeFromInodeMap(removedINodes);
+      removedINodes.clear();
+    }
     if (blocks == null) {
       return;
     }
@@ -6837,12 +6847,15 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       }
 
       BlocksMapUpdateInfo collectedBlocks = new BlocksMapUpdateInfo();
+      List<INode> removedINodes = new ArrayList<INode>();
       synchronized (dir) {
         snapshotManager.deleteSnapshot(snapshotRoot, snapshotName,
-            collectedBlocks);
+            collectedBlocks, removedINodes);
+        dir.removeFromInodeMap(removedINodes);
       }
       this.removeBlocks(collectedBlocks);
       collectedBlocks.clear();
+      removedINodes.clear();
       getEditLog().logDeleteSnapshot(snapshotRoot, snapshotName);
     }
     getEditLog().logSync();

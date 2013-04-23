@@ -295,19 +295,20 @@ public class INodeFile extends INodeWithAdditionalFields {
 
   @Override
   public Quota.Counts cleanSubtree(final Snapshot snapshot, Snapshot prior,
-      final BlocksMapUpdateInfo collectedBlocks)
+      final BlocksMapUpdateInfo collectedBlocks, final List<INode> removedINodes)
       throws QuotaExceededException {
     Quota.Counts counts = Quota.Counts.newInstance();
     if (snapshot == null && prior == null) {   
       // this only happens when deleting the current file
       computeQuotaUsage(counts, false);
-      destroyAndCollectBlocks(collectedBlocks);
+      destroyAndCollectBlocks(collectedBlocks, removedINodes);
     }
     return counts;
   }
 
   @Override
-  public void destroyAndCollectBlocks(BlocksMapUpdateInfo collectedBlocks) {
+  public void destroyAndCollectBlocks(BlocksMapUpdateInfo collectedBlocks,
+      final List<INode> removedINodes) {
     if (blocks != null && collectedBlocks != null) {
       for (BlockInfo blk : blocks) {
         collectedBlocks.addDeleteBlock(blk);
@@ -316,6 +317,8 @@ public class INodeFile extends INodeWithAdditionalFields {
     }
     setBlocks(null);
     clear();
+    removedINodes.add(this);
+
     if (this instanceof FileWithSnapshot) {
       ((FileWithSnapshot) this).getDiffs().clear();
     }
