@@ -456,8 +456,24 @@ public class FSDirectory implements FSConstants, Closeable {
       verifyQuotaForRename(srcIIP.getINodes(), dstIIP.getINodes());
       
       boolean added = false;
-      final INode srcChild = srcIIP.getLastINode();
+      INode srcChild = srcIIP.getLastINode();
       final byte[] srcChildName = srcChild.getLocalNameBytes();
+      final boolean isSrcInSnapshot = srcChild.isInLatestSnapshot(
+          srcIIP.getLatestSnapshot());
+      final boolean srcChildIsReference = srcChild.isReference();
+
+      // check srcChild for reference
+      final INodeReference.WithCount withCount;
+      if (srcChildIsReference || isSrcInSnapshot) {
+        final INodeReference.WithName withName = srcIIP.getINode(-2).asDirectory()
+            .replaceChild4ReferenceWithName(srcChild); 
+        withCount = (INodeReference.WithCount)withName.getReferredINode();
+        srcChild = withName;
+        srcIIP.setLastINode(srcChild);
+      } else {
+        withCount = null;
+      }
+
       try {
         // remove src
         final long removedSrc = removeLastINode(srcIIP);
@@ -467,11 +483,22 @@ public class FSDirectory implements FSConstants, Closeable {
               + " because the source can not be removed");
           return false;
         }
-        //TODO: setLocalName breaks created/deleted lists
-        srcChild.setLocalName(dstIIP.getLastLocalName());
+        srcChild = srcIIP.getLastINode();
+        final byte[] dstChildName = dstIIP.getLastLocalName();
+        final INode toDst;
+        if (withCount == null) {
+          srcChild.setLocalName(dstChildName);
+          toDst = srcChild;
+        } else {
+          withCount.getReferredINode().setLocalName(dstChildName);
+          final INodeReference ref = new INodeReference(dstIIP.getINode(-2), withCount);
+          withCount.setParentReference(ref);
+          withCount.incrementReferenceCount();
+          toDst = ref;
+        }
         
         // add src to the destination
-        added = addLastINodeNoQuotaCheck(dstIIP, srcChild, false);
+        added = addLastINodeNoQuotaCheck(dstIIP, toDst, false);
         if (added) {
           if (NameNode.stateChangeLog.isDebugEnabled()) {
             NameNode.stateChangeLog.debug("DIR* FSDirectory.unprotectedRenameTo: " + src
@@ -483,18 +510,21 @@ public class FSDirectory implements FSConstants, Closeable {
               srcIIP.getLatestSnapshot());
           dstParent.updateModificationTime(timestamp,
               dstIIP.getLatestSnapshot());
-          if (srcIIP.getLatestSnapshot() != null) {
-            createReferences4Rename(srcChild, srcChildName,
-                (INodeDirectoryWithSnapshot) srcParent.asDirectory(),
-                dstParent.asDirectory());
-          }
           
           return true;
         }
       } finally {
         if (!added) {
           // put it back
-          srcChild.setLocalName(srcChildName);
+          if (withCount == null) {
+            srcChild.setLocalName(srcChildName);
+          } else if (!srcChildIsReference) { // src must be in snapshot
+            final INodeDirectoryWithSnapshot srcParent = 
+                (INodeDirectoryWithSnapshot) srcIIP.getINode(-2).asDirectory();
+            final INode originalChild = withCount.getReferredINode();
+            srcParent.replaceRemovedChild(srcChild, originalChild);
+            srcChild = originalChild;
+          }
           addLastINodeNoQuotaCheck(srcIIP, srcChild, false);
         }
       }
@@ -503,19 +533,7 @@ public class FSDirectory implements FSConstants, Closeable {
       return false;
     }
   }
-
-  /** The renamed inode is also in a snapshot, create references */
-  private static void createReferences4Rename(final INode srcChild,
-      final byte[] srcChildName, final INodeDirectoryWithSnapshot srcParent,
-      final INodeDirectory dstParent) {
-    final INodeReference.WithCount ref;
-    if (srcChild.isReference()) {
-      ref = (INodeReference.WithCount)srcChild.asReference().getReferredINode();
-    } else {
-      ref = dstParent.asDirectory().replaceChild4Reference(srcChild);
-    }
-    srcParent.replaceRemovedChild4Reference(srcChild, ref, srcChildName);
-  }
+  
   /**
    * Set file replication
    * 
