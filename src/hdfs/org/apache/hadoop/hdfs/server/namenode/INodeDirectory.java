@@ -232,6 +232,7 @@ public class INodeDirectory extends INodeWithAdditionalFields {
           + ", this=" + this);
     }
     
+    // TODO: the first case may never be hit
     if (oldChild.isReference() && !newChild.isReference()) {
       final INode withCount = oldChild.asReference().getReferredINode();
       withCount.asReference().setReferredINode(newChild);

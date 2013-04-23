@@ -47,6 +47,7 @@ import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 import org.apache.hadoop.hdfs.server.namenode.Content.CountsMap;
 import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
+import org.apache.hadoop.hdfs.server.namenode.INodeReference.WithCount;
 import org.apache.hadoop.hdfs.server.namenode.Quota.Counts;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectoryWithSnapshot;
@@ -478,12 +479,17 @@ public class FSDirectory implements FSConstants, Closeable {
       
       // check srcChild for reference
       final INodeReference.WithCount withCount;
-      if (srcChildIsReference || isSrcInSnapshot) {
+      int srcRefDstSnapshot = srcChildIsReference ? srcChild.asReference()
+          .getDstSnapshotId() : Snapshot.INVALID_ID;
+      if (isSrcInSnapshot) {
         final INodeReference.WithName withName = srcIIP.getINode(-2).asDirectory()
             .replaceChild4ReferenceWithName(srcChild); 
-        withCount = (INodeReference.WithCount)withName.getReferredINode();
+        withCount = (INodeReference.WithCount) withName.getReferredINode();
         srcChild = withName;
         srcIIP.setLastINode(srcChild);
+      } else if (srcChildIsReference) {
+        // srcChild is reference but srcChild is not in latest snapshot
+        withCount = (WithCount) srcChild.asReference().getReferredINode();
       } else {
         withCount = null;
       }
@@ -498,7 +504,6 @@ public class FSDirectory implements FSConstants, Closeable {
           return false;
         }
         
-        // add src to the destination
         if (dstParent.getParent() == null) {
           // src and dst file/dir are in the same directory, and the dstParent
           // has been replaced when we removed the src. Refresh the dstIIP and
@@ -506,6 +511,8 @@ public class FSDirectory implements FSConstants, Closeable {
           dstIIP = getExistingPathINodes(dstComponents);
           dstParent = dstIIP.getINode(-2);
         }
+        
+        // add src to the destination
         
         srcChild = srcIIP.getLastINode();
         final byte[] dstChildName = dstIIP.getLastLocalName();
@@ -541,17 +548,30 @@ public class FSDirectory implements FSConstants, Closeable {
         }
       } finally {
         if (!added) {
+          final INodeDirectory srcParent = srcIIP.getINode(-2).asDirectory();
+          final INode oldSrcChild = srcChild;
           // put it back
           if (withCount == null) {
             srcChild.setLocalName(srcChildName);
           } else if (!srcChildIsReference) { // src must be in snapshot
-            final INodeDirectoryWithSnapshot srcParent = 
-                (INodeDirectoryWithSnapshot) srcIIP.getINode(-2).asDirectory();
             final INode originalChild = withCount.getReferredINode();
-            srcParent.replaceRemovedChild(srcChild, originalChild);
             srcChild = originalChild;
+          } else {
+            final INodeReference originalRef = new INodeReference.DstReference(
+                srcParent, withCount, srcRefDstSnapshot);
+            withCount.setParentReference(originalRef);
+            srcChild = originalRef;
           }
-          addLastINodeNoQuotaCheck(srcIIP, srcChild, false);
+          
+          if (isSrcInSnapshot) {
+            ((INodeDirectoryWithSnapshot) srcParent)
+                .undoRename4ScrParent(oldSrcChild.asReference(), srcChild,
+                    srcIIP.getLatestSnapshot());
+          } else {
+            // srcParent is not an INodeDirectoryWithSnapshot, we only need to
+            // add the srcChild back
+            addLastINodeNoQuotaCheck(srcIIP, srcChild, false);
+          }
         }
       }
       NameNode.stateChangeLog.warn("DIR* FSDirectory.unprotectedRenameTo: "
@@ -898,7 +918,7 @@ public class FSDirectory implements FSConstants, Closeable {
       Quota.Counts counts = targetNode.cleanSubtree(null, latestSnapshot,
           collectedBlocks);
       parent.addSpaceConsumed(-counts.get(Quota.NAMESPACE),
-          -counts.get(Quota.DISKSPACE));
+          -counts.get(Quota.DISKSPACE), true);
       removedNum = counts.get(Quota.NAMESPACE);
     }
     if (NameNode.stateChangeLog.isDebugEnabled()) {
