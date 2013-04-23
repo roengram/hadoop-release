@@ -188,7 +188,7 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
       for (; c < created.size() && d < deleted.size(); ) {
         INode cnode = created.get(c);
         INode dnode = deleted.get(d);
-        if (cnode.equals(dnode)) {
+        if (cnode.compareTo(dnode.getLocalNameBytes()) == 0) {
           fullPath[fullPath.length - 1] = cnode.getLocalNameBytes();
           // must be the case: delete first and then create an inode with the
           // same name

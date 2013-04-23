@@ -211,6 +211,7 @@ public class INodeDirectory extends INodeWithAdditionalFields {
       }
       parent.replaceChild(this, newDir);
     }
+    // TODO: Need to update the cleanSubtree/destroy methods to clean inode map
     clear();
     return newDir;
   }

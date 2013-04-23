@@ -264,7 +264,7 @@ public class Diff<K, E extends Diff.Element<K>> {
           "They are the same object: oldElement == newElement = %s"
               + newElement);
     }
-    if (!oldElement.equals(newElement)) {
+    if (oldElement.compareTo(newElement.getKey()) != 0) {
       throw new IllegalStateException("The names do not match: oldElement="
           + oldElement + ", newElement=" + newElement);
     }
