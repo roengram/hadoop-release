@@ -94,7 +94,7 @@ public class INodeFileUnderConstructionWithSnapshot
   @Override
   public INodeFileUnderConstructionWithSnapshot recordModification(
       final Snapshot latest) throws QuotaExceededException {
-    if (isInLatestSnapshot(latest)) {
+    if (isInLatestSnapshot(latest) && !isInSrcSnapshot(latest)) {
       diffs.saveSelf2Snapshot(latest, this, null);
     }
     return this;
@@ -120,6 +120,7 @@ public class INodeFileUnderConstructionWithSnapshot
       Util.collectBlocksAndClear(this, collectedBlocks);
       return Quota.Counts.newInstance();
     } else { // delete a snapshot
+      prior = getDiffs().updatePrior(snapshot, prior);
       return diffs.deleteSnapshotDiff(snapshot, prior, this, collectedBlocks);
     }
   }

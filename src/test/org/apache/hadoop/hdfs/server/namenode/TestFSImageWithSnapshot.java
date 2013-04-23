@@ -212,7 +212,7 @@ public class TestFSImageWithSnapshot {
 
     // dump the fsdir tree
     File fsnBetween = dumpTree2File(name + "_between");
-    SnapshotTestHelper.compareDumpedTreeInFile(fsnBefore, fsnBetween);
+    SnapshotTestHelper.compareDumpedTreeInFile(fsnBefore, fsnBetween, true);
 
     cluster = new MiniDFSCluster(conf, REPLICATION, true, null);
     cluster.waitActive();
@@ -226,7 +226,7 @@ public class TestFSImageWithSnapshot {
     File fsnAfter = dumpTree2File(name + "_after");
 
     // compare two dumped tree
-    SnapshotTestHelper.compareDumpedTreeInFile(fsnBefore, fsnAfter);
+    SnapshotTestHelper.compareDumpedTreeInFile(fsnBefore, fsnAfter, true);
 
     long numSdirAfter = fsn.getNumSnapshottableDirs();
     long numSnapshotAfter = fsn.getNumSnapshots();
@@ -302,7 +302,7 @@ public class TestFSImageWithSnapshot {
     File fsnAfter = dumpTree2File("after");
     
     // compare two dumped tree
-    SnapshotTestHelper.compareDumpedTreeInFile(fsnBefore, fsnAfter);
+    SnapshotTestHelper.compareDumpedTreeInFile(fsnBefore, fsnAfter, true);
   }
   
   /**

@@ -149,11 +149,18 @@ public class FSImageSerialization {
     out.writeLong(0);   // preferred block size
     out.writeInt(-3);   // # of blocks
 
-    out.writeBoolean(ref instanceof INodeReference.WithName);
-
+    final boolean isWithName = ref instanceof INodeReference.WithName;
+    out.writeBoolean(isWithName);
+    
+    if (!isWithName) {
+      // dst snapshot id
+      out.writeInt(((INodeReference.DstReference) ref).getDstSnapshotId());
+    }
+    
     final INodeReference.WithCount withCount
         = (INodeReference.WithCount)ref.getReferredINode();
-    referenceMap.writeINodeReferenceWithCount(withCount, out, writeUnderConstruction);
+    referenceMap.writeINodeReferenceWithCount(withCount, out,
+        writeUnderConstruction);
   }
   
   /**

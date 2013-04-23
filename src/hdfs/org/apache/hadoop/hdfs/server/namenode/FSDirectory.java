@@ -371,7 +371,7 @@ public class FSDirectory implements FSConstants, Closeable {
    * @see #unprotectedRenameTo(String, String, long)
    */
   boolean renameTo(String src, String dst) throws QuotaExceededException,
-      SnapshotAccessControlException {
+      SnapshotAccessControlException, IOException {
     if (NameNode.stateChangeLog.isDebugEnabled()) {
       NameNode.stateChangeLog.debug("DIR* FSDirectory.renameTo: "
                                   +src+" to "+dst);
@@ -397,8 +397,9 @@ public class FSDirectory implements FSConstants, Closeable {
    * @throws SnapshotAccessControlException
    *           if the source directory is in a snapshot
    */
-  boolean unprotectedRenameTo(String src, String dst, long timestamp) 
-      throws QuotaExceededException, SnapshotAccessControlException {
+  boolean unprotectedRenameTo(String src, String dst, long timestamp)
+      throws QuotaExceededException, SnapshotAccessControlException,
+      IOException {
     synchronized (rootDir) {
       INodesInPath srcIIP = rootDir.getINodesInPath4Write(src);
       final INode srcInode = srcIIP.getLastINode();
@@ -415,6 +416,11 @@ public class FSDirectory implements FSConstants, Closeable {
             +"failed to rename "+src+" to "+dst+ " because source is the root");
         return false;
       }
+      
+      // srcInode and its subtree cannot contain snapshottable directories with
+      // snapshots
+      checkSnapshot(srcInode, null);
+      
       if (isDir(dst)) {
         dst += Path.SEPARATOR + new Path(src).getName();
       }
@@ -433,7 +439,7 @@ public class FSDirectory implements FSConstants, Closeable {
       }
       
       byte[][] dstComponents = INode.getPathComponents(dst);
-      final INodesInPath dstIIP = getExistingPathINodes(dstComponents);
+      INodesInPath dstIIP = getExistingPathINodes(dstComponents);
       if (dstIIP.isSnapshot()) {
         throw new SnapshotAccessControlException(
             "Modification on RO snapshot is disallowed");
@@ -444,7 +450,7 @@ public class FSDirectory implements FSConstants, Closeable {
                                      " because destination exists");
         return false;
       }
-      final INode dstParent = dstIIP.getINode(-2);
+      INode dstParent = dstIIP.getINode(-2);
       if (dstParent == null) {
         NameNode.stateChangeLog.warn("DIR* FSDirectory.unprotectedRenameTo: "
             +"failed to rename "+src+" to "+dst+ 
@@ -462,6 +468,14 @@ public class FSDirectory implements FSConstants, Closeable {
           srcIIP.getLatestSnapshot());
       final boolean srcChildIsReference = srcChild.isReference();
 
+      // Record the snapshot on srcChild. After the rename, before any new
+      // snapshot is taken on the dst tree, changes will be recorded in the
+      // latest snapshot of the src tree.
+      if (isSrcInSnapshot) {
+        srcChild = srcChild.recordModification(srcIIP.getLatestSnapshot());
+        srcIIP.setLastINode(srcChild);
+      }
+      
       // check srcChild for reference
       final INodeReference.WithCount withCount;
       if (srcChildIsReference || isSrcInSnapshot) {
@@ -483,6 +497,16 @@ public class FSDirectory implements FSConstants, Closeable {
               + " because the source can not be removed");
           return false;
         }
+        
+        // add src to the destination
+        if (dstParent.getParent() == null) {
+          // src and dst file/dir are in the same directory, and the dstParent
+          // has been replaced when we removed the src. Refresh the dstIIP and
+          // dstParent.
+          dstIIP = getExistingPathINodes(dstComponents);
+          dstParent = dstIIP.getINode(-2);
+        }
+        
         srcChild = srcIIP.getLastINode();
         final byte[] dstChildName = dstIIP.getLastLocalName();
         final INode toDst;
@@ -491,13 +515,15 @@ public class FSDirectory implements FSConstants, Closeable {
           toDst = srcChild;
         } else {
           withCount.getReferredINode().setLocalName(dstChildName);
-          final INodeReference ref = new INodeReference(dstIIP.getINode(-2), withCount);
+          Snapshot dstSnapshot = dstIIP.getLatestSnapshot();
+          final INodeReference.DstReference ref = new INodeReference.DstReference(
+              dstParent.asDirectory(), withCount,
+              dstSnapshot == null ? Snapshot.INVALID_ID : dstSnapshot.getId());
           withCount.setParentReference(ref);
           withCount.incrementReferenceCount();
           toDst = ref;
         }
         
-        // add src to the destination
         added = addLastINodeNoQuotaCheck(dstIIP, toDst, false);
         if (added) {
           if (NameNode.stateChangeLog.isDebugEnabled()) {
@@ -746,12 +772,7 @@ public class FSDirectory implements FSConstants, Closeable {
         final INode targetNode = inodesInPath.getLastINode();
         List<INodeDirectorySnapshottable> snapshottableDirs = 
             new ArrayList<INodeDirectorySnapshottable>();
-        INode snapshotNode = hasSnapshot(targetNode, snapshottableDirs);
-        if (snapshotNode != null) {
-          throw new IOException("The direcotry " + targetNode.getFullPathName()
-              + " cannot be deleted since " + snapshotNode.getFullPathName()
-              + " is snapshottable and already has snapshots");
-        }
+        checkSnapshot(targetNode, snapshottableDirs);
         filesRemoved = unprotectedDelete(inodesInPath, collectedBlocks, now);
         if (snapshottableDirs.size() > 0) {
           // There are some snapshottable directories without snapshots to be
@@ -914,34 +935,31 @@ public class FSDirectory implements FSConstants, Closeable {
    * Check if the given INode (or one of its descendants) is snapshottable and
    * already has snapshots.
    * 
-   * @param target
-   *          The given INode
-   * @param snapshottableDirs
-   *          The list of directories that are snapshottable but do not have
-   *          snapshots yet
-   * @return The INode which is snapshottable and already has snapshots.
+   * @param target The given INode
+   * @param snapshottableDirs The list of directories that are snapshottable 
+   *                          but do not have snapshots yet
    */
-  private static INode hasSnapshot(INode target,
-      List<INodeDirectorySnapshottable> snapshottableDirs) {
+  private static void checkSnapshot(INode target,
+      List<INodeDirectorySnapshottable> snapshottableDirs) throws IOException {
     if (target.isDirectory()) {
       INodeDirectory targetDir = target.asDirectory();
       if (targetDir.isSnapshottable()) {
         INodeDirectorySnapshottable ssTargetDir = 
             (INodeDirectorySnapshottable) targetDir;
         if (ssTargetDir.getNumSnapshots() > 0) {
-          return target;
+          throw new IOException("The direcotry " + ssTargetDir.getFullPathName()
+              + " cannot be deleted since " + ssTargetDir.getFullPathName()
+              + " is snapshottable and already has snapshots");
         } else {
-          snapshottableDirs.add(ssTargetDir);
+          if (snapshottableDirs != null) {
+            snapshottableDirs.add(ssTargetDir);
+          }
         }
       } 
       for (INode child : targetDir.getChildrenList(null)) {
-        INode snapshotDir = hasSnapshot(child, snapshottableDirs);
-        if (snapshotDir != null) {
-          return snapshotDir;
-        }
+        checkSnapshot(child, snapshottableDirs);
       }
     }
-    return null;
   }
   
   /**

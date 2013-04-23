@@ -105,8 +105,7 @@ public class TestSnapshotDeletion {
       hdfs.delete(sub, true);
       fail("Did not throw IOException when deleting snapshottable directory with snapshots");
     } catch (IOException e) {
-      String error = "The direcotry " + sub.toString()
-          + " cannot be deleted since " + sub.toString()
+      String error = sub.toString()
           + " is snapshottable and already has snapshots";
       assertTrue(e.getMessage().contains(error));
     }
@@ -136,8 +135,7 @@ public class TestSnapshotDeletion {
       hdfs.delete(dir, true);
       fail("Did not throw IOException when deleting snapshottable directory with snapshots");
     } catch (IOException e) {
-      String error = "The direcotry " + dir.toString()
-          + " cannot be deleted since " + subsub.toString()
+      String error = subsub.toString()
           + " is snapshottable and already has snapshots";
       assertTrue(e.getMessage().contains(error));
     }
