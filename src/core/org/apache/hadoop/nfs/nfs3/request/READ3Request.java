@@ -21,6 +21,9 @@ import java.io.IOException;
 
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * READ3 Request
+ */
 public class READ3Request extends RequestWithHandle {
   private final long offset;
   private final int count;

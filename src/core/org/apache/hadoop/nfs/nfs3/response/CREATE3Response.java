@@ -22,6 +22,9 @@ import org.apache.hadoop.nfs.nfs3.Nfs3FileAttributes;
 import org.apache.hadoop.nfs.nfs3.Nfs3Status;
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * CREATE3 Response
+ */
 public class CREATE3Response extends NFS3Response {
   private final FileHandle objHandle;
   private final Nfs3FileAttributes postOpObjAttr;

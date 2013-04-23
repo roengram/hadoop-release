@@ -22,7 +22,7 @@ package org.apache.hadoop.oncrpc;
  */
 public abstract class RpcReply extends RpcMessage {
   /** RPC reply_stat as defined in RFC 1831 */
-  enum ReplyState {
+  public enum ReplyState {
     MSG_ACCEPTED(0),
     MSG_DENIED(1);
     

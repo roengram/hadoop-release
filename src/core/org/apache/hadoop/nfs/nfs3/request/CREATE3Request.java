@@ -23,6 +23,9 @@ import org.apache.hadoop.nfs.nfs3.FileHandle;
 import org.apache.hadoop.nfs.nfs3.Nfs3Constant;
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * CREATE3 Request
+ */
 public class CREATE3Request extends RequestWithHandle {
   private final String name;
   private final int mode;
@@ -40,7 +43,7 @@ public class CREATE3Request extends RequestWithHandle {
   
   public CREATE3Request(XDR xdr) throws IOException {
     super(xdr);
-    name = xdr.writeString();
+    name = xdr.readString();
     mode = xdr.readInt();
 
     objAttr = new SetAttr3();

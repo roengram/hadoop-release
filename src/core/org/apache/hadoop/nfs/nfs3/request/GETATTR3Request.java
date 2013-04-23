@@ -21,6 +21,9 @@ import java.io.IOException;
 
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * GETATTR3 Request
+ */
 public class GETATTR3Request extends RequestWithHandle {
   public GETATTR3Request(XDR xdr) throws IOException {
     super(xdr);

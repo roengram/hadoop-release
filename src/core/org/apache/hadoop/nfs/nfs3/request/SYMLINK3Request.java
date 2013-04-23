@@ -21,6 +21,9 @@ import java.io.IOException;
 
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * SYMLINK3 Request
+ */
 public class SYMLINK3Request extends RequestWithHandle {
   private final String name;
   private final SetAttr3 symAttr;
@@ -28,10 +31,10 @@ public class SYMLINK3Request extends RequestWithHandle {
   
   public SYMLINK3Request(XDR xdr) throws IOException {
     super(xdr);
-    name = xdr.writeString();
+    name = xdr.readString();
     symAttr = new SetAttr3();
     symAttr.deserialize(xdr);
-    symData = xdr.writeString();
+    symData = xdr.readString();
   }
 
   public String getName() {

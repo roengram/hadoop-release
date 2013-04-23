@@ -21,6 +21,9 @@ import org.apache.hadoop.nfs.nfs3.Nfs3FileAttributes;
 import org.apache.hadoop.nfs.nfs3.Nfs3Status;
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * READDIR3 Response
+ */
 public class READDIR3Response extends NFS3Response {
   private final Nfs3FileAttributes postOpDirAttr;
   private final long cookieVerf;
@@ -108,7 +111,7 @@ public class READDIR3Response extends NFS3Response {
       for (int i = 0; i < f.length; i++) {
         xdr.writeBoolean(true); // Value follows
         xdr.writeLongAsHyper(f[i].getFileId());
-        xdr.putString(f[i].getName());
+        xdr.writeString(f[i].getName());
         xdr.writeLongAsHyper(f[i].getCookie());
       }
 

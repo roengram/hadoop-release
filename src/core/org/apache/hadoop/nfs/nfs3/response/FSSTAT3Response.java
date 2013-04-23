@@ -21,6 +21,9 @@ import org.apache.hadoop.nfs.nfs3.Nfs3FileAttributes;
 import org.apache.hadoop.nfs.nfs3.Nfs3Status;
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * FSSTAT3 Response
+ */
 public class FSSTAT3Response extends NFS3Response {
   private Nfs3FileAttributes postOpAttr;
 

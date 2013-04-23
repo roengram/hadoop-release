@@ -24,6 +24,9 @@ import org.apache.hadoop.nfs.nfs3.Nfs3FileAttributes;
 import org.apache.hadoop.nfs.nfs3.Nfs3Status;
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * LOOKUP3 Response
+ */
 public class LOOKUP3Response extends NFS3Response {
   private final FileHandle fileHandle;
   private final Nfs3FileAttributes postOpObjAttr; // Can be null

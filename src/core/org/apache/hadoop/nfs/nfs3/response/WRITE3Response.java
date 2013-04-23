@@ -22,6 +22,9 @@ import org.apache.hadoop.nfs.nfs3.Nfs3Status;
 import org.apache.hadoop.nfs.nfs3.Nfs3Constant.WriteStableHow;
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * WRITE3 Response
+ */
 public class WRITE3Response extends NFS3Response {
   private final WccData fileWcc; // return on both success and failure
   private final int count;

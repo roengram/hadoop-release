@@ -21,6 +21,9 @@ import org.apache.hadoop.nfs.nfs3.Nfs3FileAttributes;
 import org.apache.hadoop.nfs.nfs3.Nfs3Status;
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * ACCESS3 Response 
+ */
 public class ACCESS3Response extends NFS3Response {
   /*
    * A bit mask of access permissions indicating access rights for the

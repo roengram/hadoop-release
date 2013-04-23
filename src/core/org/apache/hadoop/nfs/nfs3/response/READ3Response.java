@@ -21,6 +21,9 @@ import org.apache.hadoop.nfs.nfs3.Nfs3FileAttributes;
 import org.apache.hadoop.nfs.nfs3.Nfs3Status;
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * READ3 Response
+ */
 public class READ3Response extends NFS3Response {
   private final Nfs3FileAttributes postOpAttr;
   private final int count; // The real bytes of read data

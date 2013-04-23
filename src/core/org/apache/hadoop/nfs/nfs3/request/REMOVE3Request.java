@@ -21,12 +21,15 @@ import java.io.IOException;
 
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * REMOVE3 Request
+ */
 public class REMOVE3Request extends RequestWithHandle {
   private final String name;
 
   public REMOVE3Request(XDR xdr) throws IOException {
     super(xdr);
-    name = xdr.writeString();
+    name = xdr.readString();
   }
 
   public String getName() {

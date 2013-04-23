@@ -17,12 +17,14 @@
  */
 package org.apache.hadoop.oncrpc;
 
+import org.apache.hadoop.oncrpc.RpcAuthInfo.AuthFlavor;
+
 /** 
  * Represents RPC message MSG_DENIED reply body. See RFC 1831 for details.
  * This response is sent to a request to indicate failure of the request.
  */
 public class RpcDeniedReply extends RpcReply {
-  enum RejectState {
+  public enum RejectState {
     RPC_MISMATCH(0), AUTH_ERROR(1);
 
     private final int value;
@@ -63,5 +65,16 @@ public class RpcDeniedReply extends RpcReply {
     return new StringBuffer().append("xid:").append(xid)
         .append(",messageType:").append(messageType).append("rejectState:")
         .append(rejectState).toString();
+  }
+  
+  public static XDR voidReply(XDR xdr, int xid, ReplyState msgAccepted,
+      RejectState rejectState) {
+    xdr.writeInt(xid);
+    xdr.writeInt(RpcMessage.RPC_REPLY);
+    xdr.writeInt(msgAccepted.getValue());
+    xdr.writeInt(AuthFlavor.AUTH_NONE.getValue());
+    xdr.writeVariableOpaque(new byte[0]);
+    xdr.writeInt(rejectState.getValue());
+    return xdr;
   }
 }

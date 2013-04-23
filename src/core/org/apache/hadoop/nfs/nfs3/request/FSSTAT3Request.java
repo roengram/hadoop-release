@@ -21,6 +21,9 @@ import java.io.IOException;
 
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * FSSTAT3 Request
+ */
 public class FSSTAT3Request extends RequestWithHandle {
   public FSSTAT3Request(XDR xdr) throws IOException {
     super(xdr);

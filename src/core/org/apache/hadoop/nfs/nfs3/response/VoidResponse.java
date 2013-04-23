@@ -20,6 +20,9 @@ package org.apache.hadoop.nfs.nfs3.response;
 import org.apache.hadoop.oncrpc.RpcAcceptedReply;
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * A void NFSv3 response
+ */
 public class VoidResponse extends NFS3Response {
 
   public VoidResponse(int status) {

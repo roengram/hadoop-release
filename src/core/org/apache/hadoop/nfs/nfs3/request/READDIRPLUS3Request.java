@@ -21,6 +21,9 @@ import java.io.IOException;
 
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * READDIRPLUS3 Request
+ */
 public class READDIRPLUS3Request extends RequestWithHandle {
   private final long cookie;
   private final long cookieVerf;

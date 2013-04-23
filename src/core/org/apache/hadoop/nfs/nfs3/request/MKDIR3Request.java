@@ -21,13 +21,16 @@ import java.io.IOException;
 
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * MKDIR3 Request
+ */
 public class MKDIR3Request extends RequestWithHandle {
   private final String name;
   private final SetAttr3 objAttr;
 
   public MKDIR3Request(XDR xdr) throws IOException {
     super(xdr);
-    name = xdr.writeString();
+    name = xdr.readString();
     objAttr = new SetAttr3();
     objAttr.deserialize(xdr);
   }

@@ -21,6 +21,9 @@ import java.io.IOException;
 
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * READLINK3 Request
+ */
 public class READLINK3Request extends RequestWithHandle {
 
   public READLINK3Request(XDR xdr) throws IOException {
