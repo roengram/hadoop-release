@@ -1042,7 +1042,7 @@ public class FSDirectory implements FSConstants, Closeable {
     String srcs = normalizePath(src);
 
     synchronized (rootDir) {
-      if (srcs.endsWith(Path.SEPARATOR + HdfsConstants.DOT_SNAPSHOT_DIR)) {
+      if (srcs.endsWith(HdfsConstants.SEPARATOR_DOT_SNAPSHOT_DIR)) {
         return getSnapshotsListing(srcs, startAfter);
       }
       final INodesInPath inodesInPath = rootDir.getLastINodeInPath(srcs);
@@ -1076,10 +1076,9 @@ public class FSDirectory implements FSConstants, Closeable {
    */
   private DirectoryListing getSnapshotsListing(String src, byte[] startAfter)
       throws IOException {
-    final String dotSnapshot = Path.SEPARATOR + HdfsConstants.DOT_SNAPSHOT_DIR;
-    if (!src.endsWith(dotSnapshot)) {
+    if (!src.endsWith(HdfsConstants.SEPARATOR_DOT_SNAPSHOT_DIR)) {
       throw new IllegalArgumentException(src + " does not end with "
-          + dotSnapshot);
+          + HdfsConstants.SEPARATOR_DOT_SNAPSHOT_DIR);
     }
     
     final String dirPath = normalizePath(src.substring(0,
@@ -1104,7 +1103,7 @@ public class FSDirectory implements FSConstants, Closeable {
   ExtendedDirectoryListing getExtendedListing(String src, byte[] startAfter) throws IOException {
     String srcs = normalizePath(src);
     synchronized (rootDir) {
-      if (srcs.endsWith(Path.SEPARATOR + HdfsConstants.DOT_SNAPSHOT_DIR)) {
+      if (srcs.endsWith(HdfsConstants.SEPARATOR_DOT_SNAPSHOT_DIR)) {
         return getExtendedSnapshotsListing(srcs, startAfter);
       }
       final INodesInPath inodesInPath = rootDir.getLastINodeInPath(srcs);
@@ -1138,10 +1137,9 @@ public class FSDirectory implements FSConstants, Closeable {
    */
   private ExtendedDirectoryListing getExtendedSnapshotsListing(String src,
       byte[] startAfter) throws IOException {
-    final String dotSnapshot = Path.SEPARATOR + HdfsConstants.DOT_SNAPSHOT_DIR;
-    if (!src.endsWith(dotSnapshot)) {
+    if (!src.endsWith(HdfsConstants.SEPARATOR_DOT_SNAPSHOT_DIR)) {
       throw new IllegalArgumentException(src + " does not end with "
-          + dotSnapshot);
+          + HdfsConstants.SEPARATOR_DOT_SNAPSHOT_DIR);
     }
     
     final String dirPath = normalizePath(src.substring(0,
@@ -1171,7 +1169,7 @@ public class FSDirectory implements FSConstants, Closeable {
   HdfsFileStatus getFileInfo(String src) {
     String srcs = normalizePath(src);
     synchronized (rootDir) {
-      if (srcs.endsWith(Path.SEPARATOR + HdfsConstants.DOT_SNAPSHOT_DIR)) {
+      if (srcs.endsWith(HdfsConstants.SEPARATOR_DOT_SNAPSHOT_DIR)) {
         return getFileInfo4DotSnapshot(srcs);
       }
       final INodesInPath inodesInPath = rootDir.getLastINodeInPath(srcs);
@@ -1182,10 +1180,9 @@ public class FSDirectory implements FSConstants, Closeable {
   }
   
   private HdfsFileStatus getFileInfo4DotSnapshot(String src) {
-    final String dotSnapshot = Path.SEPARATOR + HdfsConstants.DOT_SNAPSHOT_DIR;
-    if (!src.endsWith(dotSnapshot)) {
+    if (!src.endsWith(HdfsConstants.SEPARATOR_DOT_SNAPSHOT_DIR)) {
       throw new IllegalArgumentException(src + " does not end with "
-          + dotSnapshot);
+          + HdfsConstants.SEPARATOR_DOT_SNAPSHOT_DIR);
     }
     
     final String dirPath = normalizePath(src.substring(0,
@@ -1203,7 +1200,7 @@ public class FSDirectory implements FSConstants, Closeable {
   ExtendedHdfsFileStatus getExtendedFileInfo(String src) {
     String srcs = normalizePath(src);
     synchronized (rootDir) {
-      if (srcs.endsWith(Path.SEPARATOR + HdfsConstants.DOT_SNAPSHOT_DIR)) {
+      if (srcs.endsWith(HdfsConstants.SEPARATOR_DOT_SNAPSHOT_DIR)) {
         return getExtendedFileInfo4DotSnapshot(srcs);
       }
       final INodesInPath inodesInPath = rootDir.getLastINodeInPath(srcs);
@@ -1214,10 +1211,9 @@ public class FSDirectory implements FSConstants, Closeable {
   }
   
   ExtendedHdfsFileStatus getExtendedFileInfo4DotSnapshot(String src) {
-    final String dotSnapshot = Path.SEPARATOR + HdfsConstants.DOT_SNAPSHOT_DIR;
-    if (!src.endsWith(dotSnapshot)) {
+    if (!src.endsWith(HdfsConstants.SEPARATOR_DOT_SNAPSHOT_DIR)) {
       throw new IllegalArgumentException(src + " does not end with "
-          + dotSnapshot);
+          + HdfsConstants.SEPARATOR_DOT_SNAPSHOT_DIR);
     }
     
     final String dirPath = normalizePath(src.substring(0,
@@ -1652,6 +1648,22 @@ public class FSDirectory implements FSConstants, Closeable {
         delta.get(Quota.DISKSPACE), src[i - 1]);
   }
 
+  /** Verify if the snapshot name is legal. */
+  void verifySnapshotName(String snapshotName, String path) {
+    final byte[] bytes = DFSUtil.string2Bytes(snapshotName);
+    verifyINodeName(bytes);
+  }
+
+  /** Verify if the inode name is legal. */
+  void verifyINodeName(byte[] childName) {
+    if (Arrays.equals(HdfsConstants.DOT_SNAPSHOT_DIR_BYTES, childName)) {
+      String s = "\"" + HdfsConstants.DOT_SNAPSHOT_DIR + "\" is a reserved name.";
+      if (!ready) {
+        s += "  Please rename it before upgrade.";
+      }
+      throw new IllegalArgumentException(s);
+    }
+  }
   
   /** Add a node child to the inodes at index pos. 
    * Its ancestors are stored at [0, pos-1].
@@ -1661,6 +1673,8 @@ public class FSDirectory implements FSConstants, Closeable {
   private boolean addChild(INodesInPath iip, int pos, INode child,
       boolean inheritPermission, boolean checkQuota)
       throws QuotaExceededException {
+    // always verify inode name
+    verifyINodeName(child.getLocalNameBytes());
     final INode[] inodes = iip.getINodes();
     // Disallow creation of /.reserved. This may be created when loading
     // editlog/fsimage during upgrade since /.reserved was a valid name in older

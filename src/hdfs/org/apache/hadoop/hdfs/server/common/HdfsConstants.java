@@ -17,6 +17,8 @@
  */
 package org.apache.hadoop.hdfs.server.common;
 
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.server.namenode.MetaRecoveryContext;
 
 
@@ -103,6 +105,12 @@ public interface HdfsConstants {
    * A special path component contained in the path for a snapshot file/dir
    */
   public static final String DOT_SNAPSHOT_DIR = ".snapshot";
+  
+  public static final byte[] DOT_SNAPSHOT_DIR_BYTES 
+      = DFSUtil.string2Bytes(DOT_SNAPSHOT_DIR);
+
+  public static final String SEPARATOR_DOT_SNAPSHOT_DIR 
+      = Path.SEPARATOR + DOT_SNAPSHOT_DIR;
 
 }
 

@@ -6800,6 +6800,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       if (snapshotName == null || snapshotName.isEmpty()) {
         snapshotName = Snapshot.generateDefaultSnapshotName();
       }
+      dir.verifySnapshotName(snapshotName, snapshotRoot);
       
       synchronized (dir.rootDir) {
         snapshotPath = snapshotManager.createSnapshot(snapshotRoot,
@@ -6848,8 +6849,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     getEditLog().logSync();
     
     if (auditLog.isInfoEnabled() && isExternalInvocation()) {
-      Path rootPath = new Path(snapshotRoot, HdfsConstants.DOT_SNAPSHOT_DIR
-          + Path.SEPARATOR + snapshotName);
+      String rootPath = Snapshot.getSnapshotPath(snapshotRoot, snapshotName);
       logAuditEvent(UserGroupInformation.getCurrentUser(), Server.getRemoteIp(),
           "deleteSnapshot", rootPath.toString(), null, null);
     }
@@ -6874,19 +6874,15 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       if (isPermissionEnabled) {
         checkOwner(pc, path);
       }
-      // TODO: check if the new name is valid. May also need this for
-      // creationSnapshot
-      
+      dir.verifySnapshotName(snapshotNewName, path);
       snapshotManager.renameSnapshot(path, snapshotOldName, snapshotNewName);
       getEditLog().logRenameSnapshot(path, snapshotOldName, snapshotNewName);
     }
     getEditLog().logSync();
     
     if (auditLog.isInfoEnabled() && isExternalInvocation()) {
-      Path oldSnapshotRoot = new Path(path, HdfsConstants.DOT_SNAPSHOT_DIR
-          + "/" + snapshotOldName);
-      Path newSnapshotRoot = new Path(path, HdfsConstants.DOT_SNAPSHOT_DIR
-          + "/" + snapshotNewName);
+      String oldSnapshotRoot = Snapshot.getSnapshotPath(path, snapshotOldName);
+      String newSnapshotRoot = Snapshot.getSnapshotPath(path, snapshotNewName);
       logAuditEvent(UserGroupInformation.getCurrentUser(), Server.getRemoteIp(),
           "renameSnapshot", oldSnapshotRoot.toString(),
           newSnapshotRoot.toString(), null);

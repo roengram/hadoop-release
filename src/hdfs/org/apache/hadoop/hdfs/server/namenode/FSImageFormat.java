@@ -39,7 +39,6 @@ import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
-import org.apache.hadoop.hdfs.server.common.HdfsConstants;
 import org.apache.hadoop.hdfs.server.common.StorageInfo;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 import org.apache.hadoop.hdfs.server.namenode.FSImage.DatanodeImage;
@@ -375,6 +374,9 @@ public class FSImageFormat {
     private INode loadINode(long id, final byte[] localName,
         boolean isSnapshotINode, DataInput in) throws IOException {
       int layoutVersion = storage.getLayoutVersion();
+      if (layoutVersion <= -41) { // support snapshot
+        namesystem.getFSDirectory().verifyINodeName(localName);
+      }
       short replication = FSEditLog.adjustReplication(in.readShort());
       long modificationTime = in.readLong();
       long atime = 0;
@@ -746,7 +748,7 @@ public class FSImageFormat {
      *                 actually leads to.
      * @return The snapshot path.                
      */
-    private String computeSnapshotPath(String nonSnapshotPath, 
+    private static String computeSnapshotPath(String nonSnapshotPath, 
         Snapshot snapshot) {
       String snapshotParentFullPath = snapshot.getRoot().getParent()
           .getFullPathName();
@@ -754,10 +756,8 @@ public class FSImageFormat {
       String relativePath = nonSnapshotPath.equals(snapshotParentFullPath) ? 
           Path.SEPARATOR : nonSnapshotPath.substring(
                snapshotParentFullPath.length());
-      String snapshotFullPath = snapshotParentFullPath + Path.SEPARATOR
-          + HdfsConstants.DOT_SNAPSHOT_DIR + Path.SEPARATOR + snapshotName
-          + relativePath;
-      return snapshotFullPath;
+      return Snapshot.getSnapshotPath(snapshotParentFullPath,
+          snapshotName + relativePath);
     }
   }
 }
