@@ -46,7 +46,6 @@ import org.apache.hadoop.hdfs.server.common.HdfsConstants.StartupOption;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 import org.apache.hadoop.hdfs.server.namenode.Content.CountsMap;
 import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
-import org.apache.hadoop.hdfs.server.namenode.INodeDirectory.INodesInPath;
 import org.apache.hadoop.hdfs.server.namenode.INodeReference.WithCount;
 import org.apache.hadoop.hdfs.server.namenode.Quota.Counts;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable;
@@ -1244,7 +1243,7 @@ public class FSDirectory implements FSConstants, Closeable {
   }
   
   INodesInPath getExistingPathINodes(byte[][] components) {
-    return rootDir.getExistingPathINodes(components, components.length);
+    return INodesInPath.resolve(rootDir, components);
   }
   
   /**
@@ -1456,21 +1455,6 @@ public class FSDirectory implements FSConstants, Closeable {
   static String getFullPathName(INode inode) {
     INode[] inodes = getFullPathINodes(inode);
     return getFullPathName(inodes, inodes.length - 1);
-  }
-  
-  /**
-   * For a given inode, get its relative path from its ancestor.
-   * @param inode The given inode.
-   * @param ancestor An ancestor inode of the given inode.
-   * @return The relative path name represented in an array of byte array.
-   */
-  static byte[][] getRelativePathNameBytes(INode inode, INode ancestor) {
-    INode[] inodes = getRelativePathINodes(inode, ancestor);
-    byte[][] path = new byte[inodes.length][];
-    for (int i = 0; i < inodes.length; i++) {
-      path[i] = inodes[i].getLocalNameBytes();
-    }
-    return path;
   }
   
   /**

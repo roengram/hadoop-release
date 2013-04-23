@@ -435,13 +435,6 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
     // Get the full path name of this inode.
     return FSDirectory.getFullPathName(this);
   }
-
-  /**
-   * @return The full path name represented in a list of byte array
-   */
-  public final byte[][] getRelativePathNameBytes(INode ancestor) {
-    return FSDirectory.getRelativePathNameBytes(this, ancestor);
-  }
   
   @Override
   public String toString() {
