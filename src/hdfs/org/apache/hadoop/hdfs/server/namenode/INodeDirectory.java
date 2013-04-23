@@ -583,7 +583,10 @@ public class INodeDirectory extends INode {
 
   /** Set the children list to null. */
   public void clearChildren() {
-    this.children = null;
+    if (children != null) {
+      children.clear();
+      children = null;
+    }
   }
 
   @Override
@@ -620,7 +623,8 @@ public class INodeDirectory extends INode {
     for (INode child : getChildrenList(null)) {
       child.destroyAndCollectBlocks(collectedBlocks);
     }
-    clearReferences();
+    // Do not set the children to null. It will be done later
+    super.clearReferences();
   }
   
   @Override

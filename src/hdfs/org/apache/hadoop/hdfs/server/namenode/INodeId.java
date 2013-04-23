@@ -32,7 +32,7 @@ public class INodeId implements Comparable<INodeId> {
    * usage. The id won't be recycled and is not expected to wrap around in a
    * very long time. Root inode id will be 1001.
    */
-  public static final long LAST_RESERVED_ID = 1023L;
+  public static final long LAST_RESERVED_ID = 2<<14-1;
   public static final long ROOT_INODE_ID = LAST_RESERVED_ID + 1;
 
   /**

@@ -877,7 +877,7 @@ public class FSImage extends Storage {
     dir.computeQuotaUsage4CurrentDirectory(counts);
 
     for (INode child : dir.getChildrenList(null)) {
-      fsd.addToInodeMap(child);
+      fsd.addToInodeMapUnprotected(child);
       if (child.isDirectory()) {
         updateCountForQuotaRecursively(fsd, child.asDirectory(), counts);
       } else {

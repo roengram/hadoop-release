@@ -20,7 +20,6 @@ package org.apache.hadoop.hdfs.server.namenode;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -30,6 +29,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Arrays;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
@@ -45,10 +46,12 @@ import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.protocol.ExtendedDirectoryListing;
 import org.apache.hadoop.hdfs.protocol.ExtendedHdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
+import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 import org.junit.Test;
 import org.mockito.Mockito;
 
 public class TestINodeFile {
+  public static final Log LOG = LogFactory.getLog(TestINodeFile.class);
 
   static final short BLOCKBITS = 48;
   static final long BLKSIZE_MAXVALUE = ~(0xffffL << BLOCKBITS);
@@ -253,19 +256,17 @@ public class TestINodeFile {
    */
   @Test
   public void testInodeId() throws IOException {
-
     Configuration conf = new Configuration();
     conf.setInt(DFSConfigKeys.DFS_BLOCK_SIZE_KEY,
         DFSConfigKeys.DFS_BYTES_PER_CHECKSUM_DEFAULT);
-    conf.setBoolean(DFSConfigKeys.DFS_NAMENODE_SUPPORT_FILEID_KEY, true);
     MiniDFSCluster cluster = null;
     try {
       cluster = new MiniDFSCluster(0, conf, 1, true, true, null, null);
       cluster.waitActive();
-  
+
       FSNamesystem fsn = FSNamesystem.getFSNamesystem();
       long lastId = fsn.getLastInodeId();
-      
+
       // Ensure root has the correct inode ID
       // Last inode ID should be root inode ID and inode map size should be 1
       int inodeCount = 1;
@@ -273,7 +274,7 @@ public class TestINodeFile {
       assertEquals(fsn.dir.rootDir.getId(), INodeId.ROOT_INODE_ID);
       assertEquals(expectedLastInodeId, lastId);
       assertEquals(inodeCount, fsn.dir.getInodeMapSize());
-  
+
       // Create a directory
       // Last inode ID and inode map size should increase by 1
       FileSystem fs = cluster.getFileSystem();
@@ -281,28 +282,34 @@ public class TestINodeFile {
       assertTrue(fs.mkdirs(path));
       assertEquals(++expectedLastInodeId, fsn.getLastInodeId());
       assertEquals(++inodeCount, fsn.dir.getInodeMapSize());
-  
+
       Path filePath = new Path("/test1/file");
       fs.create(filePath);
       assertEquals(++expectedLastInodeId, fsn.getLastInodeId());
       assertEquals(++inodeCount, fsn.dir.getInodeMapSize());
-  
-      // Rename doesn't increase inode id
+      
+      // Ensure right inode ID is returned in file status
+      ExtendedHdfsFileStatus fileStatus = fsn.getExtendedFileInfo("/test1/file");
+      assertEquals(expectedLastInodeId, fileStatus.getFileId());
+
+      // Rename a directory
+      // Last inode ID and inode map size should not change
       Path renamedPath = new Path("/test2");
-      fs.rename(path, renamedPath);
-      fs.rename(renamedPath, path);
+      assertTrue(fs.rename(path, renamedPath));
       assertEquals(expectedLastInodeId, fsn.getLastInodeId());
       assertEquals(inodeCount, fsn.dir.getInodeMapSize());
       
-      // Delete a file and ensure inode map size decreases
-      fs.delete(filePath, true);
-      assertEquals(--inodeCount, fsn.dir.getInodeMapSize());
-  
+      // Delete test2/file and test2 and ensure inode map size decreases
+      assertTrue(fs.delete(renamedPath, true));
+      inodeCount -= 2;
+      assertEquals(inodeCount, fsn.dir.getInodeMapSize());
+
+      // Make sure fsimage can be loaded
       cluster.restartNameNode();
       cluster.waitActive();
       fsn = cluster.getNameNode().getNamesystem();
-      assertEquals(inodeCount, fsn.dir.getInodeMapSize());
       assertEquals(expectedLastInodeId, fsn.getLastInodeId());
+      assertEquals(inodeCount, fsn.dir.getInodeMapSize());
   
       // Make sure empty editlog can be handled
       cluster.restartNameNode();
@@ -318,14 +325,18 @@ public class TestINodeFile {
   }
   
   private Path getInodePath(long inodeId, String remainingPath) {
-    Path p = new Path(Path.SEPARATOR + FSDirectory.DOT_INODES_STRING
-        + Path.SEPARATOR + inodeId + Path.SEPARATOR + remainingPath);
-    System.out.println("Inode path is " + p);
+    StringBuilder b = new StringBuilder();
+    b.append(Path.SEPARATOR).append(FSDirectory.DOT_RESERVED_STRING)
+        .append(Path.SEPARATOR).append(FSDirectory.DOT_INODES_STRING)
+        .append(Path.SEPARATOR).append(inodeId).append(Path.SEPARATOR)
+        .append(remainingPath);
+    Path p = new Path(b.toString());
+    LOG.info("Inode path is " + p);
     return p;
   }
   
   /**
-   * Tests for addressing files using /.inodes/<inodeID> in file system
+   * Tests for addressing files using /.reserved/.inodes/<inodeID> in file system
    * operations.
    */
   @Test
@@ -333,7 +344,6 @@ public class TestINodeFile {
     Configuration conf = new Configuration();
     conf.setInt(DFSConfigKeys.DFS_BLOCK_SIZE_KEY,
         DFSConfigKeys.DFS_BYTES_PER_CHECKSUM_DEFAULT);
-    conf.setBoolean(DFSConfigKeys.DFS_NAMENODE_SUPPORT_FILEID_KEY, true);
     MiniDFSCluster cluster = null;
     try {
       cluster = new MiniDFSCluster(0, conf, 1, true, true, null, null);
@@ -351,7 +361,7 @@ public class TestINodeFile {
       // Test root inodeId Path
       Path rootPath = getInodePath(INodeId.ROOT_INODE_ID, "");
       long rootFileId = nnRpc.getExtendedFileInfo(rootPath.toString()).getFileId();
-      assertEquals(rootFileId, INodeId.ROOT_INODE_ID);
+      assertEquals(INodeId.ROOT_INODE_ID, rootFileId);
 
       // FileSystem#create file and FileSystem#close
       Path testFileInodePath = getInodePath(baseDirFileId, "test1");
@@ -388,16 +398,9 @@ public class TestINodeFile {
       assertEquals(testFileBlockSize,
           nnRpc.getPreferredBlockSize(testFileInodePath.toString()));
       
-      // FileSystem#append
-//      fs.append(testFileInodePath);
       // DistributedFileSystem#recoverLease
-      
       fs.recoverLease(testFileInodePath);
-      // Namenode#getAdditionalBlock
-      
-      // TODO: NameNode#getAdditionalDatanode
-      // FSNamesystem#abandonBlock
-      // FSNamesystem#fsync
+
       
       // FileSystem#rename - both the variants
       Path renameDst = getInodePath(baseDirFileId, "test2");
@@ -429,126 +432,6 @@ public class TestINodeFile {
     assertEquals(s1.getReplication(), s2.getReplication());
   }
 
-  /**
-   * If fileID feature is turned off, then the inode map should not be
-   * initialized.
-   */
-  @Test
-  public void testFileIDConfiguration() {
-    Configuration conf = new Configuration();
-    assertNull(FSDirectory.initInodeMap(conf, null));
-  }
-  
-  /**
-   * For a given path, build a tree of INodes and return the leaf node.
-   */
-  private INode getInodes(String path) {
-    byte[][] components = INode.getPathComponents(path);
-    FsPermission perm = FsPermission.createImmutable((short)0755);
-    PermissionStatus permstatus = PermissionStatus.createImmutable("", "", perm);
-    
-    long id = 0;
-    INodeDirectory prev = new INodeDirectory(++id, DFSUtil.string2Bytes(""),
-        permstatus, 0);
-    INodeDirectory dir = null;
-    for (byte[] component : components) {
-      if (component.length == 0) {
-        continue;
-      }
-      System.out.println("Adding component " + DFSUtil.bytes2String(component));
-      dir = new INodeDirectory(++id, component, permstatus, 0);
-      prev.addChild(dir);
-      prev = dir;
-    }
-    return dir; // Last Inode in the chain
-  }
-  
-  private static void checkEquals(byte[][] expected, byte[][] actual) {
-    assertEquals(expected.length, actual.length);
-    int i = 0;
-    for (byte[] e : expected) {
-      assertTrue(Arrays.equals(e, actual[i++]));
-    }
-  }
-  
-  /**
-   * Test for {@link FSDirectory#getPathComponents(INode)}
-   */
-  @Test
-  public void testGetPathFromInode() {
-    String path = "/a/b/c";
-    INode inode = getInodes(path);
-    byte[][] expected = INode.getPathComponents(path);
-    byte[][] actual = FSDirectory.getPathComponents(inode);
-    assertEquals(expected, actual);
-  }
-  
-  /**
-   * Tests for {@link FSDirectory#getPathComponents(String, FSDirectory)}
-   * and for {@link FSDirectory#resolvePath(String, byte[][], FSDirectory)}
-   */
-  @Test
-  public void testInodePath() throws FileNotFoundException {
-    // For an non .inodes path the regular components are returned
-    String path = "/a/b/c";
-    byte[][] components = INode.getPathComponents(path);
-    checkEquals(components, FSDirectory.getPathComponents(path, null));
-    
-    INode inode = getInodes(path);
-    // For an any inode look up return inode corresponding to "c" from /a/b/c
-    FSDirectory fsd = Mockito.mock(FSDirectory.class);
-    Mockito.doReturn(inode).when(fsd).getInode(Mockito.anyLong());
-    
-    //
-    // Tests for FSDirectory#getPathComponents()
-    // Non inode regular path
-    byte[][] result = FSDirectory.getPathComponents(path, fsd);
-    checkEquals(components, result);
-    
-    // Inode path with no trailing separator
-    result = FSDirectory.getPathComponents("/.inodes/1", fsd);
-    checkEquals(components, result);
-    
-    // Inode path with trailing separator
-    result = FSDirectory.getPathComponents("/.inodes/1/", fsd);
-    checkEquals(components, result);
-    
-    // Inode relative path
-    result = FSDirectory.getPathComponents("/.inodes/1/d/e/f", fsd);
-    checkEquals(INode.getPathComponents("/a/b/c/d/e/f"), result);
-    
-    // A path with just .inodes 
-    result = FSDirectory.getPathComponents("/.inodes", fsd);
-    checkEquals(INode.getPathComponents("/.inodes"), result);
-    
-    //
-    // Tests for FSDirectory#resolvePath()
-    // Non inode regular path
-    components = INode.getPathComponents(path);
-    String resolvedPath = FSDirectory.resolvePath(path, components, fsd);
-    assertEquals(path, resolvedPath);
-    
-    // Inode path with no trailing separator
-    components = INode.getPathComponents("/.inodes/1");
-    resolvedPath = FSDirectory.resolvePath(path, components, fsd);
-    assertEquals(path, resolvedPath);
-    
-    // Inode path with trailing separator
-    components = INode.getPathComponents("/.inodes/1/");
-    resolvedPath = FSDirectory.resolvePath(path, components, fsd);
-    assertEquals(path, resolvedPath);
-    
-    // Inode relative path
-    components = INode.getPathComponents("/.inodes/1/d/e/f");
-    resolvedPath = FSDirectory.resolvePath(path, components, fsd);
-    assertEquals("/a/b/c/d/e/f", resolvedPath);
-    
-    // A path with just .inodes 
-    components = INode.getPathComponents("/.inodes");
-    resolvedPath = FSDirectory.resolvePath("/.inodes", components, fsd);
-    assertEquals("/.inodes", resolvedPath);
-  }
-  
   /** File listing should should start with file @{code firstFile} */
   private void validateList(ExtendedDirectoryListing list, int firstFile,
       int expectedLength) {
@@ -565,7 +448,6 @@ public class TestINodeFile {
     Configuration conf = new Configuration();
     conf.setInt(DFSConfigKeys.DFS_BLOCK_SIZE_KEY,
         DFSConfigKeys.DFS_BYTES_PER_CHECKSUM_DEFAULT);
-    conf.setBoolean(DFSConfigKeys.DFS_NAMENODE_SUPPORT_FILEID_KEY, true);
     MiniDFSCluster cluster = null;
     try {
       cluster = new MiniDFSCluster(0, conf, 1, true, true, null, null);
@@ -603,23 +485,14 @@ public class TestINodeFile {
     
   }
 
-  private boolean sameExtendHdfsFileStatus(ExtendedHdfsFileStatus status1,
-      ExtendedHdfsFileStatus status2) throws IOException {
-    ByteArrayOutputStream baos1 = new ByteArrayOutputStream();
-    DataOutputStream w1 = new DataOutputStream(baos1);
-    status1.write(w1);
-
-    ByteArrayOutputStream baos2 = new ByteArrayOutputStream();
-    DataOutputStream w2 = new DataOutputStream(baos2);
-    status1.write(w2);
-
-    return baos1.toString("UTF-8").equals(baos2.toString("UTF-8"));
+  private void checkEquals(ExtendedHdfsFileStatus s1, ExtendedHdfsFileStatus s2) {
+    checkEquals((HdfsFileStatus)s1, (HdfsFileStatus)s2);
+    assertEquals(s1.getFileId(), s2.getFileId());
   }
-
+  
   @Test
   public void testReplaceINode() throws Exception {
     Configuration conf = new Configuration();
-    conf.setBoolean(DFSConfigKeys.DFS_NAMENODE_SUPPORT_FILEID_KEY, true);
     MiniDFSCluster cluster = null;
     try {
       cluster = new MiniDFSCluster(0, conf, 1, true, true, null, null);
@@ -630,25 +503,213 @@ public class TestINodeFile {
           .getNameNodeAddress(), conf);
       Path file1 = new Path("/file1");
       FSDataOutputStream fso = fs.create(file1);
-      ExtendedHdfsFileStatus status = client.getExtendedFileInfo("/file1");
-      long fileId = status.getFileId();
-      ExtendedHdfsFileStatus status2 = client.getExtendedFileInfo("/.inodes/"
-          + fileId);
-
-      assertTrue(sameExtendHdfsFileStatus(status, status2));
+      
+      // getExtendedFileInfo works for both regular name and inode id based name
+      ExtendedHdfsFileStatus status = client.getExtendedFileInfo(file1.toString());
+      String fileName = getInodePath(status.getFileId(), "").toString();
+      ExtendedHdfsFileStatus status2 = client.getExtendedFileInfo(fileName);
+      checkEquals(status, status2);
 
       // Close stream will trigger inode replacement from underConstruction to
       // complete inode. Sleep 1 second to make sure replacement is done.
       fso.close();
       Thread.sleep(1000);
-      ExtendedHdfsFileStatus status3 = client.getExtendedFileInfo("/.inodes/"
-          + fileId);
-      assertTrue(sameExtendHdfsFileStatus(status, status3));
-
+      ExtendedHdfsFileStatus status3 = client.getExtendedFileInfo(fileName);
+      checkEquals(status, status3);
     } finally {
       if (cluster != null) {
         cluster.shutdown();
       }
     }
+  }
+
+  /**
+   * Check /.reserved path is reserved and cannot be created.
+   */
+  @Test
+  public void testReservedFileNames() throws IOException {
+    Configuration conf = new Configuration();
+    MiniDFSCluster cluster = null;
+    try {
+      // First start a cluster with reserved file names check turned off
+      cluster = new MiniDFSCluster(0, conf, 1, true, true, null, null);
+      cluster.waitActive();
+      FileSystem fs = cluster.getFileSystem();
+      
+      // Creation of directory or file with reserved path names is disallowed
+      ensureReservedFileNamesCannotBeCreated(fs, "/.reserved", false);
+      ensureReservedFileNamesCannotBeCreated(fs, "/.reserved", false);
+      Path reservedPath = new Path("/.reserved");
+      
+      // Loading of fsimage or editlog with /.reserved directory should fail
+      // Mkdir "/.reserved reserved path with reserved path check turned off
+      FSDirectory.CHECK_RESERVED_FILE_NAMES = false;
+      fs.mkdirs(reservedPath);
+      assertTrue(fs.isDirectory(reservedPath));
+      ensureReservedFileNamesCannotBeLoaded(cluster);
+
+      // Loading of fsimage or editlog with /.reserved file should fail
+      // Create file "/.reserved reserved path with reserved path check turned off
+      FSDirectory.CHECK_RESERVED_FILE_NAMES = false;
+      ensureClusterRestartSucceeds(cluster);
+      fs.delete(reservedPath, true);
+      DFSTestUtil.createFile(fs, reservedPath, 10, (short)1, 0L);
+      assertTrue(!fs.isDirectory(reservedPath));
+      ensureReservedFileNamesCannotBeLoaded(cluster);
+    } finally {
+      FSDirectory.CHECK_RESERVED_FILE_NAMES = true;
+      if (cluster != null) {
+        cluster.shutdown();
+      }
+    }
+  }
+  
+  private void ensureReservedFileNamesCannotBeCreated(FileSystem fs, String name,
+      boolean isDir) {
+    // Creation of directory or file with reserved path names is disallowed
+    Path reservedPath = new Path(name);
+    try {
+      if (isDir) {
+        fs.mkdirs(reservedPath);
+      } else {
+        DFSTestUtil.createFile(fs, reservedPath, 10, (short) 1, 0L);
+      }
+      fail((isDir ? "mkdir" : "create file") + " should be disallowed");
+    } catch (Exception expected) {
+      // ignored
+    }
+  }
+  
+  private void ensureReservedFileNamesCannotBeLoaded(MiniDFSCluster cluster)
+      throws IOException {
+    // Turn on reserved file name checking. Loading of edits should fail
+    FSDirectory.CHECK_RESERVED_FILE_NAMES = true;
+    ensureClusterRestartFails(cluster);
+
+    // Turn off reserved file name checking and successfully load edits
+    FSDirectory.CHECK_RESERVED_FILE_NAMES = false;
+    ensureClusterRestartSucceeds(cluster);
+
+    // Turn on reserved file name checking. Loading of fsimage should fail
+    FSDirectory.CHECK_RESERVED_FILE_NAMES = true;
+    ensureClusterRestartFails(cluster);
+  }
+  
+  private void ensureClusterRestartFails(MiniDFSCluster cluster) {
+    try {
+      cluster.restartNameNode();
+      fail("Cluster should not have successfully started");
+    } catch (Exception expected) {
+      LOG.info("Expected exception thrown " + expected);
+    }
+    assertFalse(cluster.isClusterUp());
+  }
+  
+  private void ensureClusterRestartSucceeds(MiniDFSCluster cluster)
+      throws IOException {
+    cluster.restartNameNode();
+    cluster.waitActive();
+    assertTrue(cluster.isClusterUp());
+  }
+  
+  /**
+   * For a given path, build a tree of INodes and return the leaf node.
+   */
+  private INode createTreeOfInodes(String path) throws QuotaExceededException {
+    byte[][] components = INode.getPathComponents(path);
+    FsPermission perm = FsPermission.createImmutable((short)0755);
+    PermissionStatus permstatus = PermissionStatus.createImmutable("", "", perm);
+    
+    long id = 0;
+    INodeDirectory prev = new INodeDirectory(++id, new byte[0], permstatus, 0);
+    INodeDirectory dir = null;
+    for (byte[] component : components) {
+      if (component.length == 0) {
+        continue;
+      }
+      dir = new INodeDirectory(++id, component, permstatus, 0);
+      prev.addChild(dir, false, null);
+      prev = dir;
+    }
+    return dir; // Last Inode in the chain
+  }
+  
+  private static void checkEquals(byte[][] expected, byte[][] actual) {
+    assertEquals(expected.length, actual.length);
+    int i = 0;
+    for (byte[] e : expected) {
+      assertTrue(Arrays.equals(e, actual[i++]));
+    }
+  }
+  
+  /**
+   * Test for {@link FSDirectory#getPathComponents(INode)}
+   */
+  @Test
+  public void testGetPathFromInode() throws QuotaExceededException {
+    String path = "/a/b/c";
+    INode inode = createTreeOfInodes(path);
+    byte[][] expected = INode.getPathComponents(path);
+    byte[][] actual = FSDirectory.getPathComponents(inode);
+    checkEquals(expected, actual);
+  }
+  
+  /**
+   * Tests for {@link FSDirectory#resolvePath(String, byte[][], FSDirectory)}
+   */
+  @Test
+  public void testInodePath() throws IOException {
+    // For a non .inodes path the regular components are returned
+    String path = "/a/b/c";
+    INode inode = createTreeOfInodes(path);
+    // For an any inode look up return inode corresponding to "c" from /a/b/c
+    FSDirectory fsd = Mockito.mock(FSDirectory.class);
+    FsPermission perm = FsPermission.createImmutable((short)0755);
+    PermissionStatus permstatus = PermissionStatus.createImmutable("", "", perm);
+    INode rootInode = new INodeDirectory(INodeId.ROOT_INODE_ID, INodeDirectory.ROOT_NAME, permstatus, 0);
+    Mockito.when(fsd.getInode(Mockito.anyLong())).thenReturn(inode);
+    //Mockito.doReturn(inode).when(fsd).getInode(
+    
+    // Null components
+    assertEquals("/test", FSDirectory.resolvePath("/test", null, fsd));
+    
+    // Tests for FSDirectory#resolvePath()
+    // Non inode regular path
+    byte[][] components = INode.getPathComponents(path);
+    String resolvedPath = FSDirectory.resolvePath(path, components, fsd);
+    assertEquals(path, resolvedPath);
+    
+    // Inode path with no trailing separator
+    components = INode.getPathComponents("/.reserved/.inodes/1");
+    resolvedPath = FSDirectory.resolvePath(path, components, fsd);
+    assertEquals(path, resolvedPath);
+    
+    // Inode path with trailing separator
+    components = INode.getPathComponents("/.reserved/.inodes/1/");
+    assertEquals(path, resolvedPath);
+    
+    // Inode relative path
+    components = INode.getPathComponents("/.reserved/.inodes/1/d/e/f");
+    resolvedPath = FSDirectory.resolvePath(path, components, fsd);
+    assertEquals("/a/b/c/d/e/f", resolvedPath);
+    
+    // A path with just .inodes  returns the path as is
+    String testPath = "/.reserved/.inodes";
+    components = INode.getPathComponents(testPath);
+    resolvedPath = FSDirectory.resolvePath(testPath, components, fsd);
+    assertEquals(testPath, resolvedPath);
+    
+    // An invalid inode path should remain unresolved
+    testPath = "/.invalid/.inodes/1";
+    components = INode.getPathComponents(testPath);
+    resolvedPath = FSDirectory.resolvePath(testPath, components, fsd);
+    assertEquals(testPath, resolvedPath);
+    
+    // Root inode path
+    Mockito.when(fsd.getInode(INodeId.ROOT_INODE_ID)).thenReturn(rootInode);
+    testPath = "/.reserved/.inodes/" + INodeId.ROOT_INODE_ID;
+    components = INode.getPathComponents(testPath);
+    resolvedPath = FSDirectory.resolvePath(testPath, components, fsd);
+    assertEquals("/", resolvedPath);
   }
 }

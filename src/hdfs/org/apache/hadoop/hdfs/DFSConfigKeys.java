@@ -285,7 +285,4 @@ public class DFSConfigKeys extends CommonConfigurationKeys {
   public static final String  DFS_WEB_AUTHENTICATION_KERBEROS_PRINCIPAL_KEY = "dfs.web.authentication.kerberos.principal";
   public static final String  DFS_WEB_AUTHENTICATION_KERBEROS_KEYTAB_KEY = "dfs.web.authentication.kerberos.keytab";
   public static final String  DFS_BLOCK_LOCAL_PATH_ACCESS_USER_KEY = "dfs.block.local-path-access.user";
-
-  public static final String  DFS_NAMENODE_SUPPORT_FILEID_KEY = "dfs.namenode.support.fileid";
-  public static final boolean DFS_NAMENODE_SUPPORT_FILEID_DEFAULT = false;
 }

@@ -68,8 +68,16 @@ import org.apache.hadoop.hdfs.util.ReadOnlyList;
  * 
  *************************************************/
 public class FSDirectory implements FSConstants, Closeable {
-  final static String DOT_INODES_STRING = ".inodes";
-  final static byte[] DOT_INODES = DFSUtil.string2Bytes(DOT_INODES_STRING);
+  // Visible for testing
+  static boolean CHECK_RESERVED_FILE_NAMES = true;
+  public final static String DOT_RESERVED_STRING = ".reserved";
+  public final static String DOT_RESERVED_PATH_PREFIX = Path.SEPARATOR
+      + DOT_RESERVED_STRING;
+  public final static byte[] DOT_RESERVED = DFSUtil
+      .string2Bytes(DOT_RESERVED_STRING);
+  public final static String DOT_INODES_STRING = ".inodes";
+  public final static byte[] DOT_INODES = DFSUtil
+      .string2Bytes(DOT_INODES_STRING);
   
   private static INodeDirectoryWithQuota createRoot(FSNamesystem namesystem) {
     final INodeDirectoryWithQuota r = new INodeDirectoryWithQuota(
@@ -163,18 +171,12 @@ public class FSDirectory implements FSConstants, Closeable {
   
   static LightWeightGSet<INode, INode> initInodeMap(Configuration conf,
       INodeDirectory rootDir) {
-    boolean supportFileID = conf.getBoolean(
-        DFSConfigKeys.DFS_NAMENODE_SUPPORT_FILEID_KEY,
-        DFSConfigKeys.DFS_NAMENODE_SUPPORT_FILEID_DEFAULT);
-    if (supportFileID) {
-      // Compute the map capacity by allocating 1% of total memory
-      int capacity = LightWeightGSet.computeCapacity(1, "INodeMap");
-      LightWeightGSet<INode, INode> map = new LightWeightGSet<INode, INode>(
-          capacity);
-      map.put(rootDir);
-      return map;
-    }
-    return null;
+    // Compute the map capacity by allocating 1% of total memory
+    int capacity = LightWeightGSet.computeCapacity(1, "INodeMap");
+    LightWeightGSet<INode, INode> map = new LightWeightGSet<INode, INode>(
+        capacity);
+    map.put(rootDir);
+    return map;
   }
     
   /**
@@ -241,7 +243,7 @@ public class FSDirectory implements FSConstants, Closeable {
   }
 
   private synchronized INode getFromINodeMap(INode inode) {
-    return inodeMap != null ? inodeMap.get(inode) : null;
+    return inodeMap.get(inode);
   }
   
   INode unprotectedAddFile( long id,
@@ -832,6 +834,7 @@ public class FSDirectory implements FSConstants, Closeable {
     long removedNum = 1;
     if (!targetNode.isInLatestSnapshot(latestSnapshot)) {
       targetNode.destroyAndCollectBlocks(collectedBlocks);
+      removeAllFromInodesFromMap(targetNode);
     } else {
       Quota.Counts counts = targetNode.cleanSubtree(null, latestSnapshot,
           collectedBlocks);
@@ -845,7 +848,30 @@ public class FSDirectory implements FSConstants, Closeable {
     }
     return removedNum;
   }
-    
+
+  /** This method is always called with writeLock held */
+  final void addToInodeMapUnprotected(INode inode) {
+    inodeMap.put(inode);
+  }
+
+  /* This method is always called with writeLock held */
+  private final void removeFromInodeMap(INode inode) {
+    inodeMap.remove(inode);
+  }
+
+  /** Remove all the inodes under given inode from the map */
+  private void removeAllFromInodesFromMap(INode inode) {
+    removeFromInodeMap(inode);
+    if (!inode.isDirectory()) {
+      return;
+    }
+    INodeDirectory dir = (INodeDirectory) inode;
+    for (INode child : dir.getChildrenList(null)) {
+      removeAllFromInodesFromMap(child);
+    }
+    dir.clearChildren();
+  }
+  
   /**
    * Check if the given INode (or one of its descendants) is snapshottable and
    * already has snapshots.
@@ -904,8 +930,8 @@ public class FSDirectory implements FSConstants, Closeable {
       index++;
     }
     // Update inodeMap
-    removeFromInodeMap(oldnode);
-    addToInodeMap(newnode);
+    inodeMap.remove(oldnode);
+    inodeMap.put(newnode);
   }
 
   /**
@@ -1540,6 +1566,17 @@ public class FSDirectory implements FSConstants, Closeable {
       boolean inheritPermission, boolean checkQuota)
       throws QuotaExceededException {
     final INode[] inodes = iip.getINodes();
+    // Disallow creation of /.reserved. This may be created when loading
+    // editlog/fsimage during upgrade since /.reserved was a valid name in older
+    // release. This may also be called when a user tries to create a file
+    // or directory /.reserved.
+    if (pos == 1 && inodes[0] == rootDir && isReservedName(child)) {
+      throw new IllegalArgumentException("File name \""
+          + child.getLocalName() + "\" is reserved and cannot "
+          + "be created. If this is during upgrade change the name of the "
+          + "existing file or directory to another name before upgrading "
+          + "to the new release.");
+    }
     final Quota.Counts counts = child.computeQuotaUsage();
     updateCount(iip, pos,
         counts.get(Quota.NAMESPACE), counts.get(Quota.DISKSPACE), checkQuota);
@@ -1550,23 +1587,9 @@ public class FSDirectory implements FSConstants, Closeable {
       updateCountNoQuotaCheck(iip, pos,
           -counts.get(Quota.NAMESPACE), -counts.get(Quota.DISKSPACE));
     } else {
-      addToInodeMap(child);
+      inodeMap.put(child);
     }
     return added;
-  }
-  
-  /* This method is always called from synchronized caller */
-  final void addToInodeMap(INode inode) {
-    if (inodeMap != null) {
-      inodeMap.put(inode);
-    }
-  }
-
-  /* This method is always called from synchronized caller */
-  private final void removeFromInodeMap(INode inode) {
-    if (inodeMap != null) {
-      inodeMap.remove(inode);
-    }
   }
   
   private boolean addLastINodeNoQuotaCheck(INodesInPath inodesInPath,
@@ -1878,65 +1901,65 @@ public class FSDirectory implements FSConstants, Closeable {
   }
   
   /**
-   * Resolve the path of /.inodes/<inodeid>/... to regular path and return the
-   * path components corresponding to the resolved path.
-   * 
-   * @param src path that is being processed
-   * @param fsd FSDirectory
-   * @return path components for the regular path after replacing upto <inodeid>
-   *         with its corresponding path
-   * @throws FileNotFoundException if inodeid is invalid
+   * @return path components for reserved path, else null.
    */
-  static byte[][] getPathComponents(String path, FSDirectory fsd)
+  static byte[][] getPathComponentsForReservedPath(String src) {
+    return !isReservedName(src) ? null : INode.getPathComponents(src);
+  }
+  
+  private static boolean isInodesPath(byte[][] pathComponents) {
+    if (pathComponents == null || pathComponents.length <= 3) {
+      return false;
+    }
+    // Not /.reserved/.inodes
+    return (Arrays.equals(DOT_RESERVED, pathComponents[1]) && Arrays.equals(
+        DOT_INODES, pathComponents[2]));
+  }
+  
+  private static INode getINode(String src, String inodeId, FSDirectory fsd)
       throws FileNotFoundException {
-    byte[][] pathComponents = INode.getPathComponents(path);
-    if (pathComponents.length <= 2) {
-      return pathComponents;
-    }
-    if (!Arrays.equals(DOT_INODES, pathComponents[1])) { // Not .inodes path
-      return pathComponents;
-    }
-    final String inodeId = DFSUtil.bytes2String(pathComponents[2]);
-    long id = 0;
+    INode inode = null;
     try {
-      id = Long.valueOf(inodeId);
+      long id = Long.valueOf(inodeId);
+      inode = fsd.getInode(id);
     } catch (NumberFormatException e) {
-      throw new FileNotFoundException(
-          "File for given inode path does not exist: " + path);
+      // Unexpected
     }
-    byte[][] inodeComponents = getPathComponents(fsd.getInode(id));
-    byte[][] ret = new byte[inodeComponents.length + pathComponents.length - 3][];
-    System.arraycopy(inodeComponents, 0, ret, 0, inodeComponents.length);
-    System.arraycopy(pathComponents, 3, ret, inodeComponents.length,
-        pathComponents.length-3);
-    return ret;
+    if (inode == null) {
+      throw new FileNotFoundException(
+          "File for given inode path does not exist: " + src);
+    }
+    return inode;
   }
   
   /**
-   * Resolve the path of /.inodes/<inodeid>/... to regular path
+   * Resolve the path of /.reserved/.inodes/<inodeid>/... to a regular path
    * 
    * @param src path that is being processed
    * @param pathComponents path components corresponding to the path
    * @param fsd FSDirectory
-   * @return regular path after replacing upto <inodeid> with its corresponding
-   *         path
+   * @return if the path indicates an inode, return path after replacing upto
+   *         <inodeid> with the corresponding path of the inode, else the path
+   *         in {@code src} as is.
    * @throws FileNotFoundException if inodeid is invalid
    */
   static String resolvePath(String src, byte[][] pathComponents, FSDirectory fsd)
       throws FileNotFoundException {
-    INode inode = resolveInode(src, pathComponents, fsd);
-    if (inode == null) {
+    if (!isInodesPath(pathComponents)) {
       return src;
     }
-    if (inode.getId() == INodeId.ROOT_INODE_ID && pathComponents.length == 3) {
+    INode inode = getINode(src, DFSUtil.bytes2String(pathComponents[3]), fsd);
+    long id = inode.getId();
+    if (id == INodeId.ROOT_INODE_ID && pathComponents.length == 4) {
       return Path.SEPARATOR;
     }
-      
-    StringBuilder path = inode.getId() == INodeId.ROOT_INODE_ID ? new StringBuilder()
-        : new StringBuilder(inode.getFullPathName());
-    for (int i = 3; i < pathComponents.length; i++) {
-      path.append(Path.SEPARATOR).append(
-          DFSUtil.bytes2String(pathComponents[i]));
+    StringBuilder path = id == INodeId.ROOT_INODE_ID ? new StringBuilder()
+        : new StringBuilder(fsd.getInode(id).getFullPathName());
+    for (int i = 4; i < pathComponents.length; i++) {
+      path.append(Path.SEPARATOR).append(DFSUtil.bytes2String(pathComponents[i]));
+    }
+    if (NameNode.LOG.isDebugEnabled()) {
+      NameNode.LOG.debug("Resolved path is " + path);
     }
     return path.toString();
   }
@@ -1957,33 +1980,29 @@ public class FSDirectory implements FSConstants, Closeable {
   
   static INode resolveInode(String src, byte[][] pathComponents, FSDirectory fsd)
       throws FileNotFoundException {
-    if (pathComponents.length <= 2) {
+    if (!isInodesPath(pathComponents)) {
       return null;
     }
-    if (!Arrays.equals(DOT_INODES, pathComponents[1])) { // Not .inodes path
-      return null;
-    }
-    final String inodeId = DFSUtil.bytes2String(pathComponents[2]);
-    INode inode = null;
-    try {
-      inode = fsd.getInode(Long.valueOf(inodeId));
-    } catch (NumberFormatException e) {
-      if (NameNode.LOG.isDebugEnabled()) {
-        NameNode.LOG.debug("Invalid inodeId " + inodeId + " in path " + src);
-      }
-    }
-    if (inode == null) {
-      throw new FileNotFoundException(
-          "File for given inode path does not exist: " + src);
-    }
-    return inode;
+    return getINode(src, DFSUtil.bytes2String(pathComponents[3]), fsd);
   }
   
+  // Visible for testing
   int getInodeMapSize() {
     return inodeMap != null ? inodeMap.size() : 0;
   }
 
   void shutdown() {
     nameCache.reset();
+  }
+  
+  /** Check if a given inode name is reserved */
+  public static boolean isReservedName(INode inode) {
+    return CHECK_RESERVED_FILE_NAMES
+        && Arrays.equals(inode.getLocalNameBytes(), DOT_RESERVED);
+  }
+
+  /** Check if a given path is reserved */
+  public static boolean isReservedName(String src) {
+    return src.startsWith(DOT_RESERVED_PATH_PREFIX);
   }
 }

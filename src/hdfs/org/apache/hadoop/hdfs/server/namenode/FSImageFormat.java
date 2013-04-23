@@ -290,6 +290,13 @@ public class FSImageFormat {
      * modification time update and space count update are not needed.
      */
     private void addToParent(INodeDirectory parent, INode child) {
+      FSDirectory fsDir = namesystem.dir;
+      if (parent == fsDir.rootDir && FSDirectory.isReservedName(child)) {
+        throw new IllegalArgumentException("File name \""
+            + child.getLocalName() + "\" is reserved. Please "
+            + " change the name of the existing file or directory to another "
+            + "name before upgrading to this release.");
+      }
       // NOTE: This does not update space counts for parents
       if (!parent.addChild(child)) {
         return;
