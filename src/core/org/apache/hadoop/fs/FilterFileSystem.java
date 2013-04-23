@@ -18,12 +18,11 @@
 
 package org.apache.hadoop.fs;
 
-import java.io.*;
+import java.io.IOException;
 import java.net.URI;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.permission.FsPermission;
-import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.util.Progressable;
 
 /****************************************************************
@@ -288,5 +287,23 @@ public class FilterFileSystem extends FileSystem {
   public void setPermission(Path p, FsPermission permission
       ) throws IOException {
     fs.setPermission(p, permission);
+  }
+  
+  @Override // FileSystem
+  public Path createSnapshot(Path path, String snapshotName)
+      throws IOException {
+    return fs.createSnapshot(path, snapshotName);
+  }
+
+  @Override // FileSystem
+  public void renameSnapshot(Path path, String snapshotOldName,
+      String snapshotNewName) throws IOException {
+    fs.renameSnapshot(path, snapshotOldName, snapshotNewName);
+  }
+
+  @Override // FileSystem
+  public void deleteSnapshot(Path path, String snapshotName)
+      throws IOException {
+    fs.deleteSnapshot(path, snapshotName);
   }
 }
