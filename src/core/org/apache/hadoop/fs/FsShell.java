@@ -1106,12 +1106,13 @@ public class FsShell extends Configured implements Tool {
   
   /**
    * Create a snapshot 
-   * @param argv {"createSnapshot", snapshotDir, snapshotName}
+   * @param argv {"createSnapshot", snapshotDir, [snapshotName]}
    */
   private int createSnapshot(String[] argv, Configuration conf)
       throws IOException {
-    if (argv.length != 3) {
-      throw new IOException("args number not 2:" + argv.length);
+    if (argv.length != 3 && argv.length != 2) {
+      throw new IOException("args number for createSnapshot should be 2 or 3: "
+          + argv.length);
     }
     Path snapshotRoot = new Path(argv[1]);
     FileSystem fs = snapshotRoot.getFileSystem(conf);
@@ -1121,7 +1122,13 @@ public class FsShell extends Configured implements Tool {
     }
     int exitCode = 0;
     try {
-      fs.createSnapshot(snapshotRoot, argv[2]); 
+      final Path snapshotPath;
+      if (argv.length == 3) {
+        snapshotPath = fs.createSnapshot(snapshotRoot, argv[2]);
+      } else {
+        snapshotPath = fs.createSnapshot(snapshotRoot);
+      }
+      System.out.println("Created snapshot: " + snapshotPath.toString());
     } catch (RemoteException e) {
       // This is a error returned by hadoop server. Print
       // out the first line of the error mesage.
@@ -1404,7 +1411,7 @@ public class FsShell extends Configured implements Tool {
       "[" + FsShellPermissions.CHOWN_USAGE + "]\n\t" +
       "[" + FsShellPermissions.CHGRP_USAGE + "]\n\t" +      
       "[" + Count.USAGE + "]\n\t" +      
-      "[-createSnapshot <snapshotDir> <snapshotName>]\n\t" +
+      "[-createSnapshot <snapshotDir> [<snapshotName>]]\n\t" +
       "[-deleteSnapshot <snapshotDir> <snapshotName>]\n\t" +
       "[-renameSnapshot <snapshotDir> <oldName> <newName>]\n\t" +
       "[-help [cmd]]\n";
@@ -1552,7 +1559,7 @@ public class FsShell extends Configured implements Tool {
     String chgrp = FsShellPermissions.CHGRP_USAGE + "\n" +
       "\t\tThis is equivalent to -chown ... :GROUP ...\n";
     
-    String createSnapshot = "-createSnapshot <snapshotDir> <snapshotName>: " +
+    String createSnapshot = "-createSnapshot <snapshotDir> [<snapshotName>]: " +
     		"Take a snapshot with name <snapshotName> for a directory <snapshotDir>. " +
     		"The directory <snapshotDir> should be a snapshottable directory.\n";
     
@@ -1808,7 +1815,7 @@ public class FsShell extends Configured implements Tool {
       System.err.println("Usage: java FsShell [" + TAIL_USAGE + "]");
     } else if ("-createSnapshot".equalsIgnoreCase(cmd)) {
       System.err.println("Usage: java FsShell" + " [" + cmd
-          + " <snapshotDir> <snapshotName>]");
+          + " <snapshotDir> [<snapshotName>]]");
     } else if ("-deleteSnapshot".equalsIgnoreCase(cmd)) {
       System.err.println("Usage: java FsShell" + " [" + cmd
           + " <snapshotDir> <snapshotName>]");
@@ -1845,7 +1852,7 @@ public class FsShell extends Configured implements Tool {
       System.err.println("           [" + FsShellPermissions.CHMOD_USAGE + "]");      
       System.err.println("           [" + FsShellPermissions.CHOWN_USAGE + "]");
       System.err.println("           [" + FsShellPermissions.CHGRP_USAGE + "]");
-      System.err.println("           [-createSnapshot <snapshotDir> <snapshotName>]");
+      System.err.println("           [-createSnapshot <snapshotDir> [<snapshotName>]]");
       System.err.println("           [-deleteSnapshot <snapshotDir> <snapshotName>]");
       System.err.println("           [-renameSnapshot <snapshotDir> <oldName> <newName>]");
       System.err.println("           [-help [cmd]]");
@@ -1889,7 +1896,7 @@ public class FsShell extends Configured implements Tool {
         return exitCode;
       }
     } else if ("-createSnapshot".equalsIgnoreCase(cmd)) {
-      if (argv.length < 3) {
+      if (argv.length < 2) {
         printUsage(cmd);
         return exitCode;
       }

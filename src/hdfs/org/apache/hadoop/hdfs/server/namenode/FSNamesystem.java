@@ -6729,12 +6729,12 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     return getCorruptFileBlocks();
   }
   
-  public SnapshotManager getSnapshotManager() {
+  SnapshotManager getSnapshotManager() {
     return snapshotManager;
   }
     
   /** Allow snapshot on a directroy. */
-  public void allowSnapshot(String path)
+  void allowSnapshot(String path)
       throws SafeModeException, IOException {
     FSPermissionChecker pc = getPermissionChecker();
     synchronized (this) {
@@ -6748,9 +6748,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       snapshotManager.setSnapshottable(path);
       getEditLog().logAllowSnapshot(path);
     }
-    getEditLog().logSync();
-    
-    // TODO: need to update metrics in corresponding SnapshotManager method 
+    getEditLog().logSync(); 
     
     if (auditLog.isInfoEnabled() && isExternalInvocation()) {
       logAuditEvent(UserGroupInformation.getCurrentUser(), Server.getRemoteIp(),
@@ -6759,7 +6757,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   }
   
   /** Disallow snapshot on a snapshottable directory */
-  public void disallowSnapshot(String path)
+  void disallowSnapshot(String path)
       throws SafeModeException, IOException {
     FSPermissionChecker pc = getPermissionChecker();
     synchronized (this) {
@@ -6776,8 +6774,6 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     }
     getEditLog().logSync();
     
-    // TODO: need to update metrics in corresponding SnapshotManager method 
-    
     if (auditLog.isInfoEnabled() && isExternalInvocation()) {
       logAuditEvent(UserGroupInformation.getCurrentUser(), Server.getRemoteIp(),
           "disallowSnapshot", path, null, null);
@@ -6789,9 +6785,10 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    * @param snapshotRoot The directory path where the snapshot is taken
    * @param snapshotName The name of the snapshot
    */
-  public void createSnapshot(String snapshotRoot, String snapshotName)
+  String createSnapshot(String snapshotRoot, String snapshotName)
       throws SafeModeException, IOException {
     FSPermissionChecker pc = getPermissionChecker();
+    final String snapshotPath;
     synchronized (this) {
       if (isInSafeMode()) {
         throw new SafeModeException("Cannot create snapshot for "
@@ -6800,8 +6797,13 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       if (isPermissionEnabled) {
         checkOwner(pc, snapshotRoot);
       }
+      if (snapshotName == null || snapshotName.isEmpty()) {
+        snapshotName = Snapshot.generateDefaultSnapshotName();
+      }
+      
       synchronized (dir.rootDir) {
-        snapshotManager.createSnapshot(snapshotRoot, snapshotName);
+        snapshotPath = snapshotManager.createSnapshot(snapshotRoot,
+            snapshotName);
       }
       getEditLog().logCreateSnapshot(snapshotRoot, snapshotName);
     }
@@ -6809,11 +6811,10 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     
     // audit log
     if (auditLog.isInfoEnabled() && isExternalInvocation()) {
-      Path rootPath = new Path(snapshotRoot, HdfsConstants.DOT_SNAPSHOT_DIR
-          + Path.SEPARATOR + snapshotName);
       logAuditEvent(UserGroupInformation.getCurrentUser(), Server.getRemoteIp(),
-          "createSnapshot", snapshotRoot, rootPath.toString(), null);
+          "createSnapshot", snapshotRoot, snapshotPath, null);
     }
+    return snapshotPath;
   }
   
   /**
@@ -6823,7 +6824,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    * @throws SafeModeException
    * @throws IOException
    */
-  public void deleteSnapshot(String snapshotRoot, String snapshotName)
+  void deleteSnapshot(String snapshotRoot, String snapshotName)
       throws SafeModeException, IOException {
     FSPermissionChecker pc = getPermissionChecker();
     synchronized (this) {
@@ -6862,7 +6863,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    * @throws SafeModeException
    * @throws IOException 
    */
-  public void renameSnapshot(String path, String snapshotOldName,
+  void renameSnapshot(String path, String snapshotOldName,
       String snapshotNewName) throws SafeModeException, IOException {
     FSPermissionChecker pc = getPermissionChecker();
     synchronized (this) {
@@ -6938,7 +6939,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    *         and labeled as M/-/+/R respectively. 
    * @throws IOException
    */
-  public SnapshotDiffReport getSnapshotDiffReport(String path,
+  SnapshotDiffReport getSnapshotDiffReport(String path,
       String fromSnapshot, String toSnapshot) throws IOException {
     SnapshotDiffInfo diffs = null;
     synchronized (this) {

@@ -127,7 +127,7 @@ public class SnapshotManager implements SnapshotStats {
    *           snapshot with the given name for the directory, and/or 3)
    *           snapshot number exceeds quota
    */
-  public void createSnapshot(final String path, final String snapshotName)
+  public String createSnapshot(final String path, String snapshotName)
       throws IOException {
     // Find the source root directory path where the snapshot is taken.
     final INodesInPath i = fsdir.getINodesInPath4Write(path);
@@ -139,6 +139,7 @@ public class SnapshotManager implements SnapshotStats {
     //create success, update id
     snapshotCounter++;
     numSnapshots.getAndIncrement();
+    return Snapshot.getSnapshotPath(path, snapshotName);
   }
   
   /**

@@ -20,7 +20,9 @@ package org.apache.hadoop.hdfs.server.namenode.snapshot;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.Comparator;
+import java.util.Date;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.fs.Path;
@@ -37,6 +39,21 @@ import org.apache.hadoop.hdfs.util.ReadOnlyList;
 public class Snapshot implements Comparable<byte[]> {
   public static final int INVALID_ID = -1;
   
+  /**
+   * The pattern for generating the default snapshot name.
+   * E.g. s20130412-151029.033
+   */
+  private static final String DEFAULT_SNAPSHOT_NAME_PATTERN = "'s'yyyyMMdd-HHmmss.SSS";
+  
+  public static String generateDefaultSnapshotName() {
+    return new SimpleDateFormat(DEFAULT_SNAPSHOT_NAME_PATTERN).format(new Date());
+  }
+
+  static String getSnapshotPath(String snapshottableDir, String snapshotName) {
+    return new Path(snapshottableDir, HdfsConstants.DOT_SNAPSHOT_DIR
+        + Path.SEPARATOR + snapshotName).toString();
+  }
+
   /**
    * Compare snapshot IDs. Null indicates the current status thus is greater
    * than non-null snapshots.
