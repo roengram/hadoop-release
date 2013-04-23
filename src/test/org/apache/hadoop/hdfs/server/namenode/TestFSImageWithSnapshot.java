@@ -275,7 +275,7 @@ public class TestFSImageWithSnapshot {
     out.sync();
     
     // create snapshot s0
-    hdfs.allowSnapshot(dir.toString());
+    hdfs.allowSnapshot(dir);
     hdfs.createSnapshot(dir, "s0");
     out.close();
     out = writeFileWithoutClosing(sub1file3, BLOCKSIZE);

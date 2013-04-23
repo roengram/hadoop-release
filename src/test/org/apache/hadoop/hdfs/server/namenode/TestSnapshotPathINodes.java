@@ -88,13 +88,13 @@ public class TestSnapshotPathINodes {
     Assert.assertFalse(before instanceof INodeDirectorySnapshottable);
 
     // After a directory is snapshottable
-    hdfs.allowSnapshot(path);
+    hdfs.allowSnapshot(sub1);
     {
       final INode after = fsdir.getINode(path);
       Assert.assertTrue(after instanceof INodeDirectorySnapshottable);
     }
 
-    hdfs.disallowSnapshot(path);
+    hdfs.disallowSnapshot(sub1);
     {
       final INode after = fsdir.getINode(path);
       Assert.assertTrue(after instanceof INodeDirectory);
@@ -181,7 +181,7 @@ public class TestSnapshotPathINodes {
   public void testSnapshotPathINodes() throws Exception {
     // Create a snapshot for the dir, and check the inodes for the path
     // pointing to a snapshot file
-    hdfs.allowSnapshot(sub1.toString());
+    hdfs.allowSnapshot(sub1);
     hdfs.createSnapshot(sub1, "s1");
     // The path when accessing the snapshot file of file1 is
     // /TestSnapshot/sub1/.snapshot/s1/file1
@@ -249,7 +249,7 @@ public class TestSnapshotPathINodes {
   public void testSnapshotPathINodesAfterDeletion() throws Exception {
     // Create a snapshot for the dir, and check the inodes for the path
     // pointing to a snapshot file
-    hdfs.allowSnapshot(sub1.toString());
+    hdfs.allowSnapshot(sub1);
     hdfs.createSnapshot(sub1, "s2");
     
     // Delete the original file /TestSnapshot/sub1/file1
@@ -310,7 +310,7 @@ public class TestSnapshotPathINodes {
   public void testSnapshotPathINodesWithAddedFile() throws Exception {
     // Create a snapshot for the dir, and check the inodes for the path
     // pointing to a snapshot file
-    hdfs.allowSnapshot(sub1.toString());
+    hdfs.allowSnapshot(sub1);
     hdfs.createSnapshot(sub1, "s4");
     
     // Add a new file /TestSnapshot/sub1/file3
@@ -386,7 +386,7 @@ public class TestSnapshotPathINodes {
     
     // Create a snapshot for the dir, and check the inodes for the path
     // pointing to a snapshot file
-    hdfs.allowSnapshot(sub1.toString());
+    hdfs.allowSnapshot(sub1);
     hdfs.createSnapshot(sub1, "s3");
     
     // Modify file1

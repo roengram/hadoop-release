@@ -1128,7 +1128,7 @@ public class FsShell extends Configured implements Tool {
       } else {
         snapshotPath = fs.createSnapshot(snapshotRoot);
       }
-      System.out.println("Created snapshot: " + snapshotPath.toString());
+      System.out.println("Created snapshot " + snapshotPath.toString());
     } catch (RemoteException e) {
       // This is a error returned by hadoop server. Print
       // out the first line of the error mesage.

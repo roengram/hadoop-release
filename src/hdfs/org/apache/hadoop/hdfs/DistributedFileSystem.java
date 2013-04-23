@@ -664,8 +664,8 @@ public class DistributedFileSystem extends FileSystem {
    * @param path of the directory where snapshots are to be taken
    * @throws IOException
    */
-  public void allowSnapshot(String path) throws IOException {
-    dfs.allowSnapshot(path);
+  public void allowSnapshot(Path path) throws IOException {
+    dfs.allowSnapshot(getPathName(path));
   }
   
   /**
@@ -674,8 +674,8 @@ public class DistributedFileSystem extends FileSystem {
    * @param path the snapshottable directory.
    * @throws IOException
    */
-  public void disallowSnapshot(String path) throws IOException {
-    dfs.disallowSnapshot(path);
+  public void disallowSnapshot(Path path) throws IOException {
+    dfs.disallowSnapshot(getPathName(path));
   }
   
   @Override

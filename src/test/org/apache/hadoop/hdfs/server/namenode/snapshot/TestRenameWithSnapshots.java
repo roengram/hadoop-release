@@ -113,7 +113,7 @@ public class TestRenameWithSnapshots {
     final String abcStr = dirStr + "/abc";
     final Path abc = new Path(abcStr);
     hdfs.mkdirs(abc, new FsPermission((short)0777));
-    hdfs.allowSnapshot(abcStr);
+    hdfs.allowSnapshot(abc);
 
     final Path foo = new Path(abc, "foo");
     DFSTestUtil.createFile(hdfs, foo, BLOCKSIZE, REPL, SEED);
@@ -172,7 +172,7 @@ public class TestRenameWithSnapshots {
   @Test (timeout=60000)
   public void testRenameFileNotInSnapshot() throws Exception {
     hdfs.mkdirs(sub1);
-    hdfs.allowSnapshot(sub1.toString());
+    hdfs.allowSnapshot(sub1);
     hdfs.createSnapshot(sub1, snap1);
     DFSTestUtil.createFile(hdfs, file1, BLOCKSIZE, REPL, SEED);
     hdfs.rename(file1, file2);
@@ -192,7 +192,7 @@ public class TestRenameWithSnapshots {
   @Test (timeout=60000)
   public void testRenameFileInSnapshot() throws Exception {
     hdfs.mkdirs(sub1);
-    hdfs.allowSnapshot(sub1.toString());
+    hdfs.allowSnapshot(sub1);
     DFSTestUtil.createFile(hdfs, file1, BLOCKSIZE, REPL, SEED);
     hdfs.createSnapshot(sub1, snap1);
     hdfs.rename(file1, file2);
@@ -210,7 +210,7 @@ public class TestRenameWithSnapshots {
   @Test (timeout=60000)
   public void testRenameTwiceInSnapshot() throws Exception {
     hdfs.mkdirs(sub1);
-    hdfs.allowSnapshot(sub1.toString());
+    hdfs.allowSnapshot(sub1);
     DFSTestUtil.createFile(hdfs, file1, BLOCKSIZE, REPL, SEED);
     hdfs.createSnapshot(sub1, snap1);
     hdfs.rename(file1, file2);
@@ -1056,7 +1056,7 @@ public class TestRenameWithSnapshots {
     final Path bar = new Path(sdir2, "bar");
     hdfs.mkdirs(foo);
     
-    hdfs.allowSnapshot(foo.toString());
+    hdfs.allowSnapshot(foo);
     SnapshotTestHelper.createSnapshot(hdfs, foo, snap1);
     assertEquals(1, fsn.getSnapshottableDirListing().length);
     
