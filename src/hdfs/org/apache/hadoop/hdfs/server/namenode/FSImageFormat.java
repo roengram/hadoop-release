@@ -597,7 +597,6 @@ public class FSImageFormat {
         fsNamesys.saveSecretManagerState(out);
         strbuf = null;
       } finally {
-        referenceMap.removeAllINodeReferenceWithId();
         out.close();
       }
 
