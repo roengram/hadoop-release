@@ -637,7 +637,8 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
       Snapshot snapshot) {
     out.print(prefix);
     out.print(" ");
-    out.print(getLocalName());
+    final String name = getLocalName();
+    out.print(name.isEmpty()? "/": name);
     out.print("   (");
     out.print(getObjectString());
     out.print("), ");

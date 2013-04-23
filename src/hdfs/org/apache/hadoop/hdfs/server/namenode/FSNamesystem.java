@@ -4715,14 +4715,14 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   /**
    * @return Number of snapshottable directories
    */
-  public long getNumSnapshottableDirs() {
+  public int getNumSnapshottableDirs() {
     return this.snapshotManager.getNumSnapshottableDirs();
   }
   
   /**
    * @return The number of snapshots
    */
-  public long getNumSnapshots() {
+  public int getNumSnapshots() {
     return this.snapshotManager.getNumSnapshots();
   }
 
@@ -6916,7 +6916,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
    */
   void removeSnapshottableDirs(List<INodeDirectorySnapshottable> toRemove) {
     if (snapshotManager != null) {
-      snapshotManager.removeSnapshottableDirs(toRemove);
+      snapshotManager.removeSnapshottable(toRemove);
     }
   }
   

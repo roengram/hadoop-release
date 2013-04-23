@@ -81,45 +81,45 @@ public class TestSnapshotMetrics {
    */
   @Test
   public void testSnapshottableDirs() throws Exception {
-    assertGauge("SnapshottableDirectories", 0L, getMetrics(fsnMetrics));
+    assertGauge("SnapshottableDirectories", 0, getMetrics(fsnMetrics));
     assertCounter("AllowSnapshotOps", 0, getMetrics(nnMetrics));
     assertCounter("DisallowSnapshotOps", 0, getMetrics(nnMetrics));
     
     // Allow snapshots for directories, and check the metrics
     hdfs.allowSnapshot(sub1.toString());
-    assertGauge("SnapshottableDirectories", 1L, getMetrics(fsnMetrics));
+    assertGauge("SnapshottableDirectories", 1, getMetrics(fsnMetrics));
     assertCounter("AllowSnapshotOps", 1, getMetrics(nnMetrics));
     
     Path sub2 = new Path(dir, "sub2");
     Path file = new Path(sub2, "file");
     DFSTestUtil.createFile(hdfs, file, 1024, REPLICATION, seed);
     hdfs.allowSnapshot(sub2.toString());
-    assertGauge("SnapshottableDirectories", 2L, getMetrics(fsnMetrics));
+    assertGauge("SnapshottableDirectories", 2, getMetrics(fsnMetrics));
     assertCounter("AllowSnapshotOps", 2, getMetrics(nnMetrics));
     
     Path subsub1 = new Path(sub1, "sub1sub1");
     Path subfile = new Path(subsub1, "file");
     DFSTestUtil.createFile(hdfs, subfile, 1024, REPLICATION, seed);
     hdfs.allowSnapshot(subsub1.toString());
-    assertGauge("SnapshottableDirectories", 3L, getMetrics(fsnMetrics));
+    assertGauge("SnapshottableDirectories", 3, getMetrics(fsnMetrics));
     assertCounter("AllowSnapshotOps", 3, getMetrics(nnMetrics));
     
     // Set an already snapshottable directory to snapshottable, should not
     // change the metrics
     hdfs.allowSnapshot(sub1.toString());
-    assertGauge("SnapshottableDirectories", 3L, getMetrics(fsnMetrics));
+    assertGauge("SnapshottableDirectories", 3, getMetrics(fsnMetrics));
     // But the number of allowSnapshot operations still increases
     assertCounter("AllowSnapshotOps", 4, getMetrics(nnMetrics));
     
     // Disallow the snapshot for snapshottable directories, then check the
     // metrics again
     hdfs.disallowSnapshot(sub1.toString());
-    assertGauge("SnapshottableDirectories", 2L, getMetrics(fsnMetrics));
+    assertGauge("SnapshottableDirectories", 2, getMetrics(fsnMetrics));
     assertCounter("DisallowSnapshotOps", 1, getMetrics(nnMetrics));
     
     // delete subsub1, snapshottable directories should be 1
     hdfs.delete(subsub1, true);
-    assertGauge("SnapshottableDirectories", 1L, getMetrics(fsnMetrics));
+    assertGauge("SnapshottableDirectories", 1, getMetrics(fsnMetrics));
     
     // list all the snapshottable directories
     SnapshottableDirectoryStatus[] status = hdfs.getSnapshottableDirListing();
@@ -133,7 +133,7 @@ public class TestSnapshotMetrics {
    */
   @Test
   public void testSnapshots() throws Exception {
-    assertGauge("Snapshots", 0L, getMetrics(fsnMetrics));
+    assertGauge("Snapshots", 0, getMetrics(fsnMetrics));
     assertCounter("CreateSnapshotOps", 0, getMetrics(nnMetrics));
     
     // Create a snapshot for a non-snapshottable directory, thus should not
@@ -141,16 +141,16 @@ public class TestSnapshotMetrics {
     try {
       hdfs.createSnapshot(sub1, "s1");
     } catch (Exception e) {}
-    assertGauge("Snapshots", 0L, getMetrics(fsnMetrics));
+    assertGauge("Snapshots", 0, getMetrics(fsnMetrics));
     assertCounter("CreateSnapshotOps", 1, getMetrics(nnMetrics));
     
     // Create snapshot for sub1
     hdfs.allowSnapshot(sub1.toString());
     hdfs.createSnapshot(sub1, "s1");
-    assertGauge("Snapshots", 1L, getMetrics(fsnMetrics));
+    assertGauge("Snapshots", 1, getMetrics(fsnMetrics));
     assertCounter("CreateSnapshotOps", 2, getMetrics(nnMetrics));
     hdfs.createSnapshot(sub1, "s2");
-    assertGauge("Snapshots", 2L, getMetrics(fsnMetrics));
+    assertGauge("Snapshots", 2, getMetrics(fsnMetrics));
     assertCounter("CreateSnapshotOps", 3, getMetrics(nnMetrics));
     hdfs.getSnapshotDiffReport(sub1, "s1", "s2");
     assertCounter("SnapshotDiffReportOps", 1, getMetrics(nnMetrics));
@@ -161,17 +161,17 @@ public class TestSnapshotMetrics {
     DFSTestUtil.createFile(hdfs, subfile, 1024, REPLICATION, seed);
     hdfs.allowSnapshot(subsub1.toString());
     hdfs.createSnapshot(subsub1, "s11");
-    assertGauge("Snapshots", 3L, getMetrics(fsnMetrics));
+    assertGauge("Snapshots", 3, getMetrics(fsnMetrics));
     assertCounter("CreateSnapshotOps", 4, getMetrics(nnMetrics));
     
     // delete snapshot
     hdfs.deleteSnapshot(sub1, "s2");
-    assertGauge("Snapshots", 2L, getMetrics(fsnMetrics));
+    assertGauge("Snapshots", 2, getMetrics(fsnMetrics));
     assertCounter("DeleteSnapshotOps", 1, getMetrics(nnMetrics));
     
     // rename snapshot
     hdfs.renameSnapshot(sub1, "s1", "NewS1");
-    assertGauge("Snapshots", 2L, getMetrics(fsnMetrics));
+    assertGauge("Snapshots", 2, getMetrics(fsnMetrics));
     assertCounter("RenameSnapshotOps", 1, getMetrics(nnMetrics));
   }
 }

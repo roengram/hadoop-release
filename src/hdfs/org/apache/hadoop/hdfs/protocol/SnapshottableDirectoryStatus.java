@@ -34,7 +34,8 @@ import org.apache.hadoop.io.WritableFactory;
 /**
  * Metadata about a snapshottable directory
  */
-public class SnapshottableDirectoryStatus implements Writable {
+public class SnapshottableDirectoryStatus implements Writable,
+    Comparable<SnapshottableDirectoryStatus> {
   static {                                      // register a ctor
     WritableFactories.setFactory(SnapshottableDirectoryStatus.class,
         new WritableFactory() {
@@ -191,5 +192,13 @@ public class SnapshottableDirectoryStatus implements Writable {
       parentFullPath = new byte[numOfBytes];
       in.readFully(parentFullPath);
     }
+  }
+
+  @Override
+  public int compareTo(SnapshottableDirectoryStatus that) {
+    int d = DFSUtil.compareBytes(this.parentFullPath, that.parentFullPath);
+    return d != 0? d
+        : DFSUtil.compareBytes(this.dirStatus.getLocalNameInBytes(),
+            that.dirStatus.getLocalNameInBytes());
   }
 }

@@ -188,6 +188,11 @@ public class FSDirectory implements FSConstants, Closeable {
     fsImage.close();
   }
 
+  /** @return the root directory inode. */
+  public INodeDirectoryWithQuota getRoot() {
+    return rootDir;
+  }
+
   /**
    * Block until the object is ready to be used.
    */

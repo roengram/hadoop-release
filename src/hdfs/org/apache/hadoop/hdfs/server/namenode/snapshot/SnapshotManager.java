@@ -21,8 +21,8 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -52,46 +52,54 @@ import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottab
 public class SnapshotManager implements SnapshotStats {
   private final FSDirectory fsdir;
   
-  private AtomicInteger numSnapshottableDirs = new AtomicInteger();
   private AtomicInteger numSnapshots = new AtomicInteger();
   
   private int snapshotCounter = 0;
 
   /** All snapshottable directories in the namesystem. */
-  private final List<INodeDirectorySnapshottable> snapshottables
-      = new ArrayList<INodeDirectorySnapshottable>();
+  private final Map<Long, INodeDirectorySnapshottable> snapshottables
+      = new HashMap<Long, INodeDirectorySnapshottable>();
 
   public SnapshotManager(final FSDirectory fsdir) {
     this.fsdir = fsdir;
   }
 
-  /**
-   * Set the given directory as a snapshottable directory.
-   * If the path is already a snapshottable directory, update the quota.
-   */
   public void setSnapshottable(final String path) throws IOException {
     final INodesInPath iip = fsdir.getLastINodeInPath(path);
     final INodeDirectory d = INodeDirectory.valueOf(iip.getINode(0), path);
-    if (d.isSnapshottable()) {
-      // The directory is already a snapshottable directory.
-      ((INodeDirectorySnapshottable) d)
-          .setSnapshotQuota(INodeDirectorySnapshottable.SNAPSHOT_LIMIT);
-      return;
-    }
 
-    final INodeDirectorySnapshottable s = d
-        .replaceSelf4INodeDirectorySnapshottable(iip.getLatestSnapshot());
-    snapshottables.add(s);
-    numSnapshottableDirs.getAndIncrement();
+    final INodeDirectorySnapshottable s;
+    if (d.isSnapshottable()) {
+      //The directory is already a snapshottable directory.
+      s = (INodeDirectorySnapshottable)d; 
+      s.setSnapshotQuota(INodeDirectorySnapshottable.SNAPSHOT_LIMIT);
+    } else {
+      s = d.replaceSelf4INodeDirectorySnapshottable(iip.getLatestSnapshot());
+    }
+    addSnapshottable(s);
   }
-  
-  /**
-   * Add a snapshottable dir into {@link #snapshottables}. Called when loading
-   * fsimage.
-   * @param dir The snapshottable dir to be added.
-   */
+
+  /** Add the given snapshottable directory to {@link #snapshottables}. */
   public void addSnapshottable(INodeDirectorySnapshottable dir) {
-    snapshottables.add(dir);
+    snapshottables.put(dir.getId(), dir);
+  }
+
+  /** Remove the given snapshottable directory from {@link #snapshottables}. */
+  private void removeSnapshottable(INodeDirectorySnapshottable s) {
+    final INodeDirectorySnapshottable removed = snapshottables.remove(s.getId());
+    if (s != removed) {
+      throw new IllegalStateException(
+          "Error when removing a snapshottable dir: removed != to-be-removed");
+    }
+  }
+
+  /** Remove snapshottable directories from {@link #snapshottables} */
+  public void removeSnapshottable(List<INodeDirectorySnapshottable> toRemove) {
+    if (toRemove != null) {
+      for (INodeDirectorySnapshottable s : toRemove) {
+        removeSnapshottable(s);
+      }
+    }
   }
 
   /**
@@ -99,8 +107,7 @@ public class SnapshotManager implements SnapshotStats {
    * 
    * @throws SnapshotException if there are snapshots in the directory.
    */
-  public void resetSnapshottable(final String path
-      ) throws IOException {
+  public void resetSnapshottable(final String path) throws IOException {
     final INodesInPath iip = fsdir.getLastINodeInPath(path);
     final INodeDirectorySnapshottable s = INodeDirectorySnapshottable.valueOf(
         iip.getINode(0), path);
@@ -109,10 +116,12 @@ public class SnapshotManager implements SnapshotStats {
           + "Please redo the operation after removing all the snapshots.");
     }
 
-    s.replaceSelf(iip.getLatestSnapshot());
-    snapshottables.remove(s);
-
-    numSnapshottableDirs.getAndDecrement();
+    if (s == fsdir.getRoot()) {
+      s.setSnapshotQuota(0); 
+    } else {
+      s.replaceSelf(iip.getLatestSnapshot());
+    }
+    removeSnapshottable(s);
   }
   
   /** 
@@ -190,12 +199,12 @@ public class SnapshotManager implements SnapshotStats {
   }
 
   @Override
-  public long getNumSnapshottableDirs() {
-    return numSnapshottableDirs.get();
+  public int getNumSnapshottableDirs() {
+    return snapshottables.size();
   }
 
   @Override
-  public long getNumSnapshots() {
+  public int getNumSnapshots() {
     return numSnapshots.get();
   }
   
@@ -205,11 +214,10 @@ public class SnapshotManager implements SnapshotStats {
    */
   public void write(DataOutput out) throws IOException {
     out.writeInt(snapshotCounter);
-    out.writeInt(numSnapshottableDirs.get());
     out.writeInt(numSnapshots.get());
 
     // write all snapshots.
-    for(INodeDirectorySnapshottable snapshottableDir : snapshottables) {
+    for(INodeDirectorySnapshottable snapshottableDir : snapshottables.values()) {
       for(Snapshot s : snapshottableDir.getSnapshotsByNames()) {
         s.write(out);
       }
@@ -223,7 +231,6 @@ public class SnapshotManager implements SnapshotStats {
   public Map<Integer, Snapshot> read(DataInput in, FSImageFormat.Loader loader
       ) throws IOException {
     snapshotCounter = in.readInt();
-    numSnapshottableDirs.set(in.readInt());
     numSnapshots.set(in.readInt());
     
     // read snapshots
@@ -250,7 +257,7 @@ public class SnapshotManager implements SnapshotStats {
     
     List<SnapshottableDirectoryStatus> statusList = 
         new ArrayList<SnapshottableDirectoryStatus>();
-    for (INodeDirectorySnapshottable dir : snapshottables) {
+    for (INodeDirectorySnapshottable dir : snapshottables.values()) {
       if (userName == null || userName.equals(dir.getUserName())) {
         SnapshottableDirectoryStatus status = new SnapshottableDirectoryStatus(
             dir.getModificationTime(), dir.getAccessTime(),
@@ -262,30 +269,9 @@ public class SnapshotManager implements SnapshotStats {
         statusList.add(status);
       }
     }
-    return statusList.toArray(new SnapshottableDirectoryStatus[statusList
-        .size()]);
-  }
-
-  /**
-   * Remove snapshottable directories from {@link #snapshottables}
-   * @param toRemoveList A list of INodeDirectorySnapshottable to be removed
-   */
-  public void removeSnapshottableDirs(
-      List<INodeDirectorySnapshottable> toRemoveList) {
-    if (toRemoveList != null) {
-      Iterator<INodeDirectorySnapshottable> iter = snapshottables.iterator();
-      while (iter.hasNext()) {
-        INodeDirectorySnapshottable next = iter.next();
-        for (INodeDirectorySnapshottable toRemove : toRemoveList) {
-          if (next == toRemove) {
-            iter.remove();
-            break;
-          }
-        }
-      }
-      // modify the numSnapshottableDirs metrics
-      numSnapshottableDirs.addAndGet(-toRemoveList.size());
-    }
+    Collections.sort(statusList);
+    return statusList.toArray(
+        new SnapshottableDirectoryStatus[statusList.size()]);
   }
   
   /**

@@ -463,16 +463,26 @@ public class INodeDirectorySnapshottable extends INodeDirectoryWithSnapshot {
     if (snapshot == null) {
       out.println();
       out.print(prefix);
+      
+      out.print("Snapshot of ");
+      final String name = getLocalName();
+      out.print(name.isEmpty()? "/": name);
+      out.print(": quota=");
+      out.print(getSnapshotQuota());
+      
       int n = 0;
       for (DirectoryDiff diff : getDiffs()) {
         if (diff.isSnapshotRoot()) {
           n++;
         }
       }
-      out.print(n);
-      out.print(n <= 1 ? " snapshot of " : " snapshots of ");
-      final String name = getLocalName();
-      out.println(name.isEmpty() ? "/" : name);
+      if (n != snapshotsByNames.size()) {
+        throw new IllegalStateException(
+            "number of snapshots in snapshotsByNames="
+                + snapshotsByNames.size() + ", n=" + n);
+      }
+      out.print(", #snapshot=");
+      out.println(n);
 
       dumpTreeRecursively(out, prefix, new Iterable<SnapshotAndINode>() {
             @Override
