@@ -420,9 +420,9 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
     }
   }
   
-  static class DirectoryDiffFactory
-    extends AbstractINodeDiff.Factory<INodeDirectory, DirectoryDiff> {
-    static final DirectoryDiffFactory INSTANCE = new DirectoryDiffFactory();
+  /** A list of directory diffs. */
+  static class DirectoryDiffList
+      extends AbstractINodeDiffList<INodeDirectory, DirectoryDiff> {
 
     @Override
     DirectoryDiff createDiff(Snapshot snapshot, INodeDirectory currentDir) {
@@ -437,14 +437,6 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
       : new INodeDirectory(currentDir, false);
       copy.clearChildren();
       return copy;
-    }
-  }
-
-  /** A list of directory diffs. */
-  static class DirectoryDiffList 
-      extends AbstractINodeDiffList<INodeDirectory, DirectoryDiff> {
-    DirectoryDiffList() {
-      setFactory(DirectoryDiffFactory.INSTANCE);
     }
     
     /** Replace the given child in the created/deleted list, if there is any. */
@@ -637,23 +629,6 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
       }
     }
     return removed;
-  }
-
-  @Override
-  public boolean removeChildAndAllSnapshotCopies(INode child) {
-    if (!removeChild(child)) {
-      return false;
-    }
-
-    // remove same child from the created list, if there is any.
-    final List<DirectoryDiff> diffList = diffs.asList();
-    for(int i = diffList.size() - 1; i >= 0; i--) {
-      final ChildrenDiff diff = diffList.get(i).diff;
-      if (diff.removeChild(ListType.CREATED, child)) {
-        return true;
-      }
-    }
-    return true;
   }
 
   @Override
