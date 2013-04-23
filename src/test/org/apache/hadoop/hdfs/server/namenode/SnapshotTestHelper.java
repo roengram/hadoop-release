@@ -41,6 +41,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.DFSClient;
 import org.apache.hadoop.hdfs.DFSTestUtil;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
+import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants;
 import org.apache.hadoop.hdfs.server.datanode.DataNode;
@@ -263,7 +264,6 @@ public class SnapshotTestHelper {
   /**
    * Generate the path for a snapshot file.
    * 
-   * @param fs FileSystem instance
    * @param snapshotRoot of format
    *          {@literal <snapshottble_dir>/.snapshot/<snapshot_name>}
    * @param file path to a file
@@ -273,7 +273,7 @@ public class SnapshotTestHelper {
    *         . Null if the file is not under the directory associated with the
    *         snapshot root.
    */
-  public static Path getSnapshotFile(FileSystem fs, Path snapshotRoot, Path file) {
+  public static Path getSnapshotFile(Path snapshotRoot, Path file) {
     Path rootParent = snapshotRoot.getParent();
     if (rootParent != null && rootParent.getName().equals(".snapshot")) {
       Path snapshotDir = rootParent.getParent();
@@ -458,10 +458,9 @@ public class SnapshotTestHelper {
     }
   }
   
-  public static void dumpTreeRecursively(INode inode) {
-    if (INode.LOG.isDebugEnabled()) {
-      inode.dumpTreeRecursively(new PrintWriter(System.out, true),
-          new StringBuilder(), null);
-    }
+  public static void dumpTree(String message, MiniDFSCluster cluster) {
+    System.out.println("XXX " + message);
+    cluster.getNameNode().getNamesystem().getFSDirectory().getINode("/"
+        ).dumpTreeRecursively(System.out);
   }
 }

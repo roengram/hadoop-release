@@ -251,9 +251,9 @@ public class INodeDirectory extends INodeWithAdditionalFields {
           "the old child is already a reference node: " + oldChild);
     }
     final INodeReference.WithCount withCount
-        = new INodeReference.WithCount(oldChild);
-    final INodeReference ref = new INodeReference(withCount);
-    withCount.incrementReferenceCount();
+        = new INodeReference.WithCount(null, oldChild);
+    final INodeReference ref = new INodeReference(this, withCount);
+    withCount.setParentReference(ref);
     replaceChild(oldChild, ref);
     return withCount;
   }
@@ -901,6 +901,9 @@ public class INodeDirectory extends INodeWithAdditionalFields {
     out.print(", childrenSize=" + getChildrenList(snapshot).size());
     if (this instanceof INodeDirectoryWithQuota) {
       out.print(((INodeDirectoryWithQuota)this).quotaString());
+    }
+    if (this instanceof Snapshot.Root) {
+      out.print(", snapshotId=" + snapshot.getId());
     }
     out.println();
 

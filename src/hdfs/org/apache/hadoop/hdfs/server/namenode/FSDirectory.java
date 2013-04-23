@@ -467,7 +467,8 @@ public class FSDirectory implements FSConstants, Closeable {
               + " because the source can not be removed");
           return false;
         }
-        srcChild.setLocalName(dstComponents[dstComponents.length-1]);
+        //TODO: setLocalName breaks created/deleted lists
+        srcChild.setLocalName(dstIIP.getLastLocalName());
         
         // add src to the destination
         added = addLastINodeNoQuotaCheck(dstIIP, srcChild, false);

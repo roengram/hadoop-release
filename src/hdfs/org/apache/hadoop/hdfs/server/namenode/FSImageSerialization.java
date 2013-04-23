@@ -17,9 +17,8 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
-import java.io.DataInputStream;
+import java.io.DataInput;
 import java.io.DataOutput;
-import java.io.DataOutputStream;
 import java.io.IOException;
 
 import org.apache.hadoop.fs.Path;
@@ -31,6 +30,7 @@ import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectoryWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotFSImageFormat;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotFSImageFormat.ReferenceMap;
 import org.apache.hadoop.io.UTF8;
 
 /**
@@ -49,17 +49,17 @@ public class FSImageSerialization {
   static private final UTF8 U_STR = new UTF8();
   static private final FsPermission FILE_PERM = new FsPermission((short) 0);
 
-  public static String readString(DataInputStream in) throws IOException {
+  public static String readString(DataInput in) throws IOException {
     U_STR.readFields(in);
     return U_STR.toString();
   }
 
-  static String readString_EmptyAsNull(DataInputStream in) throws IOException {
+  static String readString_EmptyAsNull(DataInput in) throws IOException {
     final String s = readString(in);
     return s.isEmpty() ? null : s;
   }
 
-  static byte[] readBytes(DataInputStream in) throws IOException {
+  static byte[] readBytes(DataInput in) throws IOException {
     U_STR.readFields(in);
     int len = U_STR.getLength();
     byte[] bytes = new byte[len];
@@ -74,7 +74,7 @@ public class FSImageSerialization {
    * @return the array each element of which is a byte[] representation 
    *            of a path component
    */
-  public static byte[][] readPathComponents(DataInputStream in)
+  public static byte[][] readPathComponents(DataInput in)
       throws IOException {
     U_STR.readFields(in);
     return DFSUtil.bytes2byteArray(U_STR.getBytes(),
@@ -85,7 +85,7 @@ public class FSImageSerialization {
   // from the input stream
   //
   static INodeFileUnderConstruction readINodeUnderConstruction(
-      DataInputStream in, boolean toReadInodeId) throws IOException {
+      DataInput in, boolean toReadInodeId) throws IOException {
     final long id = toReadInodeId ? in.readLong() : FSNamesystem
         .getFSNamesystem().allocateNewInodeId();
     byte[] name = FSImageSerialization.readBytes(in);
@@ -112,7 +112,7 @@ public class FSImageSerialization {
         clientMachine, null);
   }
   
-  public static void writeString(String str, DataOutputStream out)
+  public static void writeString(String str, DataOutput out)
       throws IOException {
     U_STR.set(str);
     U_STR.write(out);
@@ -125,6 +125,12 @@ public class FSImageSerialization {
     PermissionStatus.write(out, inode.getUserName(), inode.getGroupName(), p);
   }
   
+  public static byte[] readLocalName(DataInput in) throws IOException {
+    byte[] createdNodeName = new byte[in.readShort()];
+    in.readFully(createdNodeName);
+    return createdNodeName;
+  }
+  
   private static void writeLocalName(INode node, DataOutput out)
       throws IOException {
     final byte[] name = node.getLocalNameBytes();
@@ -132,20 +138,41 @@ public class FSImageSerialization {
     out.write(name);
   }
    
+  /** Serialize a {@link INodeReference} node */
+  private static void writeINodeReference(INodeReference ref, DataOutput out,
+      boolean writeUnderConstruction, ReferenceMap referenceMap
+      ) throws IOException {
+    writeLocalName(ref, out);
+    out.writeShort(0);  // replication
+    out.writeLong(0);   // modification time
+    out.writeLong(0);   // access time
+    out.writeLong(0);   // preferred block size
+    out.writeInt(-3);   // # of blocks
+
+    out.writeBoolean(ref instanceof INodeReference.WithName);
+
+    final INodeReference.WithCount withCount
+        = (INodeReference.WithCount)ref.getReferredINode();
+    referenceMap.writeINodeReferenceWithCount(withCount, out, writeUnderConstruction);
+  }
+  
   /**
    * Save one inode's attributes to the image.
    */
-  public static void saveINode2Image(INode node, DataOutputStream out,
-      boolean writeUnderConstruction)
+  public static void saveINode2Image(INode node, DataOutput out,
+      boolean writeUnderConstruction, ReferenceMap referenceMap)
       throws IOException {
-    if (node.isDirectory()) {
+    if (node.isReference()) {
+      writeINodeReference(node.asReference(), out, writeUnderConstruction,
+          referenceMap);
+    } else if (node.isDirectory()) {
       writeINodeDirectory(node.asDirectory(), out);
-    } else {
+    } else if (node.isFile()) {
       writeINodeFile(node.asFile(), out, writeUnderConstruction);
     }
   }
   
-  public static void writeINodeFile(INodeFile file, DataOutputStream out,
+  public static void writeINodeFile(INodeFile file, DataOutput out,
       boolean writeUnderConstruction) throws IOException {
     out.writeLong(file.getId());
     writeLocalName(file, out);
@@ -194,7 +221,7 @@ public class FSImageSerialization {
   }
   
   private static void writeBlocks(final Block[] blocks,
-      final DataOutputStream out) throws IOException {
+      final DataOutput out) throws IOException {
     if (blocks == null) {
       out.writeInt(0);
     } else {
@@ -208,7 +235,7 @@ public class FSImageSerialization {
   // Helper function that writes an INodeUnderConstruction
   // into the input stream
   //
-  static void writeINodeUnderConstruction(DataOutputStream out,
+  static void writeINodeUnderConstruction(DataOutput out,
                                            INodeFileUnderConstruction cons,
                                            String path) 
                                            throws IOException {

@@ -19,7 +19,7 @@
 package org.apache.hadoop.hdfs.security.token.delegation;
 
 //import org.apache.hadoop.classification.InterfaceAudience;
-import java.io.DataInputStream;
+import java.io.DataInput;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InterruptedIOException;
@@ -97,7 +97,7 @@ public class DelegationTokenSecretManager
    * @param in input stream to read fsimage
    * @throws IOException
    */
-  public synchronized void loadSecretManagerState(DataInputStream in)
+  public synchronized void loadSecretManagerState(DataInput in)
       throws IOException {
     if (running) {
       // a safety check
@@ -253,7 +253,7 @@ public class DelegationTokenSecretManager
   /**
    * Private helper methods to load Delegation tokens from fsimage
    */
-  private synchronized void loadCurrentTokens(DataInputStream in)
+  private synchronized void loadCurrentTokens(DataInput in)
       throws IOException {
     int numberOfTokens = in.readInt();
     for (int i = 0; i < numberOfTokens; i++) {
@@ -269,7 +269,7 @@ public class DelegationTokenSecretManager
    * @param in
    * @throws IOException
    */
-  private synchronized void loadAllKeys(DataInputStream in) throws IOException {
+  private synchronized void loadAllKeys(DataInput in) throws IOException {
     int numberOfKeys = in.readInt();
     for (int i = 0; i < numberOfKeys; i++) {
       DelegationKey value = new DelegationKey();

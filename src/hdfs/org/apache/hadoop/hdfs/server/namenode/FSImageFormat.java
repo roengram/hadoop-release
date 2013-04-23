@@ -19,6 +19,7 @@ package org.apache.hadoop.hdfs.server.namenode;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
@@ -50,6 +51,7 @@ import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeFileUnderConstructio
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeFileWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotFSImageFormat;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotFSImageFormat.ReferenceMap;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
 
 public class FSImageFormat {
@@ -67,6 +69,9 @@ public class FSImageFormat {
     private final StorageInfo storage;
     private final FSNamesystem namesystem;
     private final FSDirectory fsDir;
+    
+    private Map<Integer, Snapshot> snapshotMap = null;
+    private final ReferenceMap referenceMap = new ReferenceMap();
     
     public Loader(StorageInfo storage) {
       this.storage = storage;
@@ -140,7 +145,7 @@ public class FSImageFormat {
         }
 
         if (storage.layoutVersion <= -41) {
-          namesystem.getSnapshotManager().read(in);
+          snapshotMap = namesystem.getSnapshotManager().read(in, this);
           loadLocalNameINodesWithSnapshot(in);
         } else {
           loadFullNameINodes(numFiles, in);
@@ -167,7 +172,7 @@ public class FSImageFormat {
      * 
      * @param in Image input stream
      */
-    private void loadLocalNameINodesWithSnapshot(DataInputStream in)
+    private void loadLocalNameINodesWithSnapshot(DataInput in)
         throws IOException {
       // load root
       loadRoot(in);
@@ -177,9 +182,9 @@ public class FSImageFormat {
     
     /**
      * Load a directory when snapshot is supported.
-     * @param in The {@link DataInputStream} instance to read.
+     * @param in The {@link DataInput} instance to read.
      */
-    private void loadDirectoryWithSnapshot(DataInputStream in)
+    private void loadDirectoryWithSnapshot(DataInput in)
         throws IOException {
       // Step 1. Identify the parent INode
       String parentPath = FSImageSerialization.readString(in);
@@ -215,7 +220,7 @@ public class FSImageFormat {
     }
     
     /** Load children nodes for the parent directory. */
-    private int loadChildren(INodeDirectory parent, DataInputStream in)
+    private int loadChildren(INodeDirectory parent, DataInput in)
         throws IOException {
       int numChildren = in.readInt();
       for (int i = 0; i < numChildren; i++) {
@@ -227,14 +232,11 @@ public class FSImageFormat {
     }
     
     public INode loadINodeWithLocalName(boolean isSnapshotINode,
-        DataInputStream in) throws IOException {
+        DataInput in) throws IOException {
       final long id = (storage.layoutVersion <= -42) ? in.readLong()
           : namesystem.allocateNewInodeId();
-      final byte[] localName = new byte[in.readShort()];
-      in.readFully(localName);
-      final INode inode = loadINode(id, localName, isSnapshotINode, in);
-      inode.setLocalName(localName);
-      return inode;
+      final byte[] localName = FSImageSerialization.readLocalName(in);
+      return loadINode(id, localName, isSnapshotINode, in);
     }
     
     /**
@@ -242,7 +244,7 @@ public class FSImageFormat {
      * directory of NameSystem.
      * @param in The {@link DataInputStream} instance to read.
      */
-    private void loadRoot(DataInputStream in) throws IOException {
+    private void loadRoot(DataInput in) throws IOException {
       final long id = (storage.layoutVersion <= -42) ? in.readLong()
           : namesystem.allocateNewInodeId();
       assert id == INodeId.ROOT_INODE_ID : "Unexpected root ID " + id;
@@ -250,13 +252,13 @@ public class FSImageFormat {
       if (in.readShort() != 0) {
         throw new IOException("First node is not root");
       }
-      final INodeWithAdditionalFields root = loadINode(INodeId.ROOT_INODE_ID,
-          null, false, in);
+      final INodeDirectory root = loadINode(INodeId.ROOT_INODE_ID, null, false,
+          in).asDirectory();
       // update the root's attributes
       updateRootAttr(root);
     }
     
-    private void loadFullNameINodes(long numFiles, DataInputStream in)
+    private void loadFullNameINodes(long numFiles, DataInput in)
         throws IOException {
       LOG.info("Number of files = " + numFiles);
       byte[][] pathComponents;
@@ -266,12 +268,12 @@ public class FSImageFormat {
       for (long i = 0; i < numFiles; i++) {
         pathComponents = FSImageSerialization.readPathComponents(in);
         long id = FSNamesystem.getFSNamesystem().allocateNewInodeId();
-        final INodeWithAdditionalFields newNode = loadINode(id,
+        final INode newNode = loadINode(id,
             pathComponents[pathComponents.length - 1], false, in);
         
         if (isRoot(pathComponents)) { // it is the root
           // update the root's attributes
-          updateRootAttr(newNode);
+          updateRootAttr(newNode.asDirectory());
           continue;
         }
         // check if the new inode belongs to the same parent
@@ -364,9 +366,8 @@ public class FSImageFormat {
       return isParent;
     }
     
-    private INodeWithAdditionalFields loadINode(long id,
-        final byte[] localName, boolean isSnapshotINode, DataInputStream in)
-        throws IOException {
+    private INode loadINode(long id, final byte[] localName,
+        boolean isSnapshotINode, DataInput in) throws IOException {
       int layoutVersion = storage.getLayoutVersion();
       short replication = FSEditLog.adjustReplication(in.readShort());
       long modificationTime = in.readLong();
@@ -439,7 +440,7 @@ public class FSImageFormat {
             : underConstruction? new INodeFileUnderConstruction(
                 file, clientName, clientMachine, null)
             : file;
-      } else {
+      } else if (numBlocks == -1) {
         // get quota only when the node is a directory
         long nsQuota = -1L;
         if (layoutVersion <= -16) {
@@ -471,10 +472,26 @@ public class FSImageFormat {
         return snapshottable ? new INodeDirectorySnapshottable(dir)
             : withSnapshot ? new INodeDirectoryWithSnapshot(dir)
             : dir;
+      } else if (numBlocks == -3) {
+        //reference
+
+        final boolean isWithName = in.readBoolean();
+
+        final INodeReference.WithCount withCount
+            = referenceMap.loadINodeReferenceWithCount(isSnapshotINode, in, this);
+
+        if (isWithName) {
+          return new INodeReference.WithName(null, withCount, localName);
+        } else {
+          final INodeReference ref = new INodeReference(null, withCount);
+          withCount.setParentReference(ref);
+          return ref;
+        }
       }
+      throw new IOException("Unknown inode type: numBlocks=" + numBlocks);
     }
     
-    private void loadFilesUnderConstruction(int version, DataInputStream in)
+    private void loadFilesUnderConstruction(int version, DataInput in)
         throws IOException {
       if (version > -13) // pre lease image version
         return;
@@ -503,7 +520,7 @@ public class FSImageFormat {
       }
     }
 
-    private void loadSecretManagerState(int version, DataInputStream in,
+    private void loadSecretManagerState(int version, DataInput in,
         FSNamesystem fs) throws IOException {
       if (version > -19) {
         // SecretManagerState is not available.
@@ -527,6 +544,10 @@ public class FSImageFormat {
         // We don't need to add these descriptors any more.
       }
     }
+    
+    public Snapshot getSnapshot(DataInput in) throws IOException {
+      return snapshotMap.get(in.readInt());
+    }
   }
   
   
@@ -540,6 +561,8 @@ public class FSImageFormat {
         .string2Bytes(Path.SEPARATOR);
     
     private final int namespaceID;
+    
+    private final ReferenceMap referenceMap = new ReferenceMap();
     
     Saver(int namespaceID) {
       this.namespaceID = namespaceID;
@@ -567,13 +590,14 @@ public class FSImageFormat {
         byte[] byteStore = new byte[4 * FSConstants.MAX_PATH_LENGTH];
         ByteBuffer strbuf = ByteBuffer.wrap(byteStore);
         // save the root
-        FSImageSerialization.saveINode2Image(fsDir.rootDir, out, false);
+        FSImageSerialization.saveINode2Image(fsDir.rootDir, out, false, referenceMap);
         // save the rest of the nodes
         saveImage(strbuf, fsDir.rootDir, out, null);
         fsNamesys.saveFilesUnderConstruction(out);
         fsNamesys.saveSecretManagerState(out);
         strbuf = null;
       } finally {
+        referenceMap.removeAllINodeReferenceWithId();
         out.close();
       }
 
@@ -639,7 +663,7 @@ public class FSImageFormat {
       dirNum += saveChildren(children, out);
       
       // 4. Write DirectoryDiff lists, if there is any.
-      SnapshotFSImageFormat.saveDirectoryDiffList(current, out);
+      SnapshotFSImageFormat.saveDirectoryDiffList(current, out, referenceMap);
       
       // Write sub-tree of sub-directories, including possible snapshots of 
       // deleted sub-directories
@@ -676,7 +700,7 @@ public class FSImageFormat {
       int dirNum = 0;
       for(INode child : children) {
         // print all children first
-        FSImageSerialization.saveINode2Image(child, out, false);
+        FSImageSerialization.saveINode2Image(child, out, false, referenceMap);
         if (child.isDirectory()) {
           dirNum++;
         }

@@ -32,7 +32,6 @@ import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.protocol.NSQuotaExceededException;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants;
-import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
 import org.apache.hadoop.hdfs.server.namenode.INodeId;
 import org.apache.hadoop.hdfs.server.namenode.SnapshotTestHelper;
@@ -56,14 +55,12 @@ public class TestNestedSnapshots {
   
   private static Configuration conf = new Configuration();
   private static MiniDFSCluster cluster;
-  private static FSNamesystem fsn;
   private static DistributedFileSystem hdfs;
   
   @BeforeClass
   public static void setUp() throws Exception {
     cluster = new MiniDFSCluster(conf, REPLICATION, true, null);
     cluster.waitActive();
-    fsn = cluster.getNameNode().getNamesystem();
     hdfs = (DistributedFileSystem) cluster.getFileSystem();
   }
 
@@ -111,8 +108,7 @@ public class TestNestedSnapshots {
   }
 
   private static void print(String message) {
-    System.out.println("XXX " + message);
-    SnapshotTestHelper.dumpTreeRecursively(fsn.getFSDirectory().getINode("/"));
+    SnapshotTestHelper.dumpTree(message, cluster);
   }
 
   private static void assertFile(Path s1, Path s2, Path file,

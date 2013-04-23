@@ -69,7 +69,7 @@ public class TestSnapshot {
   public static final int DIRECTORY_TREE_LEVEL = 5;
   
   protected Configuration conf;
-  protected MiniDFSCluster cluster;
+  protected static MiniDFSCluster cluster;
   protected static FSNamesystem fsn;
   protected static FSDirectory fsdir;
   protected DistributedFileSystem hdfs;
@@ -210,7 +210,7 @@ public class TestSnapshot {
       runTestSnapshot();
     } catch(Throwable t) {
       SnapshotTestHelper.LOG.info("FAILED", t);
-      SnapshotTestHelper.dumpTreeRecursively(fsdir.getINode("/"));
+      SnapshotTestHelper.dumpTree("FAILED", cluster);
       throw t;
     }
   }
@@ -426,7 +426,7 @@ public class TestSnapshot {
     @Override
     void loadSnapshots() throws Exception {
       for (Path snapshotRoot : snapshotList) {
-        Path snapshotFile = SnapshotTestHelper.getSnapshotFile(fs,
+        Path snapshotFile = SnapshotTestHelper.getSnapshotFile(
             snapshotRoot, file);
         if (snapshotFile != null) {
           if (fs.exists(snapshotFile)) {
@@ -456,8 +456,7 @@ public class TestSnapshot {
                 + "\n\nfile        : " + fsdir.getINode(file.toString()).toDetailString()
                 + "\n\nsnapshotFile: " + fsdir.getINode(snapshotFile.toString()).toDetailString();
             
-            System.out.println(s);
-            SnapshotTestHelper.dumpTreeRecursively(fsdir.getINode("/"));
+            SnapshotTestHelper.dumpTree(s, cluster);
           }
           assertEquals(s, currentStatus.toString(), originalStatus.toString());
         }
@@ -538,7 +537,7 @@ public class TestSnapshot {
     @Override
     void loadSnapshots() throws Exception {
       for (Path snapshotRoot : snapshotList) {
-        Path snapshotFile = SnapshotTestHelper.getSnapshotFile(fs,
+        Path snapshotFile = SnapshotTestHelper.getSnapshotFile(
             snapshotRoot, file);
         if (snapshotFile != null) {
           FileStatus status = 
@@ -556,7 +555,7 @@ public class TestSnapshot {
     @Override
     void checkSnapshots() throws Exception {
       for (Path snapshotRoot : snapshotList) {
-        Path snapshotFile = SnapshotTestHelper.getSnapshotFile(fs,
+        Path snapshotFile = SnapshotTestHelper.getSnapshotFile(
             snapshotRoot, file);
         if (snapshotFile != null) {
           boolean computed = fs.exists(snapshotFile);
@@ -589,7 +588,7 @@ public class TestSnapshot {
     @Override
     void loadSnapshots() throws Exception {
       for (Path snapshotRoot : snapshotList) {
-        boolean existence = SnapshotTestHelper.getSnapshotFile(fs,
+        boolean existence = SnapshotTestHelper.getSnapshotFile(
             snapshotRoot, file) != null;
         snapshotFileExistenceMap.put(snapshotRoot, existence);
       }
@@ -604,7 +603,7 @@ public class TestSnapshot {
     void checkSnapshots() throws Exception {
       for (Path snapshotRoot : snapshotList) {
         boolean currentSnapshotFileExist = SnapshotTestHelper.getSnapshotFile(
-            fs, snapshotRoot, file) != null;
+            snapshotRoot, file) != null;
         boolean originalSnapshotFileExist = snapshotFileExistenceMap
             .get(snapshotRoot);
         assertEquals(currentSnapshotFileExist, originalSnapshotFileExist);
@@ -643,7 +642,7 @@ public class TestSnapshot {
     @Override
     void loadSnapshots() throws Exception {
       for (Path snapshotRoot : snapshotList) {
-        Path snapshotDir = SnapshotTestHelper.getSnapshotFile(fs, snapshotRoot,
+        Path snapshotDir = SnapshotTestHelper.getSnapshotFile(snapshotRoot,
             changedPath);
         if (snapshotDir != null) {
           FileStatus status = fs.exists(snapshotDir) ? fs

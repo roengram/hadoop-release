@@ -22,6 +22,7 @@ import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_PERSIST_BLOCKS_KEY;
 
 import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
+import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
@@ -6302,7 +6303,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   /**
    * @param in load the state of secret manager from input stream
    */
-  void loadSecretManagerState(DataInputStream in) throws IOException {
+  void loadSecretManagerState(DataInput in) throws IOException {
     dtSecretManager.loadSecretManagerState(in);
   }
 

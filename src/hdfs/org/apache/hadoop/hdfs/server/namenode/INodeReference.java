@@ -17,6 +17,8 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
+import java.io.PrintWriter;
+
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
@@ -76,11 +78,9 @@ public class INodeReference extends INode {
 
   private INode referred;
   
-  INodeReference(INode referred) {
-    super(referred.getParent());
+  public INodeReference(INode parent, INode referred) {
+    super(parent);
     this.referred = referred;
-
-    referred.setParentReference(this);
   }
 
 
@@ -200,7 +200,9 @@ public class INodeReference extends INode {
 
   @Override
   final INode recordModification(Snapshot latest) throws QuotaExceededException {
-    return referred.recordModification(latest);
+    referred.recordModification(latest);
+    // reference is never replaced 
+    return this;
   }
 
   @Override
@@ -255,22 +257,51 @@ public class INodeReference extends INode {
   @Override
   public final void clear() {
     super.clear();
-    referred.clear();
     referred = null;
+  }
+
+  @Override
+  public void dumpTreeRecursively(PrintWriter out, StringBuilder prefix,
+      final Snapshot snapshot) {
+    super.dumpTreeRecursively(out, prefix, snapshot);
+    if (this instanceof WithCount) {
+      out.print(", count=" + ((WithCount)this).getReferenceCount());
+    }
+    out.println();
+    
+    final StringBuilder b = new StringBuilder();
+    for(int i = 0; i < prefix.length(); i++) {
+      b.append(' ');
+    }
+    b.append("->");
+    getReferredINode().dumpTreeRecursively(out, b, snapshot);
   }
 
   /** An anonymous reference with reference count. */
   public static class WithCount extends INodeReference {
-    private int referenceCount = 0;
+    private int referenceCount = 1;
     
-    WithCount(INode inode) {
-      super(inode);
+    public WithCount(INodeReference parent, INode referred) {
+      super(parent, referred);
+      if (referred.isReference()) {
+        throw new IllegalStateException(
+            "the referred node is already a reference node, referred="
+                + referred.toDetailString());
+      }
+      referred.setParentReference(this);
     }
     
+    /** @return the reference count. */
+    public int getReferenceCount() {
+      return referenceCount;
+    }
+
+    /** Increment and then return the reference count. */
     public int incrementReferenceCount() {
       return ++referenceCount;
     }
 
+    /** Decrement and then return the reference count. */
     public int decrementReferenceCount() {
       return --referenceCount;
     }
@@ -281,8 +312,8 @@ public class INodeReference extends INode {
 
     private final byte[] name;
 
-    public WithName(WithCount referred, byte[] name) {
-      super(referred);
+    public WithName(INodeDirectory parent, WithCount referred, byte[] name) {
+      super(parent, referred);
       this.name = name;
     }
 
