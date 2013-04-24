@@ -142,6 +142,7 @@ public class FSImageSerialization {
   private static void writeINodeReference(INodeReference ref, DataOutput out,
       boolean writeUnderConstruction, ReferenceMap referenceMap
       ) throws IOException {
+    out.writeLong(ref.getId());
     writeLocalName(ref, out);
     out.writeShort(0);  // replication
     out.writeLong(0);   // modification time

@@ -128,9 +128,9 @@ public class TestSnapshottableDirListing {
     assertEquals(5, dirs.length);
     assertEquals(dir1, dirs[0].getFullPath());
     assertEquals(dir2, dirs[1].getFullPath());
-    assertEquals(dir2dir3, dirs[2].getFullPath());
-    assertEquals(sub1, dirs[3].getFullPath());
-    assertEquals(sub2, dirs[4].getFullPath());
+    assertEquals(sub1, dirs[2].getFullPath());
+    assertEquals(sub2, dirs[3].getFullPath());
+    assertEquals(dir2dir3, dirs[4].getFullPath());
     
     // reset sub1
     hdfs.disallowSnapshot(sub1);
@@ -138,8 +138,8 @@ public class TestSnapshottableDirListing {
     assertEquals(4, dirs.length);
     assertEquals(dir1, dirs[0].getFullPath());
     assertEquals(dir2, dirs[1].getFullPath());
-    assertEquals(dir2dir3, dirs[2].getFullPath());
-    assertEquals(sub2, dirs[3].getFullPath());
+    assertEquals(sub2, dirs[2].getFullPath());
+    assertEquals(dir2dir3, dirs[3].getFullPath());
     
     // Remove dir1, both dir1 and sub2 will be removed
     hdfs.delete(dir1, true);

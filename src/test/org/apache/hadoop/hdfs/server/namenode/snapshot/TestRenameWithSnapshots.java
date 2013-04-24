@@ -90,7 +90,7 @@ public class TestRenameWithSnapshots {
   static private final String snap2 = "snap2";
   
   @Before
-  public static void setUp() throws Exception {
+  public void setUp() throws Exception {
     cluster = new MiniDFSCluster(conf, REPL, true, null);
     cluster.waitActive();
 
@@ -1048,12 +1048,13 @@ public class TestRenameWithSnapshots {
    * directories without snapshots. In such case we need to update the 
    * snapshottable dir list in SnapshotManager.
    */
-  @Test (timeout=60000)
+  @Test
   public void testRenameAndUpdateSnapshottableDirs() throws Exception {
     final Path sdir1 = new Path("/dir1");
     final Path sdir2 = new Path("/dir2");
     final Path foo = new Path(sdir1, "foo");
     final Path bar = new Path(sdir2, "bar");
+    hdfs.mkdirs(sdir2);
     hdfs.mkdirs(foo);
     
     hdfs.allowSnapshot(foo);

@@ -453,7 +453,26 @@ public class FSImageFormat {
             : underConstruction? new INodeFileUnderConstruction(
                 file, clientName, clientMachine, null)
             : file;
-      } else if (numBlocks == -1) {
+      } else if (numBlocks == -3) {
+        //reference
+
+        final boolean isWithName = in.readBoolean();
+        int dstSnapshotId = Snapshot.INVALID_ID;
+        if (!isWithName) {
+          dstSnapshotId = in.readInt();
+        }
+        final INodeReference.WithCount withCount
+            = referenceMap.loadINodeReferenceWithCount(isSnapshotINode, in, this);
+
+        if (isWithName) {
+          return new INodeReference.WithName(null, withCount, localName);
+        } else {
+          final INodeReference ref = new INodeReference.DstReference(null,
+              withCount, dstSnapshotId);
+          withCount.setParentReference(ref);
+          return ref;
+        }
+      } else {
         // get quota only when the node is a directory
         long nsQuota = -1L;
         if (layoutVersion <= -16) {
@@ -485,27 +504,7 @@ public class FSImageFormat {
         return snapshottable ? new INodeDirectorySnapshottable(dir)
             : withSnapshot ? new INodeDirectoryWithSnapshot(dir)
             : dir;
-      } else if (numBlocks == -3) {
-        //reference
-
-        final boolean isWithName = in.readBoolean();
-        int dstSnapshotId = Snapshot.INVALID_ID;
-        if (!isWithName) {
-          dstSnapshotId = in.readInt();
-        }
-        final INodeReference.WithCount withCount
-            = referenceMap.loadINodeReferenceWithCount(isSnapshotINode, in, this);
-
-        if (isWithName) {
-          return new INodeReference.WithName(null, withCount, localName);
-        } else {
-          final INodeReference ref = new INodeReference.DstReference(null,
-              withCount, dstSnapshotId);
-          withCount.setParentReference(ref);
-          return ref;
-        }
       }
-      throw new IOException("Unknown inode type: numBlocks=" + numBlocks);
     }
     
     private void loadFilesUnderConstruction(int version, DataInput in)
