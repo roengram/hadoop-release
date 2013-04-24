@@ -21,12 +21,15 @@ import java.io.IOException;
 
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * RMDIR3 Request
+ */
 public class RMDIR3Request extends RequestWithHandle {
   private final String name;
 
   public RMDIR3Request(XDR xdr) throws IOException {
     super(xdr);
-    name = xdr.writeString();
+    name = xdr.readString();
   }
 
   public String getName() {

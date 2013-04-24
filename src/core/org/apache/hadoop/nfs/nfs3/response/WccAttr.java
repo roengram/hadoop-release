@@ -20,7 +20,9 @@ package org.apache.hadoop.nfs.nfs3.response;
 import org.apache.hadoop.nfs.NfsTime;
 import org.apache.hadoop.oncrpc.XDR;
 
-// Weak cache consistency
+/**
+ * WccAttr saves attributes used for weak cache consistency
+ */
 public class WccAttr {
   long size;
   NfsTime mtime; // in milliseconds

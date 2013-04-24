@@ -20,6 +20,9 @@ package org.apache.hadoop.nfs.nfs3.response;
 import org.apache.hadoop.oncrpc.RpcAcceptedReply;
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * Abstract class for a NFSv3 response
+ */
 abstract public class NFS3Response {
   protected int status;
 

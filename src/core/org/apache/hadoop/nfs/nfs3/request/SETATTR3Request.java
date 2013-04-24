@@ -22,6 +22,9 @@ import java.io.IOException;
 import org.apache.hadoop.nfs.NfsTime;
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * SETATTR3 Request
+ */
 public class SETATTR3Request extends RequestWithHandle {
   private final SetAttr3 attr;
 

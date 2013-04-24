@@ -17,6 +17,9 @@
  */
 package org.apache.hadoop.nfs.nfs3;
 
+/**
+ * Some constants for NFSv3
+ */
 public class Nfs3Constant {
   // The local rpcbind/portmapper port.
   public final static int SUN_RPCBIND = 111;

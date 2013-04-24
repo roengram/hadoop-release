@@ -17,15 +17,15 @@
  */
 package org.apache.hadoop.portmap;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.oncrpc.RpcAuthInfo.AuthFlavor;
 import org.apache.hadoop.oncrpc.RpcCall;
 import org.apache.hadoop.oncrpc.RpcUtil;
 import org.apache.hadoop.oncrpc.XDR;
-import org.apache.hadoop.oncrpc.RpcAuthInfo.AuthFlavor;
 import org.apache.hadoop.portmap.PortmapInterface.Procedure;
 
-/** Helper utility for building portmap request */
+/**
+ * Helper utility for building portmap request
+ */
 public class PortmapRequest {
   public static PortmapMapping mapping(XDR xdr) {
     return PortmapMapping.deserialize(xdr);

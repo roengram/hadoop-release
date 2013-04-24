@@ -20,7 +20,9 @@ package org.apache.hadoop.nfs.nfs3.response;
 import org.apache.hadoop.nfs.nfs3.Nfs3FileAttributes;
 import org.apache.hadoop.oncrpc.XDR;
 
-// Weak cache consistency
+/**
+ * WccData saved information used by client for weak cache consistency
+ */
 public class WccData {
   private WccAttr preOpAttr;
   private Nfs3FileAttributes postOpAttr;

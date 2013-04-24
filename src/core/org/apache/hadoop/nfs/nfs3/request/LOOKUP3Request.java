@@ -24,6 +24,9 @@ import org.apache.hadoop.oncrpc.XDR;
 
 import com.google.common.annotations.VisibleForTesting;
 
+/**
+ * LOOKUP3 Request
+ */
 public class LOOKUP3Request extends RequestWithHandle {
   private String name;
 
@@ -34,7 +37,7 @@ public class LOOKUP3Request extends RequestWithHandle {
   
   public LOOKUP3Request(XDR xdr) throws IOException {
     super(xdr);
-    name = xdr.writeString();
+    name = xdr.readString();
   }
 
   public String getName() {

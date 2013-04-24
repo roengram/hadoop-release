@@ -21,6 +21,9 @@ import org.apache.hadoop.nfs.nfs3.Nfs3Constant;
 import org.apache.hadoop.nfs.nfs3.Nfs3Status;
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * COMMIT3 Response
+ */
 public class COMMIT3Response extends NFS3Response {
   private final WccData fileWcc;
   private final long verf;

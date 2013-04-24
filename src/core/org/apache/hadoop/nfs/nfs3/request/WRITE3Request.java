@@ -23,6 +23,9 @@ import org.apache.hadoop.nfs.nfs3.FileHandle;
 import org.apache.hadoop.nfs.nfs3.Nfs3Constant.WriteStableHow;
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * WRITE3 Request
+ */
 public class WRITE3Request extends RequestWithHandle {
   private final long offset;
   private final int count;

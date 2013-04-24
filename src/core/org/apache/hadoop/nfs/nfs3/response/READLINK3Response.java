@@ -21,6 +21,9 @@ import org.apache.hadoop.nfs.nfs3.Nfs3FileAttributes;
 import org.apache.hadoop.nfs.nfs3.Nfs3Status;
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * READLINK3 Response
+ */
 public class READLINK3Response extends NFS3Response {
   private final Nfs3FileAttributes postOpSymlinkAttr;
   private final byte path[];

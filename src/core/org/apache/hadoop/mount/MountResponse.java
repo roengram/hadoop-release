@@ -53,8 +53,8 @@ public class MountResponse {
     RpcAcceptedReply.voidReply(xdr, xid);
     for (MountEntry mountEntry : mounts) {
       xdr.writeBoolean(true); // Value follows yes
-      xdr.putString(mountEntry.host());
-      xdr.putString(mountEntry.path());
+      xdr.writeString(mountEntry.host());
+      xdr.writeString(mountEntry.path());
     }
     xdr.writeBoolean(false); // Value follows no
     return xdr;
@@ -65,7 +65,7 @@ public class MountResponse {
     RpcAcceptedReply.voidReply(xdr, xid);
     for (String export : exports) {
       xdr.writeBoolean(true); // Value follows yes
-      xdr.putString(export);
+      xdr.writeString(export);
       xdr.writeInt(0);
     }
     xdr.writeBoolean(false); // Value follows no

@@ -19,6 +19,9 @@ package org.apache.hadoop.nfs.nfs3.response;
 
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * SETATTR3 Response
+ */
 public class SETATTR3Response extends NFS3Response {
   private final WccData wccData;
 

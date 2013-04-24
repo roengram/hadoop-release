@@ -20,6 +20,7 @@ package org.apache.hadoop.oncrpc;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.handler.codec.frame.FrameDecoder;
@@ -33,7 +34,7 @@ public class RpcFrameDecoder extends FrameDecoder {
 
   /**
    * Decode an RPC message received on the socket.
-   * @return mpnull if incomplete message is received.
+   * @return null if incomplete message is received.
    */
   @Override
   protected Object decode(ChannelHandlerContext ctx, Channel channel,
@@ -57,6 +58,7 @@ public class RpcFrameDecoder extends FrameDecoder {
 
     // Make sure if there's enough bytes in the buffer.
     if (buf.readableBytes() < length) {
+
       if (LOG.isTraceEnabled()) {
         LOG.trace(length + " bytes are not received yet");
       }
@@ -64,7 +66,13 @@ public class RpcFrameDecoder extends FrameDecoder {
       return null;
     }
 
-    frame = buf.readBytes(length);
+    if (frame == null) {
+      frame = buf.readBytes(length);
+    } else {
+      ChannelBuffer tmp = ChannelBuffers.copiedBuffer(frame.array(), buf
+          .readBytes(length).array());
+      frame = tmp;
+    }
 
     // Successfully decoded a frame. Return the decoded frame if the frame is
     // the last one. Otherwise, wait for the next frame.
@@ -73,6 +81,7 @@ public class RpcFrameDecoder extends FrameDecoder {
       frame = null;
       return completeFrame;
     } else {
+      LOG.info("Wait for the next frame. This rarely happens.");
       return null;
     }
   }

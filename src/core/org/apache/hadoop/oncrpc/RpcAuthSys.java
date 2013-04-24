@@ -24,9 +24,9 @@ public class RpcAuthSys {
   private final int uid;
   private final int gid;
 
-  public RpcAuthSys(int gid, int uid) {
-    this.gid = gid;
+  public RpcAuthSys(int uid, int gid) {
     this.uid = uid;
+    this.gid = gid;
   }
   
   public static RpcAuthSys from(byte[] credentials) {

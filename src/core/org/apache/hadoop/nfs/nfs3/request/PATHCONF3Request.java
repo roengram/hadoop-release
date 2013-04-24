@@ -21,6 +21,9 @@ import java.io.IOException;
 
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * PATHCONF3 Request
+ */
 public class PATHCONF3Request extends RequestWithHandle {
   public PATHCONF3Request(XDR xdr) throws IOException {
     super(xdr);

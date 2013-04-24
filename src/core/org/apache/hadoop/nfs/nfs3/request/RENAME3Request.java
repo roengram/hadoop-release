@@ -22,6 +22,9 @@ import java.io.IOException;
 import org.apache.hadoop.nfs.nfs3.FileHandle;
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * RENAME3 Request
+ */
 public class RENAME3Request {
   private final FileHandle fromDirHandle;
   private final String fromName;
@@ -33,12 +36,12 @@ public class RENAME3Request {
     if (!fromDirHandle.deserialize(xdr)) {
       throw new IOException("can't deserialize file handle");
     }
-    fromName = xdr.writeString();
+    fromName = xdr.readString();
     toDirHandle = new FileHandle();
     if (!toDirHandle.deserialize(xdr)) {
       throw new IOException("can't deserialize file handle");
     }
-    toName = xdr.writeString();
+    toName = xdr.readString();
   }
   
   public FileHandle getFromDirHandle() {

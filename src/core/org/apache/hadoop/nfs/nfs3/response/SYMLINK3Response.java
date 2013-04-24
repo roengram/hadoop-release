@@ -22,6 +22,9 @@ import org.apache.hadoop.nfs.nfs3.Nfs3FileAttributes;
 import org.apache.hadoop.nfs.nfs3.Nfs3Status;
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * SYMLINK3 Response
+ */
 public class SYMLINK3Response extends NFS3Response {
   private final FileHandle objFileHandle;
   private final Nfs3FileAttributes objPostOpAttr;

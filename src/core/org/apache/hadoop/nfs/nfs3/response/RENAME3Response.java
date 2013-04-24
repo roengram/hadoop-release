@@ -19,6 +19,9 @@ package org.apache.hadoop.nfs.nfs3.response;
 
 import org.apache.hadoop.oncrpc.XDR;
 
+/**
+ * RENAME3 Response
+ */
 public class RENAME3Response extends NFS3Response {
   private final WccData fromDirWcc;
   private final WccData toDirWcc;

@@ -2038,7 +2038,8 @@ public class FSDirectory implements FSConstants, Closeable {
   }
   
   /**
-   * Resolve the path of /.reserved/.inodes/<inodeid>/... to a regular path
+   * Resolve the path of /.reserved/.inodes/<inodeid>/... to a regular path.
+   * It's allowed to have only one ".." after inodeId.
    * 
    * @param src path that is being processed
    * @param pathComponents path components corresponding to the path
@@ -2054,6 +2055,18 @@ public class FSDirectory implements FSConstants, Closeable {
       return src;
     }
     INode inode = getINode(src, DFSUtil.bytes2String(pathComponents[3]), fsd);
+    // Handle single ".." for NFS support
+    if ((pathComponents.length > 4)
+        && DFSUtil.bytes2String(pathComponents[4]).equals("..")) {
+      INode parent = inode.getParent();
+      if (parent == null || parent.getId() == INodeId.ROOT_INODE_ID) {
+        // inode is root, or its parent is root.
+        return Path.SEPARATOR;
+      } else {
+        return parent.getFullPathName();
+      }
+    }
+    
     long id = inode.getId();
     if (id == INodeId.ROOT_INODE_ID && pathComponents.length == 4) {
       return Path.SEPARATOR;
