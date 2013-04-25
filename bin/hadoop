@@ -76,6 +76,7 @@ print_usage()
   echo "  secondarynamenode    run the DFS secondary namenode"
   echo "  namenode             run the DFS namenode"
   echo "  datanode             run a DFS datanode"
+  echo "  nfs3                 run an NFS version 3 gateway"
   echo "  dfsadmin             run a DFS admin client"
   echo "  mradmin              run a Map-Reduce admin client"
   echo "  fsck                 run a DFS filesystem checking utility"
@@ -273,6 +274,9 @@ elif [ "$COMMAND" = "datanode" ] ; then
   else
     HADOOP_OPTS="$HADOOP_OPTS -server $HADOOP_DATANODE_OPTS"
   fi
+elif [ "$COMMAND" = "nfs3" ] ; then
+  CLASS=org.apache.hadoop.hdfs.nfs.nfs3.Nfs3
+  HADOOP_OPTS=${HADOOP_OPTS/-server/}
 elif [ "$COMMAND" = "fs" ] ; then
   CLASS=org.apache.hadoop.fs.FsShell
   HADOOP_OPTS="$HADOOP_OPTS $HADOOP_CLIENT_OPTS"
