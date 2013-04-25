@@ -32,7 +32,31 @@ public class Nfs3Constant {
 
   // The program version number that this server implements.
   public final static int VERSION = 3;
-
+  
+  // The procedures
+  public final static int NFSPROC3_NULL = 0;
+  public final static int NFSPROC3_GETATTR = 1;
+  public final static int NFSPROC3_SETATTR = 2;
+  public final static int NFSPROC3_LOOKUP = 3;
+  public final static int NFSPROC3_ACCESS = 4;
+  public final static int NFSPROC3_READLINK = 5;
+  public final static int NFSPROC3_READ = 6;
+  public final static int NFSPROC3_WRITE = 7;
+  public final static int NFSPROC3_CREATE = 8;
+  public final static int NFSPROC3_MKDIR = 9;
+  public final static int NFSPROC3_SYMLINK = 10;
+  public final static int NFSPROC3_MKNOD = 11;
+  public final static int NFSPROC3_REMOVE = 12;
+  public final static int NFSPROC3_RMDIR = 13;
+  public final static int NFSPROC3_RENAME = 14;
+  public final static int NFSPROC3_LINK = 15;
+  public final static int NFSPROC3_READDIR = 16;
+  public final static int NFSPROC3_READDIRPLUS = 17;
+  public final static int NFSPROC3_FSSTAT = 18;
+  public final static int NFSPROC3_FSINFO = 19;
+  public final static int NFSPROC3_PATHCONF = 20;
+  public final static int NFSPROC3_COMMIT = 21;
+  
   // The maximum size in bytes of the opaque file handle.
   public final static int NFS3_FHSIZE = 64;
 
