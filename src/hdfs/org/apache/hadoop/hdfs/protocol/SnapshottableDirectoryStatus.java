@@ -22,6 +22,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.text.SimpleDateFormat;
+import java.util.Comparator;
 import java.util.Date;
 
 import org.apache.hadoop.fs.Path;
@@ -34,8 +35,7 @@ import org.apache.hadoop.io.WritableFactory;
 /**
  * Metadata about a snapshottable directory
  */
-public class SnapshottableDirectoryStatus implements Writable,
-    Comparable<SnapshottableDirectoryStatus> {
+public class SnapshottableDirectoryStatus implements Writable {
   static {                                      // register a ctor
     WritableFactories.setFactory(SnapshottableDirectoryStatus.class,
         new WritableFactory() {
@@ -44,7 +44,20 @@ public class SnapshottableDirectoryStatus implements Writable,
           }
         });
   }
-  
+
+  /** Compare the statuses by full paths. */
+  public static final Comparator<SnapshottableDirectoryStatus> COMPARATOR
+      = new Comparator<SnapshottableDirectoryStatus>() {
+    @Override
+    public int compare(SnapshottableDirectoryStatus left,
+                       SnapshottableDirectoryStatus right) {
+      int d = DFSUtil.compareBytes(left.parentFullPath, right.parentFullPath);
+      return d != 0? d
+          : DFSUtil.compareBytes(left.dirStatus.getLocalNameInBytes(),
+              right.dirStatus.getLocalNameInBytes());
+    }
+  };
+
   /** Basic information of the snapshottable directory */
   private HdfsFileStatus dirStatus;
   
@@ -192,13 +205,5 @@ public class SnapshottableDirectoryStatus implements Writable,
       parentFullPath = new byte[numOfBytes];
       in.readFully(parentFullPath);
     }
-  }
-
-  @Override
-  public int compareTo(SnapshottableDirectoryStatus that) {
-    int d = DFSUtil.compareBytes(this.parentFullPath, that.parentFullPath);
-    return d != 0? d
-        : DFSUtil.compareBytes(this.dirStatus.getLocalNameInBytes(),
-            that.dirStatus.getLocalNameInBytes());
   }
 }

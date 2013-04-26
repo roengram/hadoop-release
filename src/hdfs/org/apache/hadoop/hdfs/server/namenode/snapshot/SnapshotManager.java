@@ -212,7 +212,7 @@ public class SnapshotManager implements SnapshotStats {
   
   /**
    * Write {@link #snapshotCounter}, {@link #numSnapshots},
-   * {@link #numSnapshottableDirs} and all snapshots to the DataOutput.
+   * and all snapshots to the DataOutput.
    */
   public void write(DataOutput out) throws IOException {
     out.writeInt(snapshotCounter);
@@ -228,7 +228,7 @@ public class SnapshotManager implements SnapshotStats {
   
   /**
    * Read values of {@link #snapshotCounter}, {@link #numSnapshots}, and
-   * {@link #numSnapshottableDirs} and all snapshots from the DataInput
+   * all snapshots from the DataInput
    */
   public Map<Integer, Snapshot> read(DataInput in, FSImageFormat.Loader loader
       ) throws IOException {
@@ -271,7 +271,7 @@ public class SnapshotManager implements SnapshotStats {
         statusList.add(status);
       }
     }
-    Collections.sort(statusList);
+    Collections.sort(statusList, SnapshottableDirectoryStatus.COMPARATOR);
     return statusList.toArray(
         new SnapshottableDirectoryStatus[statusList.size()]);
   }
