@@ -24,7 +24,6 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -46,9 +45,6 @@ import org.junit.Test;
  * Test cases for snapshot-related information in blocksMap.
  */
 public class TestSnapshotBlocksMap {
-  // TODO: fix concat for snapshot
-  private static final boolean runConcatTest = false;
-  
   private static final long seed = 0;
   private static final short REPLICATION = 3;
   private static final int BLOCKSIZE = 1024;
@@ -204,33 +200,5 @@ public class TestSnapshotBlocksMap {
     } catch (IOException e) {
       assertTrue(e.getMessage().contains("File does not exist: " + s1f0));
     }
-    
-    // concat file1, file3 and file5 to file4
-    if (runConcatTest) {
-      final INodeFile f1 = checkINodeFile(file1.toString(), 2, fsn);
-      final BlockInfo[] f1blocks = f1.getBlocks();
-      final INodeFile f3 = checkINodeFile(file3.toString(), 5, fsn);
-      final BlockInfo[] f3blocks = f3.getBlocks();
-      final INodeFile f5 = checkINodeFile(file5.toString(), 7, fsn);
-      final BlockInfo[] f5blocks = f5.getBlocks();
-      checkINodeFile(file4.toString(), 1, fsn);
-
-      // TODO: backport concat
-      //hdfs.concat(file4, new Path[]{file1, file3, file5});
-
-      final INodeFile f4 = checkINodeFile(file4.toString(), 15, fsn);
-      final BlockInfo[] blocks4 = f4.getBlocks();
-      for(BlockInfo[] blocks : Arrays.asList(f1blocks, f3blocks, blocks4, f5blocks)) {
-        for(BlockInfo b : blocks) {
-          assertINodeFile(fsn, f4, b);
-        }
-      }
-      assertAllNull(f1, file1, snapshots);
-      assertAllNull(f3, file3, snapshots);
-      assertAllNull(f5, file5, snapshots);
-    }
   }
-
-  // TODO: test for deletion file which was appended after taking snapshots
-  
 }
