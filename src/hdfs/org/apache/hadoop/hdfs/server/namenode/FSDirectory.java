@@ -548,6 +548,7 @@ public class FSDirectory implements FSConstants, Closeable {
           final INode srcParent = srcIIP.getINode(-2);
           srcParent.updateModificationTime(timestamp,
               srcIIP.getLatestSnapshot());
+          dstParent = dstIIP.getINode(-2); // refresh dstParent
           dstParent.updateModificationTime(timestamp,
               dstIIP.getLatestSnapshot());
           
@@ -1696,6 +1697,7 @@ public class FSDirectory implements FSConstants, Closeable {
       updateCountNoQuotaCheck(iip, pos,
           -counts.get(Quota.NAMESPACE), -counts.get(Quota.DISKSPACE));
     } else {
+      iip.setINode(pos - 1, child.getParent());
       inodeMap.put(child);
     }
     return added;
