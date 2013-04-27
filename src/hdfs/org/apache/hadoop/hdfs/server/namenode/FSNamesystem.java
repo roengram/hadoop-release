@@ -6745,14 +6745,11 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   /** Allow snapshot on a directroy. */
   void allowSnapshot(String path)
       throws SafeModeException, IOException {
-    FSPermissionChecker pc = getPermissionChecker();
     synchronized (this) {
       if (isInSafeMode()) {
         throw new SafeModeException("Cannot allow snapshot for " + path, safeMode);
       }
-      if (isPermissionEnabled) {
-        checkOwner(pc, path);
-      }
+      checkSuperuserPrivilege();
       
       snapshotManager.setSnapshottable(path);
       getEditLog().logAllowSnapshot(path);
@@ -6768,15 +6765,12 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   /** Disallow snapshot on a snapshottable directory */
   void disallowSnapshot(String path)
       throws SafeModeException, IOException {
-    FSPermissionChecker pc = getPermissionChecker();
     synchronized (this) {
       if (isInSafeMode()) {
         throw new SafeModeException("Cannot disallow snapshot for " + path,
             safeMode);
       }
-      if (isPermissionEnabled) {
-        checkOwner(pc, path);
-      }
+      checkSuperuserPrivilege();
     
       snapshotManager.resetSnapshottable(path);
       getEditLog().logDisallowSnapshot(path);
@@ -6950,7 +6944,12 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
   SnapshotDiffReport getSnapshotDiffReport(String path,
       String fromSnapshot, String toSnapshot) throws IOException {
     SnapshotDiffInfo diffs = null;
+    final FSPermissionChecker pc = getPermissionChecker();
     synchronized (this) {
+      if (isPermissionEnabled) {
+        checkSubtreeReadPermission(pc, path, fromSnapshot);
+        checkSubtreeReadPermission(pc, path, toSnapshot);
+      }
       diffs = snapshotManager.diff(path, fromSnapshot, toSnapshot);
     }
     
@@ -6961,5 +6960,14 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     return diffs != null ? diffs.generateReport() : new SnapshotDiffReport(
         path, fromSnapshot, toSnapshot,
         Collections.<DiffReportEntry> emptyList());
+  }
+  
+  private void checkSubtreeReadPermission(final FSPermissionChecker pc,
+      final String snapshottablePath, final String snapshot)
+          throws AccessControlException {
+    final String fromPath = snapshot == null ? 
+        snapshottablePath : Snapshot.getSnapshotPath(snapshottablePath, snapshot);
+    checkPermission(pc, fromPath, false, null, null, FsAction.READ,
+        FsAction.READ);
   }
 }
