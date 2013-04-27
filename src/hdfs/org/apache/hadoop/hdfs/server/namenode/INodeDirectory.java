@@ -39,6 +39,8 @@ import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotAccessControlException;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
 
+import com.google.common.base.Preconditions;
+
 /**
  * Directory INode class.
  */
@@ -206,7 +208,7 @@ public class INodeDirectory extends INodeWithAdditionalFields {
   }
   
   /** Replace the given child with a new child. */
-  public void replaceChild(final INode oldChild, final INode newChild) {
+  public void replaceChild(INode oldChild, final INode newChild) {
     if (children == null) {
       throw new IllegalStateException("children is null, this=" + this);
     }
@@ -215,16 +217,14 @@ public class INodeDirectory extends INodeWithAdditionalFields {
       throw new IllegalStateException("cannot find a child with name "
           + newChild.getLocalName() + ", this=" + this);
     }
-    if (oldChild != children.get(i)) {
-      throw new IllegalStateException("current child with name "
-          + newChild.getLocalName() + " is not the same with " + oldChild
-          + ", this=" + this);
-    }
+    Preconditions.checkState(oldChild == children.get(i)
+        || oldChild == children.get(i).asReference().getReferredINode()
+            .asReference().getReferredINode());
+    oldChild = children.get(i);
     
     if (oldChild.isReference() && !newChild.isReference()) {
       // replace the referred inode, e.g., 
       // INodeFileWithSnapshot -> INodeFileUnderConstructionWithSnapshot
-      // TODO: add a unit test for rename + append
       final INode withCount = oldChild.asReference().getReferredINode();
       withCount.asReference().setReferredINode(newChild);
     } else {

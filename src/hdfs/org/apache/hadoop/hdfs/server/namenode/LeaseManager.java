@@ -227,7 +227,9 @@ public class LeaseManager {
      */
     private String findPath(INodeFileUnderConstruction pendingFile) {
       for(String src : paths) {
-        if (fsnamesystem.dir.getINode(src) == pendingFile) {
+        INode node = fsnamesystem.dir.getINode(src);
+        if (node == pendingFile
+            || (node.isFile() && node.asFile() == pendingFile)) {
           return src;
         }
       }
