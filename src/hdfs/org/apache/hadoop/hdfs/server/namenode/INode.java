@@ -40,20 +40,17 @@ import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectoryWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.util.Diff;
-import org.apache.hadoop.hdfs.util.LightWeightGSet.LinkedElement;
 
 /**
  * We keep an in-memory representation of the file/block hierarchy.
  * This is a base INode class containing common fields for file and 
  * directory inodes.
  */
-public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
-    LinkedElement {
+public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo {
   public static final Log LOG = LogFactory.getLog(INode.class);
   
   /** parent is either an {@link INodeDirectory} or an {@link INodeReference}.*/
   private INode parent = null;
-  protected LinkedElement next = null;
   
   INode(INode parent) {
     this.parent = parent;
@@ -724,15 +721,5 @@ public abstract class INode implements Diff.Element<byte[]>, FSInodeInfo,
     public void clear() {
       toDeleteList.clear();
     }
-  }
-  
-  @Override
-  public void setNext(LinkedElement next) {
-    this.next = next;
-  }
-  
-  @Override
-  public LinkedElement getNext() {
-    return next;
   }
 }

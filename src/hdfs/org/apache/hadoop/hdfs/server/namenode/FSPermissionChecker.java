@@ -41,6 +41,13 @@ import org.apache.hadoop.security.UserGroupInformation;
  */
 class FSPermissionChecker {
   static final Log LOG = LogFactory.getLog(UserGroupInformation.class);
+  
+  /** @return a string for throwing {@link AccessControlException} */
+  private static String toAccessControlString(INode inode) {
+    return "\"" + inode.getFullPathName() + "\":"
+          + inode.getUserName() + ":" + inode.getGroupName()
+          + ":" + (inode.isDirectory()? "d": "-") + inode.getFsPermission();
+  }
 
   private final UserGroupInformation ugi;
   private final String user;
@@ -216,6 +223,6 @@ class FSPermissionChecker {
       if (mode.getOtherAction().implies(access)) { return; }
     }
     throw new AccessControlException("Permission denied: user=" + user
-        + ", access=" + access + ", inode=" + inode.getFullPathName());
+        + ", access=" + access + ", inode=" + toAccessControlString(inode));
   }
 }

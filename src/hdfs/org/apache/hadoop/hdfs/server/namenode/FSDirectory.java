@@ -95,7 +95,7 @@ public class FSDirectory implements FSConstants, Closeable {
   FSImage fsImage;  
   private boolean ready = false;
   private final int lsLimit;  // max list limit
-  private final GSet<INode, INode> inodeMap; // Synchronized using "this"
+  private final GSet<INode, INodeWithAdditionalFields> inodeMap; // Synchronized using "this"
 
   /**
    * Caches frequently used file names used in {@link INode} to reuse 
@@ -170,12 +170,12 @@ public class FSDirectory implements FSConstants, Closeable {
       NameNode.getNameNodeMetrics().incrFilesDeleted(count);
   }
   
-  static LightWeightGSet<INode, INode> initInodeMap(Configuration conf,
-      INodeDirectory rootDir) {
+  static GSet<INode, INodeWithAdditionalFields> initInodeMap(
+      Configuration conf, INodeDirectory rootDir) {
     // Compute the map capacity by allocating 1% of total memory
     int capacity = LightWeightGSet.computeCapacity(1, "INodeMap");
-    LightWeightGSet<INode, INode> map = new LightWeightGSet<INode, INode>(
-        capacity);
+    GSet<INode, INodeWithAdditionalFields> map 
+        = new LightWeightGSet<INode, INodeWithAdditionalFields>(capacity);
     map.put(rootDir);
     return map;
   }
@@ -973,7 +973,9 @@ public class FSDirectory implements FSConstants, Closeable {
 
   /** This method is always called with writeLock held */
   final void addToInodeMapUnprotected(INode inode) {
-    inodeMap.put(inode);
+    if (inode instanceof INodeWithAdditionalFields) {
+      inodeMap.put((INodeWithAdditionalFields)inode);
+    }
   }
 
   /* This method is always called with writeLock held */
@@ -1041,8 +1043,7 @@ public class FSDirectory implements FSConstants, Closeable {
       index++;
     }
     // Update inodeMap
-    inodeMap.remove(oldnode);
-    inodeMap.put(newnode);
+    addToInodeMapUnprotected(newnode);
   }
 
   /**
@@ -1698,7 +1699,7 @@ public class FSDirectory implements FSConstants, Closeable {
           -counts.get(Quota.NAMESPACE), -counts.get(Quota.DISKSPACE));
     } else {
       iip.setINode(pos - 1, child.getParent());
-      inodeMap.put(child);
+      addToInodeMapUnprotected(child);
     }
     return added;
   }
@@ -1730,9 +1731,11 @@ public class FSDirectory implements FSConstants, Closeable {
       return -1;
     }
     
-    if (parent != last.getParent()) {
+    INodeDirectory newParent = last.getParent();
+    if (parent != newParent) {
       // parent is changed
-      iip.setINode(-2, last.getParent());
+      addToInodeMapUnprotected(newParent);
+      iip.setINode(-2, newParent);
     }
     
     if (!last.isInLatestSnapshot(latestSnapshot)) {
@@ -1826,11 +1829,18 @@ public class FSDirectory implements FSConstants, Closeable {
               counts.get(Quota.DISKSPACE));
         } else if (!quotaNode.isQuotaSet() && latest == null) {
           // will not come here for root because root's nsQuota is always set
-          return quotaNode.replaceSelf4INodeDirectory();
+          INodeDirectory newNode = quotaNode.replaceSelf4INodeDirectory();
+          // update the inodeMap
+          addToInodeMapUnprotected(newNode);
+          return newNode;
         }
       } else {
         // a non-quota directory; so replace it with a directory with quota
-        return dirNode.replaceSelf4Quota(latest, nsQuota, dsQuota);
+        INodeDirectory newNode = dirNode.replaceSelf4Quota(latest, nsQuota,
+            dsQuota);
+        // update the inodeMap
+        addToInodeMapUnprotected(newNode);
+        return newNode;
       }      
       return (oldNsQuota != nsQuota || oldDsQuota != dsQuota) ? dirNode : null;
     }

@@ -22,13 +22,15 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
+import org.apache.hadoop.hdfs.util.LightWeightGSet.LinkedElement;
 
 /**
  * {@link INode} with additional fields including id, name, permission,
  * access time and modification time.
  */
 @InterfaceAudience.Private
-public abstract class INodeWithAdditionalFields extends INode {
+public abstract class INodeWithAdditionalFields extends INode
+    implements LinkedElement {
   private static enum PermissionStatusFormat {
     MODE(0, 16),
     GROUP(MODE.OFFSET + MODE.LENGTH, 25),
@@ -90,6 +92,9 @@ public abstract class INodeWithAdditionalFields extends INode {
   /** The last access time*/
   private long accessTime = 0L;
 
+  /** For implementing {@link LinkedElement}. */
+  private LinkedElement next = null;
+
   private INodeWithAdditionalFields(INode parent, long id, byte[] name,
       long permission, long modificationTime, long accessTime) {
     super(parent);
@@ -111,6 +116,16 @@ public abstract class INodeWithAdditionalFields extends INode {
     this(other.getParentReference() != null ? other.getParentReference()
         : other.getParent(), other.getId(), other.getLocalNameBytes(),
         other.permission, other.modificationTime, other.accessTime);
+  }
+
+  @Override
+  public void setNext(LinkedElement next) {
+    this.next = next;
+  }
+  
+  @Override
+  public LinkedElement getNext() {
+    return next;
   }
 
   /** Get inode id */
