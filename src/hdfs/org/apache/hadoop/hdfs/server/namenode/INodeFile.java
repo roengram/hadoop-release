@@ -332,12 +332,31 @@ public class INodeFile extends INodeWithAdditionalFields {
   
   @Override
   public final Quota.Counts computeQuotaUsage(Quota.Counts counts,
-      boolean useCache) {
-    counts.add(Quota.NAMESPACE, this instanceof FileWithSnapshot?
-        ((FileWithSnapshot)this).getDiffs().asList().size() + 1: 1);
-    counts.add(Quota.DISKSPACE, diskspaceConsumed());
+      boolean useCache, int lastSnapshotId) {
+    long nsDelta = 1;
+    final long dsDelta;
+    if (this instanceof FileWithSnapshot) {
+      FileDiffList fileDiffList = ((FileWithSnapshot) this).getDiffs();
+      Snapshot last = fileDiffList.getLastSnapshot();
+      List<FileDiff> diffs = fileDiffList.asList();
+
+      if (lastSnapshotId == Snapshot.INVALID_ID || last == null) {
+        nsDelta += diffs.size();
+        dsDelta = diskspaceConsumed();
+      } else if (last.getId() < lastSnapshotId) {
+        dsDelta = computeFileSize() * getFileReplication();
+      } else {
+        Snapshot s = fileDiffList.searchSnapshotById(lastSnapshotId);
+        dsDelta = diskspaceConsumed(s);      
+      }
+    } else {
+      dsDelta = diskspaceConsumed();
+    }
+    counts.add(Quota.NAMESPACE, nsDelta);
+    counts.add(Quota.DISKSPACE, dsDelta);
     return counts;
   }
+
 
   @Override
   public final Content.CountsMap computeContentSummary(
@@ -459,6 +478,14 @@ public class INodeFile extends INodeWithAdditionalFields {
     if (this.blocks == null || this.blocks.length == 0)
       return null;
     return this.blocks[this.blocks.length - 1];
+  }
+
+  public final long diskspaceConsumed(Snapshot lastSnapshot) {
+    if (lastSnapshot != null) {
+      return computeFileSize(lastSnapshot) * getFileReplication(lastSnapshot);
+    } else {
+      return diskspaceConsumed();
+    }
   }
   
   @Override

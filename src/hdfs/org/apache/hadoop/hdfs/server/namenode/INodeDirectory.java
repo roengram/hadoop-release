@@ -30,6 +30,7 @@ import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 import org.apache.hadoop.hdfs.server.namenode.Content.CountsMap.Key;
+import org.apache.hadoop.hdfs.server.namenode.INodeReference.WithCount;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectoryWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeFileUnderConstructionWithSnapshot;
@@ -220,21 +221,30 @@ public class INodeDirectory extends INodeWithAdditionalFields {
           + ", this=" + this);
     }
     
-    // TODO: the first case may never be hit
     if (oldChild.isReference() && !newChild.isReference()) {
+      // replace the referred inode, e.g., 
+      // INodeFileWithSnapshot -> INodeFileUnderConstructionWithSnapshot
+      // TODO: add a unit test for rename + append
       final INode withCount = oldChild.asReference().getReferredINode();
       withCount.asReference().setReferredINode(newChild);
     } else {
-      final INode removed = children.set(i, newChild);
-      if (removed != oldChild) {
-        throw new IllegalStateException(
-            "the removed child is not the same with " + oldChild + ", this="
-                + this);
+      if (oldChild.isReference()) {
+        // both are reference nodes, e.g., DstReference -> WithName
+        final INodeReference.WithCount withCount = 
+            (WithCount) oldChild.asReference().getReferredINode();
+        withCount.removeReference(oldChild.asReference());
       }
+      // do the replacement
+      children.set(i, newChild);
     }
   }
 
-  INodeReference.WithName replaceChild4ReferenceWithName(INode oldChild) {
+  INodeReference.WithName replaceChild4ReferenceWithName(INode oldChild,
+      Snapshot latest) {
+    if (latest == null) {
+      throw new IllegalArgumentException(
+          "The latest snapshot is null in replaceChild4ReferenceWithName");
+    }
     if (oldChild instanceof INodeReference.WithName) {
       return (INodeReference.WithName)oldChild;
     }
@@ -247,7 +257,7 @@ public class INodeDirectory extends INodeWithAdditionalFields {
       withCount = new INodeReference.WithCount(null, oldChild);
     }
     final INodeReference.WithName ref = new INodeReference.WithName(this,
-        withCount, oldChild.getLocalNameBytes());
+        withCount, oldChild.getLocalNameBytes(), latest.getId());
     replaceChild(oldChild, ref);
     return ref;
   }
@@ -443,20 +453,20 @@ public class INodeDirectory extends INodeWithAdditionalFields {
   }
 
   @Override
-  public Quota.Counts computeQuotaUsage(Quota.Counts counts, boolean useCache) {
+  public Quota.Counts computeQuotaUsage(Quota.Counts counts, boolean useCache,
+      int lastSnapshotId) {
     if (children != null) {
       for (INode child : children) {
-        child.computeQuotaUsage(counts, useCache);
+        child.computeQuotaUsage(counts, useCache, lastSnapshotId);
       }
     }
-
-    return computeQuotaUsage4CurrentDirectory(counts);    
+    return computeQuotaUsage4CurrentDirectory(counts);
   }
-
+  
   /** Add quota usage for this inode excluding children. */
   public Quota.Counts computeQuotaUsage4CurrentDirectory(Quota.Counts counts) {
     counts.add(Quota.NAMESPACE, 1);
-    return counts;    
+    return counts;
   }
 
   @Override

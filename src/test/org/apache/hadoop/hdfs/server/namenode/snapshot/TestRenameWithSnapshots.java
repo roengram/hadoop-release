@@ -415,14 +415,16 @@ public class TestRenameWithSnapshots {
     final Path newfoo = new Path(sdir1, "foo");
     hdfs.rename(foo, newfoo);
     
-    final Path bar3 = new Path(newfoo, "bar3");
-    DFSTestUtil.createFile(hdfs, bar3, BLOCKSIZE, REPL, SEED);
+    final Path newbar = new Path(newfoo, bar.getName());
+    final Path newbar2 = new Path(newfoo, bar2.getName());
+    final Path newbar3 = new Path(newfoo, "bar3");
+    DFSTestUtil.createFile(hdfs, newbar3, BLOCKSIZE, REPL, SEED);
     
     hdfs.createSnapshot(sdir1, "s4");
-    hdfs.delete(bar, true);
-    hdfs.delete(bar3, true);
+    hdfs.delete(newbar, true);
+    hdfs.delete(newbar3, true);
     
-    assertFalse(hdfs.exists(bar3));
+    assertFalse(hdfs.exists(newbar3));
     assertFalse(hdfs.exists(bar));
     final Path bar_s4 = SnapshotTestHelper.getSnapshotPath(sdir1, "s4",
         "foo/bar");
@@ -432,7 +434,7 @@ public class TestRenameWithSnapshots {
     assertTrue(hdfs.exists(bar3_s4));
     
     hdfs.createSnapshot(sdir1, "s5");
-    hdfs.delete(bar2, true);
+    hdfs.delete(newbar2, true);
     assertFalse(hdfs.exists(bar2));
     final Path bar2_s5 = SnapshotTestHelper.getSnapshotPath(sdir1, "s5",
         "foo/bar2");
@@ -522,8 +524,8 @@ public class TestRenameWithSnapshots {
     // dump the namespace loaded from fsimage
     SnapshotTestHelper.dumpTree2File(fsdir, fsnAfter);
     
-    SnapshotTestHelper.compareDumpedTreeInFile(fsnBefore, fsnMiddle, false);
-    SnapshotTestHelper.compareDumpedTreeInFile(fsnBefore, fsnAfter, false);
+    SnapshotTestHelper.compareDumpedTreeInFile(fsnBefore, fsnMiddle, true);
+    SnapshotTestHelper.compareDumpedTreeInFile(fsnBefore, fsnAfter, true);
   }
   
   /**
@@ -827,6 +829,9 @@ public class TestRenameWithSnapshots {
     hdfs.setReplication(bar1_dir2, REPL_1);
     hdfs.setReplication(bar_dir2, REPL_1);
     
+    // restart the cluster and check fsimage
+    restartClusterAndCheckImage();
+    
     // create snapshots
     SnapshotTestHelper.createSnapshot(hdfs, sdir1, "s11");
     SnapshotTestHelper.createSnapshot(hdfs, sdir2, "s22");
@@ -842,6 +847,9 @@ public class TestRenameWithSnapshots {
     final Path bar1_dir3 = new Path(foo_dir3, "bar1");
     hdfs.setReplication(bar1_dir3, REPL_2);
     hdfs.setReplication(bar_dir3, REPL_2);
+    
+    // restart the cluster and check fsimage
+    restartClusterAndCheckImage();
     
     // create snapshots
     SnapshotTestHelper.createSnapshot(hdfs, sdir1, "s111");
@@ -889,10 +897,13 @@ public class TestRenameWithSnapshots {
     // 3. /dir3/foo -> /dir2/foo
     hdfs.rename(foo_dir3, foo_dir2);
     hdfs.rename(bar_dir3, bar_dir2);
-    
-    // modification on /dir2/foo
+   
+//    // modification on /dir2/foo
     hdfs.setReplication(bar1_dir2, REPL);
     hdfs.setReplication(bar_dir2, REPL);
+    
+    // restart the cluster and check fsimage
+    restartClusterAndCheckImage();
     
     // create snapshots
     SnapshotTestHelper.createSnapshot(hdfs, sdir1, "s1111");

@@ -116,6 +116,13 @@ public class Snapshot implements Comparable<byte[]> {
     }
     return latest;
   }
+  
+  static Snapshot read(DataInput in, FSImageFormat.Loader loader)
+      throws IOException {
+    final int snapshotId = in.readInt();
+    final INode root = loader.loadINodeWithLocalName(false, in);
+    return new Snapshot(snapshotId, root.asDirectory(), null);
+  }
 
   /** 
    * Get the name of the given snapshot. 
@@ -204,12 +211,5 @@ public class Snapshot implements Comparable<byte[]> {
     out.writeInt(id);
     // write root
     FSImageSerialization.writeINodeDirectory(root, out);
-  }
-  
-  static Snapshot read(DataInput in, FSImageFormat.Loader loader)
-      throws IOException {
-    final int snapshotId = in.readInt();
-    final INode root = loader.loadINodeWithLocalName(false, in);
-    return new Snapshot(snapshotId, root.asDirectory(), null);
   }
 }
