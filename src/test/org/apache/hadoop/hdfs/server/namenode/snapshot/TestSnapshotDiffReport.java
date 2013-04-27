@@ -184,6 +184,16 @@ public class TestSnapshotDiffReport {
           "Directory is not a snapshottable directory: " + subsub1));
     }
     
+    final String invalidName = "invalid";
+    try {
+      hdfs.getSnapshotDiffReport(sub1, invalidName, invalidName);
+      fail("Expect exception when providing invalid snapshot name for diff report");
+    } catch (IOException e) {
+      assertTrue(e.getMessage().contains(
+          "Cannot find the snapshot of directory " + sub1 + " with name "
+              + invalidName));
+    }
+    
     // diff between the same snapshot
     SnapshotDiffReport report = hdfs.getSnapshotDiffReport(sub1, "s0", "s0");
     System.out.println(report);
