@@ -44,12 +44,11 @@ public class SimpleUdpServerHandler extends SimpleChannelHandler {
     ChannelBuffer buf = (ChannelBuffer) e.getMessage();
 
     XDR request = new XDR();
-    XDR response = new XDR();
 
     request.writeFixedOpaque(buf.array());
     InetAddress remoteInetAddr = ((InetSocketAddress) e.getRemoteAddress())
         .getAddress();
-    response = rpcProgram.handle(request, remoteInetAddr, null);
+    XDR response = rpcProgram.handle(request, remoteInetAddr, null);
     e.getChannel().write(XDR.writeResponse(response), e.getRemoteAddress());
   }
 

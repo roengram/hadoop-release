@@ -17,6 +17,8 @@
  */
 package org.apache.hadoop.oncrpc;
 
+import java.util.Arrays;
+
 /**
  *  Authentication Info as defined in RFC 1831
  */
@@ -69,7 +71,7 @@ public class RpcAuthInfo {
   }
 
   public byte[] getBody() {
-    return body;
+    return Arrays.copyOf(body, body.length);
   }
   
   @Override

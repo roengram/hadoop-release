@@ -111,13 +111,13 @@ public class RpcCallCache {
           + ". Should be > 0");
     }
     this.program = program;
-    this.map = new LinkedHashMap<ClientRequest, CacheEntry>() {
+    map = new LinkedHashMap<ClientRequest, CacheEntry>() {
       private static final long serialVersionUID = 1L;
 
       @Override
       protected boolean removeEldestEntry(
           java.util.Map.Entry<ClientRequest, CacheEntry> eldest) {
-        return this.size() > maxEntries;
+        return size() > maxEntries;
       }
     };
   }

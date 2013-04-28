@@ -21,8 +21,8 @@ package org.apache.hadoop.oncrpc;
  * Represent an RPC message as defined in RFC 1831.
  */
 public abstract class RpcMessage {
-  public static int RPC_CALL = 0;
-  public static int RPC_REPLY = 1;
+  public static final int RPC_CALL = 0;
+  public static final int RPC_REPLY = 1;
 
   protected final int xid;
   protected final int messageType;

@@ -24,7 +24,7 @@ import org.apache.commons.logging.LogFactory;
  * Represents an RPC message of type RPC call as defined in RFC 1831
  */
 public class RpcCall extends RpcMessage {
-  public static int RPC_VERSION = 2;
+  public static final int RPC_VERSION = 2;
   private static final Log LOG = LogFactory.getLog(RpcCall.class);
   private final int rpcVersion;
   private final int program;

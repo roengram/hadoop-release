@@ -48,7 +48,7 @@ public class XDR {
   }
 
   public XDR(byte[] data) {
-    bytearr = data;
+    bytearr = Arrays.copyOf(data, data.length);
     cursor = 0;
   }
 
@@ -344,7 +344,7 @@ public class XDR {
 
   @VisibleForTesting
   public byte[] getBytes() {
-    return bytearr;
+    return Arrays.copyOf(bytearr, bytearr.length);
   }
 
   public static byte[] append(byte[] bytes, byte[] bytesToAdd) {

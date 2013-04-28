@@ -34,7 +34,7 @@ public class RpcFrameDecoder extends FrameDecoder {
 
   /**
    * Decode an RPC message received on the socket.
-   * @return null if incomplete message is received.
+   * @return mpnull if incomplete message is received.
    */
   @Override
   protected Object decode(ChannelHandlerContext ctx, Channel channel,
