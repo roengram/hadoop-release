@@ -229,8 +229,6 @@ public class SnapshotFSImageFormat {
    * Load the {@link SnapshotDiff} list for the INodeDirectoryWithSnapshot
    * directory.
    * @param dir The snapshottable directory for loading.
-   * @param numSnapshotDiffs The number of {@link SnapshotDiff} that the 
-   *                         directory has.
    * @param in The {@link DataInput} instance to read.
    * @param loader The {@link Loader} instance that this loading procedure is 
    *               using.
@@ -356,7 +354,6 @@ public class SnapshotFSImageFormat {
       } else {
         final long id = in.readLong();
         withCount = referenceMap.get(id);
-        withCount.incrementReferenceCount();
       }
       return withCount;
     }

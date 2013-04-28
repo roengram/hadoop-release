@@ -866,10 +866,10 @@ public class FSImage extends Storage {
    * throw QuotaExceededException.
    */
   static void updateCountForQuota(FSDirectory fsd) {
-    updateCountForQuotaRecursively(fsd, fsd.rootDir, new Quota.Counts());
+    updateCountForQuotaRecursively(fsd.rootDir, Quota.Counts.newInstance());
   }
 
-  private static void updateCountForQuotaRecursively(FSDirectory fsd, INodeDirectory dir,
+  private static void updateCountForQuotaRecursively(INodeDirectory dir,
       Quota.Counts counts) {
     final long parentNamespace = counts.get(Quota.NAMESPACE);
     final long parentDiskspace = counts.get(Quota.DISKSPACE);
@@ -877,9 +877,8 @@ public class FSImage extends Storage {
     dir.computeQuotaUsage4CurrentDirectory(counts);
 
     for (INode child : dir.getChildrenList(null)) {
-      fsd.addToInodeMapUnprotected(child);
       if (child.isDirectory()) {
-        updateCountForQuotaRecursively(fsd, child.asDirectory(), counts);
+        updateCountForQuotaRecursively(child.asDirectory(), counts);
       } else {
         // file: count here to reduce recursive calls.
         child.computeQuotaUsage(counts, false);

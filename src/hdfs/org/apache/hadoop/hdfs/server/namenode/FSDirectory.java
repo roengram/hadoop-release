@@ -95,7 +95,7 @@ public class FSDirectory implements FSConstants, Closeable {
   FSImage fsImage;  
   private boolean ready = false;
   private final int lsLimit;  // max list limit
-  private final GSet<INode, INode> inodeMap; // Synchronized using "this"
+  private final GSet<INode, INodeWithAdditionalFields> inodeMap; // Synchronized using "this"
 
   /**
    * Caches frequently used file names used in {@link INode} to reuse 
@@ -170,12 +170,12 @@ public class FSDirectory implements FSConstants, Closeable {
       NameNode.getNameNodeMetrics().incrFilesDeleted(count);
   }
   
-  static LightWeightGSet<INode, INode> initInodeMap(Configuration conf,
-      INodeDirectory rootDir) {
+  static GSet<INode, INodeWithAdditionalFields> initInodeMap(
+      Configuration conf, INodeDirectory rootDir) {
     // Compute the map capacity by allocating 1% of total memory
     int capacity = LightWeightGSet.computeCapacity(1, "INodeMap");
-    LightWeightGSet<INode, INode> map = new LightWeightGSet<INode, INode>(
-        capacity);
+    GSet<INode, INodeWithAdditionalFields> map 
+        = new LightWeightGSet<INode, INodeWithAdditionalFields>(capacity);
     map.put(rootDir);
     return map;
   }
@@ -484,14 +484,18 @@ public class FSDirectory implements FSConstants, Closeable {
       
       // check srcChild for reference
       final INodeReference.WithCount withCount;
+      Quota.Counts oldSrcCounts = Quota.Counts.newInstance();
       int srcRefDstSnapshot = srcChildIsReference ? srcChild.asReference()
           .getDstSnapshotId() : Snapshot.INVALID_ID;
       if (isSrcInSnapshot) {
         final INodeReference.WithName withName = srcIIP.getINode(-2).asDirectory()
-            .replaceChild4ReferenceWithName(srcChild); 
+            .replaceChild4ReferenceWithName(srcChild, srcIIP.getLatestSnapshot()); 
         withCount = (INodeReference.WithCount) withName.getReferredINode();
         srcChild = withName;
         srcIIP.setLastINode(srcChild);
+        // get the counts before rename
+        withCount.getReferredINode().computeQuotaUsage(oldSrcCounts, true,
+            Snapshot.INVALID_ID);
       } else if (srcChildIsReference) {
         // srcChild is reference but srcChild is not in latest snapshot
         withCount = (WithCount) srcChild.asReference().getReferredINode();
@@ -531,8 +535,6 @@ public class FSDirectory implements FSConstants, Closeable {
           final INodeReference.DstReference ref = new INodeReference.DstReference(
               dstParent.asDirectory(), withCount,
               dstSnapshot == null ? Snapshot.INVALID_ID : dstSnapshot.getId());
-          withCount.setParentReference(ref);
-          withCount.incrementReferenceCount();
           toDst = ref;
         }
         
@@ -546,8 +548,19 @@ public class FSDirectory implements FSConstants, Closeable {
           final INode srcParent = srcIIP.getINode(-2);
           srcParent.updateModificationTime(timestamp,
               srcIIP.getLatestSnapshot());
+          dstParent = dstIIP.getINode(-2); // refresh dstParent
           dstParent.updateModificationTime(timestamp,
               dstIIP.getLatestSnapshot());
+          
+          // update the quota usage in src tree
+          if (isSrcInSnapshot) {
+            // get the counts after rename
+            Quota.Counts newSrcCounts = srcChild.computeQuotaUsage(
+                Quota.Counts.newInstance(), false, Snapshot.INVALID_ID);
+            newSrcCounts.subtract(oldSrcCounts);
+            srcParent.addSpaceConsumed(newSrcCounts.get(Quota.NAMESPACE),
+                newSrcCounts.get(Quota.DISKSPACE), false, Snapshot.INVALID_ID);
+          }
           
           return true;
         }
@@ -559,16 +572,21 @@ public class FSDirectory implements FSConstants, Closeable {
           if (withCount == null) {
             srcChild.setLocalName(srcChildName);
           } else if (!srcChildIsReference) { // src must be in snapshot
+            // the withCount node will no longer be used thus no need to update
+            // its reference number here
             final INode originalChild = withCount.getReferredINode();
             srcChild = originalChild;
           } else {
+            withCount.removeReference(oldSrcChild.asReference());
             final INodeReference originalRef = new INodeReference.DstReference(
                 srcParent, withCount, srcRefDstSnapshot);
-            withCount.setParentReference(originalRef);
             srcChild = originalRef;
           }
           
           if (isSrcInSnapshot) {
+            // srcParent must be an INodeDirectoryWithSnapshot instance since
+            // isSrcInSnapshot is true and src node has been removed from
+            // srcParent 
             ((INodeDirectoryWithSnapshot) srcParent)
                 .undoRename4ScrParent(oldSrcChild.asReference(), srcChild,
                     srcIIP.getLatestSnapshot());
@@ -943,7 +961,7 @@ public class FSDirectory implements FSConstants, Closeable {
       Quota.Counts counts = targetNode.cleanSubtree(null, latestSnapshot,
           collectedBlocks, removedINodes);
       parent.addSpaceConsumed(-counts.get(Quota.NAMESPACE),
-          -counts.get(Quota.DISKSPACE), true);
+          -counts.get(Quota.DISKSPACE), true, Snapshot.INVALID_ID);
       removedNum = counts.get(Quota.NAMESPACE);
     }
     if (NameNode.stateChangeLog.isDebugEnabled()) {
@@ -955,7 +973,9 @@ public class FSDirectory implements FSConstants, Closeable {
 
   /** This method is always called with writeLock held */
   final void addToInodeMapUnprotected(INode inode) {
-    inodeMap.put(inode);
+    if (inode instanceof INodeWithAdditionalFields) {
+      inodeMap.put((INodeWithAdditionalFields)inode);
+    }
   }
 
   /* This method is always called with writeLock held */
@@ -1023,8 +1043,7 @@ public class FSDirectory implements FSConstants, Closeable {
       index++;
     }
     // Update inodeMap
-    inodeMap.remove(oldnode);
-    inodeMap.put(newnode);
+    addToInodeMapUnprotected(newnode);
   }
 
   /**
@@ -1679,7 +1698,8 @@ public class FSDirectory implements FSConstants, Closeable {
       updateCountNoQuotaCheck(iip, pos,
           -counts.get(Quota.NAMESPACE), -counts.get(Quota.DISKSPACE));
     } else {
-      inodeMap.put(child);
+      iip.setINode(pos - 1, child.getParent());
+      addToInodeMapUnprotected(child);
     }
     return added;
   }
@@ -1711,9 +1731,11 @@ public class FSDirectory implements FSConstants, Closeable {
       return -1;
     }
     
-    if (parent != last.getParent()) {
+    INodeDirectory newParent = last.getParent();
+    if (parent != newParent) {
       // parent is changed
-      iip.setINode(-2, last.getParent());
+      addToInodeMapUnprotected(newParent);
+      iip.setINode(-2, newParent);
     }
     
     if (!last.isInLatestSnapshot(latestSnapshot)) {
@@ -1806,12 +1828,24 @@ public class FSDirectory implements FSConstants, Closeable {
           quotaNode.setSpaceConsumed(counts.get(Quota.NAMESPACE),
               counts.get(Quota.DISKSPACE));
         } else if (!quotaNode.isQuotaSet() && latest == null) {
-          // will not come here for root because root's nsQuota is always set
-          return quotaNode.replaceSelf4INodeDirectory();
+          // do not replace the node if the node is a snapshottable directory
+          // without snapshots
+          if (!(quotaNode instanceof INodeDirectoryWithSnapshot)) {
+            // will not come here for root because root is snapshottable and
+            // root's nsQuota is always set
+            INodeDirectory newNode = quotaNode.replaceSelf4INodeDirectory();
+            // update the inodeMap
+            addToInodeMapUnprotected(newNode);
+            return newNode;
+          } 
         }
       } else {
         // a non-quota directory; so replace it with a directory with quota
-        return dirNode.replaceSelf4Quota(latest, nsQuota, dsQuota);
+        INodeDirectory newNode = dirNode.replaceSelf4Quota(latest, nsQuota,
+            dsQuota);
+        // update the inodeMap
+        addToInodeMapUnprotected(newNode);
+        return newNode;
       }      
       return (oldNsQuota != nsQuota || oldDsQuota != dsQuota) ? dirNode : null;
     }
@@ -1983,7 +2017,8 @@ public class FSDirectory implements FSConstants, Closeable {
       }
 
       @Override
-      public Counts computeQuotaUsage(Counts counts, boolean useCache) {
+      public Counts computeQuotaUsage(Counts counts, boolean useCache,
+          int lastSnapshotId) {
         return null;
       }
     };

@@ -62,18 +62,32 @@ public class Snapshot implements Comparable<byte[]> {
   }
 
   /**
-   * Compare snapshot IDs. Null indicates the current status thus is greater
-   * than non-null snapshots.
+   * Compare snapshot with IDs, where null indicates the current status thus
+   * is greater than any non-null snapshot.
    */
   public static final Comparator<Snapshot> ID_COMPARATOR
       = new Comparator<Snapshot>() {
     @Override
     public int compare(Snapshot left, Snapshot right) {
+      return ID_INTEGER_COMPARATOR.compare(
+          left == null? null: left.getId(),
+          right == null? null: right.getId());
+    }
+  };
+
+  /**
+   * Compare snapshot with IDs, where null indicates the current status thus
+   * is greater than any non-null ID.
+   */
+  public static final Comparator<Integer> ID_INTEGER_COMPARATOR
+      = new Comparator<Integer>() {
+    @Override
+    public int compare(Integer left, Integer right) {
       // null means the current state, thus should be the largest
       if (left == null) {
         return right == null? 0: 1;
       } else {
-        return right == null? -1: left.id - right.id; 
+        return right == null? -1: left - right; 
       }
     }
   };
@@ -101,6 +115,13 @@ public class Snapshot implements Comparable<byte[]> {
       }
     }
     return latest;
+  }
+  
+  static Snapshot read(DataInput in, FSImageFormat.Loader loader)
+      throws IOException {
+    final int snapshotId = in.readInt();
+    final INode root = loader.loadINodeWithLocalName(false, in);
+    return new Snapshot(snapshotId, root.asDirectory(), null);
   }
 
   /** 
@@ -190,12 +211,5 @@ public class Snapshot implements Comparable<byte[]> {
     out.writeInt(id);
     // write root
     FSImageSerialization.writeINodeDirectory(root, out);
-  }
-  
-  static Snapshot read(DataInput in, FSImageFormat.Loader loader)
-      throws IOException {
-    final int snapshotId = in.readInt();
-    final INode root = loader.loadINodeWithLocalName(false, in);
-    return new Snapshot(snapshotId, root.asDirectory(), null);
   }
 }

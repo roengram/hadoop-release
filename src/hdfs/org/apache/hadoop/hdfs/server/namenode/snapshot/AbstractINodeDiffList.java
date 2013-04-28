@@ -68,8 +68,9 @@ abstract class AbstractINodeDiffList<N extends INode,
    */
   final Quota.Counts deleteSnapshotDiff(final Snapshot snapshot,
       Snapshot prior, final N currentINode,
-      final BlocksMapUpdateInfo collectedBlocks, final List<INode> removedINodes) {
-    int snapshotIndex = Collections.binarySearch(diffs, snapshot);
+      final BlocksMapUpdateInfo collectedBlocks, final List<INode> removedINodes)
+      throws QuotaExceededException {
+    int snapshotIndex = Collections.binarySearch(diffs, snapshot.getId());
     
     Quota.Counts counts = Quota.Counts.newInstance();
     D removed = null;
@@ -80,6 +81,13 @@ abstract class AbstractINodeDiffList<N extends INode,
       } else {
         removed = diffs.remove(0);
         counts.add(Quota.NAMESPACE, 1);
+        // We add 1 to the namespace quota usage since we delete a diff. 
+        // The quota change will be propagated to 
+        // 1) ancestors in the current tree, and 
+        // 2) src tree of any renamed ancestor.
+        // Because for 2) we do not calculate the number of diff for quota 
+        // usage, we need to compensate this diff change for 2)
+        currentINode.addSpaceConsumedToRenameSrc(1, 0, false, snapshot.getId());
         counts.add(removed.destroyDiffAndCollectBlocks(currentINode,
             collectedBlocks, removedINodes));
       }
@@ -91,6 +99,7 @@ abstract class AbstractINodeDiffList<N extends INode,
         // combine the to-be-removed diff with its previous diff
         removed = diffs.remove(snapshotIndex);
         counts.add(Quota.NAMESPACE, 1);
+        currentINode.addSpaceConsumedToRenameSrc(1, 0, false, snapshot.getId());
         if (previous.snapshotINode == null) {
           previous.snapshotINode = removed.snapshotINode;
         } else if (removed.snapshotINode != null) {
@@ -108,7 +117,7 @@ abstract class AbstractINodeDiffList<N extends INode,
   /** Add an {@link AbstractINodeDiff} for the given snapshot. */
   final D addDiff(Snapshot latest, N currentINode)
       throws QuotaExceededException {
-    currentINode.addSpaceConsumed(1, 0, true);
+    currentINode.addSpaceConsumed(1, 0, true, Snapshot.INVALID_ID);
     return addLast(createDiff(latest, currentINode));
   }
 
@@ -142,6 +151,20 @@ abstract class AbstractINodeDiffList<N extends INode,
   }
   
   /**
+   * Search for the snapshot whose id is 1) no larger than the given id, and 2)
+   * most close to the given id
+   */
+  public final Snapshot searchSnapshotById(final int snapshotId) {
+    final int i = Collections.binarySearch(diffs, snapshotId);
+    if (i == -1) {
+      return null;
+    } else {
+      int index = i < 0 ? -i - 2 : i;
+      return diffs.get(index).getSnapshot();
+    }
+  }
+  
+  /**
    * Find the latest snapshot before a given snapshot.
    * @param anchor The returned snapshot must be taken before this given 
    *               snapshot.
@@ -151,7 +174,7 @@ abstract class AbstractINodeDiffList<N extends INode,
     if (anchor == null) {
       return getLastSnapshot();
     }
-    final int i = Collections.binarySearch(diffs, anchor);
+    final int i = Collections.binarySearch(diffs, anchor.getId());
     if (i == -1 || i == 0) {
       return null;
     } else {
@@ -182,7 +205,7 @@ abstract class AbstractINodeDiffList<N extends INode,
       // snapshot == null means the current state, therefore, return null.
       return null;
     }
-    final int i = Collections.binarySearch(diffs, snapshot);
+    final int i = Collections.binarySearch(diffs, snapshot.getId());
     if (i >= 0) {
       // exact match
       return diffs.get(i);
@@ -197,23 +220,22 @@ abstract class AbstractINodeDiffList<N extends INode,
 
   /**
    * Check if changes have happened between two snapshots.
-   * @param earlierSnapshot The snapshot taken earlier
-   * @param laterSnapshot The snapshot taken later
+   * @param earlier The snapshot taken earlier
+   * @param later The snapshot taken later
    * @return Whether or not modifications (including diretory/file metadata
    *         change, file creation/deletion under the directory) have happened
    *         between snapshots.
    */
-  final boolean changedBetweenSnapshots(Snapshot earlierSnapshot,
-      Snapshot laterSnapshot) {
+  final boolean changedBetweenSnapshots(Snapshot earlier, Snapshot later) {
     final int size = diffs.size();
-    int earlierDiffIndex = Collections.binarySearch(diffs, earlierSnapshot);
+    int earlierDiffIndex = Collections.binarySearch(diffs, earlier.getId());
     if (-earlierDiffIndex - 1 == size) {
       // if the earlierSnapshot is after the latest SnapshotDiff stored in
       // diffs, no modification happened after the earlierSnapshot
       return false;
     }
-    if (laterSnapshot != null) {
-      int laterDiffIndex = Collections.binarySearch(diffs, laterSnapshot);
+    if (later != null) {
+      int laterDiffIndex = Collections.binarySearch(diffs, later.getId());
       if (laterDiffIndex == -1 || laterDiffIndex == 0) {
         // if the laterSnapshot is the earliest SnapshotDiff stored in diffs, or
         // before it, no modification happened before the laterSnapshot
