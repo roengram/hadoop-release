@@ -1263,8 +1263,9 @@ public class RpcProgramNfs3 extends RpcProgram implements Nfs3Interface {
       long maxFsObjects = config.getLong("dfs.max.objects", 0);
       if (maxFsObjects == 0) {
         // A value of zero in HDFS indicates no limit to the number
-        // of objects that dfs supports
-        maxFsObjects = Long.MAX_VALUE;
+        // of objects that dfs supports. Using Integer.MAX_VALUE instead of
+        // Long.MAX_VALUE so 32bit client won't complain.
+        maxFsObjects = Integer.MAX_VALUE;
       }
       
       return new FSSTAT3Response(Nfs3Status.NFS3_OK, attrs, totalBytes,
