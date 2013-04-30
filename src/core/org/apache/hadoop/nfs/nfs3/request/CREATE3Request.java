@@ -47,10 +47,9 @@ public class CREATE3Request extends RequestWithHandle {
     mode = xdr.readInt();
 
     objAttr = new SetAttr3();
-    objAttr.deserialize(xdr);
     if ((mode == Nfs3Constant.CREATE_UNCHECKED)
         || (mode == Nfs3Constant.CREATE_GUARDED)) {
-      // Nothing more
+      objAttr.deserialize(xdr);
     } else if (mode == Nfs3Constant.CREATE_EXCLUSIVE) {
       verf = xdr.readHyper();
     } else {

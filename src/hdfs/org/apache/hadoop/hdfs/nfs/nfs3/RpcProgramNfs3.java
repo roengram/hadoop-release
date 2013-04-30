@@ -587,7 +587,8 @@ public class RpcProgramNfs3 extends RpcProgram implements Nfs3Interface {
           + " filename: " + fileName);
     }
 
-    if ((request.getMode() != Nfs3Constant.CREATE_EXCLUSIVE)
+    int createMode = request.getMode();
+    if ((createMode != Nfs3Constant.CREATE_EXCLUSIVE)
         && request.getObjAttr().getUpdateFields().contains(SetAttrField.SIZE)) {
       LOG.error("Setting file size is not supported when creating file: "
           + fileName + " dir fileId:" + dirHandle.getFileId());
@@ -610,12 +611,11 @@ public class RpcProgramNfs3 extends RpcProgram implements Nfs3Interface {
           SetAttrField.MODE) ? new FsPermission((short) setAttr3.getMode())
           : FsPermission.getDefault().applyUMask(umask);
           
-      fos = new FSDataOutputStream(dfsClient.create(fileIdPath,
-          permission, false, false, replication, blockSize,
-          null, bufferSize), statistics);
+      fos = new FSDataOutputStream(dfsClient.create(fileIdPath, permission,
+          false, false, replication, blockSize, null, bufferSize), statistics);
       
-      if ((request.getMode() == Nfs3Constant.CREATE_UNCHECKED)
-          || (request.getMode() == Nfs3Constant.CREATE_GUARDED)) {
+      if ((createMode == Nfs3Constant.CREATE_UNCHECKED)
+          || (createMode == Nfs3Constant.CREATE_GUARDED)) {
         // Set group if it's not specified in the request.
         if (!setAttr3.getUpdateFields().contains(SetAttrField.GID)) {
           setAttr3.getUpdateFields().add(SetAttrField.GID);
