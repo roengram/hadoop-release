@@ -15,24 +15,17 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 -->
-<document xmlns="http://maven.apache.org/XDOC/2.0"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://maven.apache.org/XDOC/2.0 http://maven.apache.org/xsd/xdoc-2.0.xsd">
+<!DOCTYPE document PUBLIC "-//APACHE//DTD Documentation V2.0//EN" "http://forrest.apache.org/dtd/document-v20.dtd">
 
-  <properties>
+<document>
+  <header>
     <title>HFDS Snapshots</title>
-  </properties>
+  </header>
 
   <body>
 
-  <h1>HDFS Snapshots</h1>
-  <macro name="toc">
-    <param name="section" value="0"/>
-    <param name="fromDepth" value="0"/>
-    <param name="toDepth" value="4"/>
-  </macro>
-
-  <section name="Overview" id="Overview">
+  <section>
+  <title>Overview</title>
   <p>
     HDFS Snapshots are read-only point-in-time copies of the file system.
     Snapshots can be taken on a subtree of the file system or the entire file system.
@@ -59,7 +52,8 @@
         from the current data.</li>
   </ul>
 
-  <subsection name="Snapshottable Directories" id="SnapshottableDirectories">
+  <section>
+  <title>Snapshottable Directories</title>
   <p>
     Snapshots can be taken on any directory once the directory has been set as
     <em>snapshottable</em>.
@@ -77,16 +71,20 @@
     if one of its ancestors is a snapshottable directory.
   </p>
 -->
-  </subsection>
+  </section>
 
-  <subsection name="Snapshot Paths" id="SnapshotPaths">
+  <section>
+  <title>Snapshot Paths</title>
   <p>
     For a snapshottable directory,
     the path component <em>".snapshot"</em> is used for accessing its snapshots.
     Suppose <code>/foo</code> is a snapshottable directory,
     <code>/foo/bar</code> is a file/directory in <code>/foo</code>,
     and <code>/foo</code> has a snapshot <code>s0</code>.
-    Then, the path <source>/foo/.snapshot/s0/bar</source>
+    Then, the path 
+  </p>
+  <source>/foo/.snapshot/s0/bar</source>
+  <p>
     refers to the snapshot copy of <code>/foo/bar</code>.
     The usual API and CLI can work with the ".snapshot" paths.
     The following are some examples.
@@ -105,16 +103,20 @@
     If ".snapshot" is used in a previous version of HDFS, it must be renamed before upgrade;
     otherwise, upgrade will fail. 
   </p>
-  </subsection>
+  </section>
   </section>
 
-  <section name="Snapshot Operations" id="SnapshotOperations">
-  <subsection name="Administrator Operations" id="AdministratorOperations">
+  <section>
+  <title>Snapshot Operations</title>
+
+  <section>
+  <title>Administrator Operations</title>
   <p>
     The operations described in this section require superuser privilege.
   </p>
 
-  <h4>Allow Snapshots</h4>
+  <section>
+  <title>Allow Snapshots</title>
   <p>
     Allowing snapshots of a directory to be created.
     If the operation completes successfully, the directory becomes snapshottable.
@@ -130,8 +132,10 @@
     See also the corresponding Java API
     <code>void allowSnapshot(Path path)</code> in <code>HdfsAdmin</code>.
   </p>
+  </section>
 
-  <h4>Disallow Snapshots</h4>
+  <section>
+  <title>Disallow Snapshots</title>
   <p>
     Disallowing snapshots of a directory to be created.
     All snapshots of the directory must be deleted before disallowing snapshots.
@@ -147,16 +151,20 @@
     See also the corresponding Java API
     <code>void disallowSnapshot(Path path)</code> in <code>HdfsAdmin</code>.
   </p>
-  </subsection>
+  </section>
 
-  <subsection name="User Operations" id="UserOperations">
+  </section>
+
+  <section>
+  <title>User Operations</title>
   <p>
     The section describes user operations.
     Note that HDFS superuser can perform all the operations
     without satisfying the permission requirement in the individual operations.
   </p>
 
-  <h4>Create Snapshots</h4>
+  <section>
+  <title>Create Snapshots</title>
   <p>
     Create a snapshot of a snapshottable directory.
     This operation requires owner privilege of the snapshottable directory.
@@ -175,13 +183,18 @@
   </ul>
   <p>
     See also the corresponding Java API
-    <code>Path createSnapshot(Path path)</code> and
-    <code>Path createSnapshot(Path path, String snapshotName)</code>
-    in <a href="../../api/org/apache/hadoop/fs/FileSystem.html"><code>FileSystem</code></a>.
+    <a href="ext:api/org/apache/hadoop/fs/filesystem/createSnapshot1">
+      <code>Path createSnapshot(Path path)</code></a>
+    and
+    <a href="ext:api/org/apache/hadoop/fs/filesystem/createSnapshot2">
+      <code>Path createSnapshot(Path path, String snapshotName)</code></a>
+    in <a href="ext:api/org/apache/hadoop/fs/filesystem"><code>FileSystem</code></a>.
     The snapshot path is returned in these methods.
   </p>
+  </section>
 
-  <h4>Delete Snapshots</h4>
+  <section>
+  <title>Delete Snapshots</title>
   <p>
     Delete a snapshot of from a snapshottable directory.
     This operation requires owner privilege of the snapshottable directory.
@@ -196,11 +209,14 @@
   </ul>
   <p>
     See also the corresponding Java API
-    <code>void deleteSnapshot(Path path, String snapshotName)</code>
-    in <a href="../../api/org/apache/hadoop/fs/FileSystem.html"><code>FileSystem</code></a>.
+    <a href="ext:api/org/apache/hadoop/fs/filesystem/deleteSnapshot">
+      <code>void deleteSnapshot(Path path, String snapshotName)</code></a>
+    in <a href="ext:api/org/apache/hadoop/fs/filesystem"><code>FileSystem</code></a>.
   </p>
+  </section>
 
-  <h4>Rename Snapshots</h4>
+  <section>
+  <title>Rename Snapshots</title>
   <p>
     Rename a snapshot.
     This operation requires owner privilege of the snapshottable directory.
@@ -216,11 +232,14 @@
   </ul>
   <p>
     See also the corresponding Java API
-    <code>void renameSnapshot(Path path, String oldName, String newName)</code>
-    in <a href="../../api/org/apache/hadoop/fs/FileSystem.html"><code>FileSystem</code></a>.
+    <a href="ext:api/org/apache/hadoop/fs/filesystem/renameSnapshot">
+      <code>void renameSnapshot(Path path, String oldName, String newName)</code></a>
+    in <a href="ext:api/org/apache/hadoop/fs/filesystem"><code>FileSystem</code></a>.
   </p>
+  </section>
 
-  <h4>Get Snapshottable Directory Listing</h4>
+  <section>
+  <title>Get Snapshottable Directory Listing</title>
   <p>
     Get all the snapshottable directories where the current user has permission to take snapshtos.
   </p>
@@ -234,8 +253,10 @@
     <code>SnapshottableDirectoryStatus[] getSnapshottableDirectoryListing()</code>
     in <code>DistributedFileSystem</code>.
   </p>
+  </section>
 
-  <h4>Get Snapshots Difference Report</h4>
+  <section>
+  <title>Get Snapshots Difference Report</title>
   <p>
     Get the differences between two snapshots.
     This operation requires read access privilege for all files/directories in both snapshots.
@@ -254,8 +275,9 @@
     <code>SnapshotDiffReport getSnapshotDiffReport(Path path, String fromSnapshot, String toSnapshot)</code>
     in <code>DistributedFileSystem</code>.
   </p>
+  </section>
 
-  </subsection>
+  </section>
   </section>
 
   </body>
