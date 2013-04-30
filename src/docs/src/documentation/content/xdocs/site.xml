@@ -171,6 +171,11 @@ See http://forrest.apache.org/docs/linking.html for more info.
                 <append href="#append(org.apache.hadoop.fs.Path,%20int,%20org.apache.hadoop.util.Progressable)" />
                 <concat href="#concat(org.apache.hadoop.fs.Path,%20org.apache.hadoop.fs.Path[])" />
                 <delete href="#delete(org.apache.hadoop.fs.Path,%20boolean)" />
+
+                <createSnapshot1 href="#createSnapshot(org.apache.hadoop.fs.Path,%20java.lang.String)" />
+                <createSnapshot2 href="#createSnapshot(org.apache.hadoop.fs.Path,%20java.lang.String)" />
+                <deleteSnapshot href="#deleteSnapshot(org.apache.hadoop.fs.Path,%20java.lang.String)" />
+                <renameSnapshot href="#renameSnapshot(org.apache.hadoop.fs.Path,%20java.lang.String,%20java.lang.String)" />
               </filesystem>
             </fs>
 

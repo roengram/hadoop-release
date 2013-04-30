@@ -19,6 +19,8 @@ Condor release branched from Apache @ https://svn.apache.org/repos/asf/hadoop/co
 
       Merge is done from the branch condor-1-snap-merge
 
+      BUG-5317. Translate Snapshot doc to forrest.  (szetszwo)
+
   NFS related chanages
       
     No Apache Jira created yet
