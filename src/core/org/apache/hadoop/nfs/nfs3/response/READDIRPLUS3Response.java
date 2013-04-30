@@ -26,7 +26,7 @@ import org.apache.hadoop.oncrpc.XDR;
  * READDIRPLUS3 Response
  */
 public class READDIRPLUS3Response  extends NFS3Response {
-  private final Nfs3FileAttributes postOpDirAttr;
+  private Nfs3FileAttributes postOpDirAttr;
   private final long cookieVerf;
   private final DirListPlus3 dirListPlus;
 
@@ -91,8 +91,11 @@ public class READDIRPLUS3Response  extends NFS3Response {
   public XDR send(XDR out, int xid) {
     super.send(out, xid);
     out.writeBoolean(true); // attributes follow
+    if (postOpDirAttr == null) {
+      postOpDirAttr = new Nfs3FileAttributes();
+    }
     postOpDirAttr.serialize(out);
-
+    
     if (getStatus() == Nfs3Status.NFS3_OK) {
       out.writeLongAsHyper(cookieVerf);
       EntryPlus3[] f = dirListPlus.getEntries();
