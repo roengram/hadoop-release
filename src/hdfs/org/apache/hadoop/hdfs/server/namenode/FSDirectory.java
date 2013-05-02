@@ -795,6 +795,7 @@ public class FSDirectory implements FSConstants, Closeable {
       
       nodeToRemove.setBlocks(null);
       trgParent.removeChild(nodeToRemove, trgLatestSnapshot);
+      inodeMap.remove(nodeToRemove);
       count++;
     }
 
