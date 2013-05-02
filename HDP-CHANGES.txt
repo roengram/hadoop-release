@@ -42,6 +42,8 @@ Condor release branched from Apache @ https://svn.apache.org/repos/asf/hadoop/co
         HDFS-4785. Concat operation does not remove concatenated files from
         InodeMap. (suresh)
 
+        HDFS-4784. NPE in FSDirectory.resolvePath(). (Brandon Li via suresh)
+
   Change merged from bimota-1.1.2
 
     HADOOP-8923. Do not show intermediate web-ui page when authentication
