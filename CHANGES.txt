@@ -656,6 +656,9 @@ Release 1.2.0 - unreleased
     HADOOP-9537. Backport changes to add support running Hadoop client on AIX.
     (Aaron T. Myers, backported by Arpit Agarwal via suresh)
 
+    HADOOP-9543. TestFsShellReturnCode may fail if the hardcoded user "admin"
+    is not a valid user in the loacl OS.  (szetszwo)
+
 Release 1.1.2 - 2013.01.30
 
   INCOMPATIBLE CHANGES
