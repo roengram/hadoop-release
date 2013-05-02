@@ -83,7 +83,7 @@ public class Nfs3FileAttributes {
     this.nlink = isDir ? (nlink + 2) : 1;
     this.uid = uid;
     this.gid = gid;
-    this.size = (int)size;
+    this.size = size;
     if(isDir) { 
       size = getDirSize(nlink);
     }
