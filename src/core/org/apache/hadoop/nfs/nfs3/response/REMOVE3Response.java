@@ -23,7 +23,7 @@ import org.apache.hadoop.oncrpc.XDR;
  * REMOVE3 Response
  */
 public class REMOVE3Response extends NFS3Response {
-  private final WccData dirWcc;
+  private WccData dirWcc;
 
   public REMOVE3Response(int status) {
     this(status, null);
@@ -37,6 +37,9 @@ public class REMOVE3Response extends NFS3Response {
   @Override
   public XDR send(XDR out, int xid) {
     super.send(out, xid);
+    if (dirWcc == null) {
+      dirWcc = new WccData(null, null);
+    }
     dirWcc.serialize(out);
     return out;
   }

@@ -88,7 +88,7 @@ public class FSINFO3Response extends NFS3Response {
   private final int properties;
 
   public FSINFO3Response(int status) {
-    this(status, null, 0, 0, 0, 0, 0, 0, 0, 0, null, 0);
+    this(status, new Nfs3FileAttributes(), 0, 0, 0, 0, 0, 0, 0, 0, null, 0);
   }
 
   public FSINFO3Response(int status, Nfs3FileAttributes postOpAttr, int rtmax,

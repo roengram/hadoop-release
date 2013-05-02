@@ -141,8 +141,10 @@ public abstract class RpcProgram {
     
     XDR response = handleInternal(rpcCall, xdr, out, client, channel);
     if (response.size() == 0) {
-      LOG.warn("No sync response, expect an async response for request XID="
-          + rpcCall.getXid());
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("No sync response, expect an async response for request XID="
+            + rpcCall.getXid());
+      }
     }
     
     // Add the request to the cache

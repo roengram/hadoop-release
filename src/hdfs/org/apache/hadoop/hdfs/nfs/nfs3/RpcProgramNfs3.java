@@ -488,6 +488,10 @@ public class RpcProgramNfs3 extends RpcProgram implements Nfs3Interface {
         LOG.info("Partical read. Asked offset:" + offset + " count:" + count
             + " and read back:" + readCount + "file size:" + attrs.getSize());
       }
+      // HDFS returns -1 for read beyond file size.
+      if (readCount < 0) {
+        readCount = 0;
+      }
       eof = (offset + readCount) < attrs.getSize() ? false : true;
       return new READ3Response(Nfs3Status.NFS3_OK, attrs, readCount, eof,
           readbuffer);

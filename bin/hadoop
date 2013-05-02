@@ -77,6 +77,7 @@ print_usage()
   echo "  namenode             run the DFS namenode"
   echo "  datanode             run a DFS datanode"
   echo "  nfs3                 run an NFS version 3 gateway"
+  echo "  portmap              run a portmap service"
   echo "  dfsadmin             run a DFS admin client"
   echo "  mradmin              run a Map-Reduce admin client"
   echo "  fsck                 run a DFS filesystem checking utility"
@@ -281,6 +282,9 @@ elif [ "$COMMAND" = "datanode" ] ; then
   fi
 elif [ "$COMMAND" = "nfs3" ] ; then
   CLASS=org.apache.hadoop.hdfs.nfs.nfs3.Nfs3
+  HADOOP_OPTS=${HADOOP_OPTS/-server/}
+elif [ "$COMMAND" = "portmap" ] ; then
+  CLASS=org.apache.hadoop.portmap.Portmap
   HADOOP_OPTS=${HADOOP_OPTS/-server/}
 elif [ "$COMMAND" = "fs" ] ; then
   CLASS=org.apache.hadoop.fs.FsShell

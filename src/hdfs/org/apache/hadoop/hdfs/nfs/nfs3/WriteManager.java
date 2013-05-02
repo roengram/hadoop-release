@@ -96,8 +96,8 @@ public class WriteManager {
 
     FileHandle handle = request.getHandle();
     if (LOG.isDebugEnabled()) {
-      LOG.debug("handleWrite handle: " + handle + " offset: " + offset
-          + " length:" + count + " stableHow:" + stableHow.getValue());
+      LOG.debug("handleWrite fileId: " + handle.getFileId() + " offset: "
+          + offset + " length:" + count + " stableHow:" + stableHow.getValue());
     }
 
     // Check if there is a stream to write
