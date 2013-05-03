@@ -107,7 +107,7 @@ public class INodeDirectory extends INodeWithAdditionalFields {
    * Remove the specified child from this directory.
    * 
    * @param child the child inode to be removed
-   * @param latest See {@link INode#recordModification(Snapshot)}.
+   * @param latest See {@link INode#recordModification(Snapshot, INodeMap)}.
    */
   public boolean removeChild(INode child, Snapshot latest)
       throws QuotaExceededException {
