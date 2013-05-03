@@ -1066,7 +1066,7 @@ public class FSEditLog {
         }
         case OP_ALLOW_SNAPSHOT: {
           fsNamesys.getSnapshotManager().setSnapshottable(
-              FSImageSerialization.readString(in));
+              FSImageSerialization.readString(in), false);
           break;
         }
         case OP_DISALLOW_SNAPSHOT: {

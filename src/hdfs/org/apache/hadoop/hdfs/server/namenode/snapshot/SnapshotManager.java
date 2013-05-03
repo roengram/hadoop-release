@@ -51,6 +51,7 @@ import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottab
  * if necessary.
  */
 public class SnapshotManager implements SnapshotStats {
+  private boolean allowNestedSnapshots = false;
   private final FSDirectory fsdir;
   private static final int SNAPSHOT_ID_BIT_WIDTH = 24;
   
@@ -65,10 +66,41 @@ public class SnapshotManager implements SnapshotStats {
   public SnapshotManager(final FSDirectory fsdir) {
     this.fsdir = fsdir;
   }
+  
+  /** Used in tests only */
+  void setAllowNestedSnapshots(boolean allowNestedSnapshots) {
+    this.allowNestedSnapshots = allowNestedSnapshots;
+  }
 
-  public void setSnapshottable(final String path) throws IOException {
-    final INodesInPath iip = fsdir.getLastINodeInPath(path);
-    final INodeDirectory d = INodeDirectory.valueOf(iip.getINode(0), path);
+  private void checkNestedSnapshottable(INodeDirectory dir, String path)
+      throws SnapshotException {
+    if (allowNestedSnapshots) {
+      return;
+    }
+
+    for(INodeDirectorySnapshottable s : snapshottables.values()) {
+      if (s.isAncestorDirectory(dir)) {
+        throw new SnapshotException(
+            "Nested snapshottable directories not allowed: path=" + path
+            + ", the ancestor " + s.getFullPathName()
+            + " is already a snapshottable directory.");
+      }
+      if (dir.isAncestorDirectory(s)) {
+        throw new SnapshotException(
+            "Nested snapshottable directories not allowed: path=" + path
+            + ", the subdirectory " + s.getFullPathName()
+            + " is already a snapshottable directory.");
+      }
+    }
+  }
+
+  public void setSnapshottable(final String path, boolean checkNestedSnapshottable)
+      throws IOException {
+    final INodesInPath iip = fsdir.getINodesInPath4Write(path);
+    final INodeDirectory d = INodeDirectory.valueOf(iip.getLastINode(), path);
+    if (checkNestedSnapshottable) {
+      checkNestedSnapshottable(d, path);
+    }
 
     final INodeDirectorySnapshottable s;
     if (d.isSnapshottable()) {
@@ -110,9 +142,9 @@ public class SnapshotManager implements SnapshotStats {
    * @throws SnapshotException if there are snapshots in the directory.
    */
   public void resetSnapshottable(final String path) throws IOException {
-    final INodesInPath iip = fsdir.getLastINodeInPath(path);
+    final INodesInPath iip = fsdir.getINodesInPath4Write(path);
     final INodeDirectorySnapshottable s = INodeDirectorySnapshottable.valueOf(
-        iip.getINode(0), path);
+        iip.getLastINode(), path);
     if (s.getNumSnapshots() > 0) {
       throw new SnapshotException("The directory " + path + " has snapshot(s). "
           + "Please redo the operation after removing all the snapshots.");

@@ -6738,7 +6738,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     return getCorruptFileBlocks();
   }
   
-  SnapshotManager getSnapshotManager() {
+  public SnapshotManager getSnapshotManager() {
     return snapshotManager;
   }
     
@@ -6751,7 +6751,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       }
       checkSuperuserPrivilege();
       
-      snapshotManager.setSnapshottable(path);
+      snapshotManager.setSnapshottable(path, true);
       getEditLog().logAllowSnapshot(path);
     }
     getEditLog().logSync(); 

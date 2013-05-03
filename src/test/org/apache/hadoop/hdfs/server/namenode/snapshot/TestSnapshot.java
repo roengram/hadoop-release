@@ -219,6 +219,8 @@ public class TestSnapshot {
   private void runTestSnapshot() throws Exception {
     for (int i = 0; i < SNAPSHOT_ITERATION_NUMBER; i++) {
       // create snapshot and check the creation
+      cluster.getNameNode().getNamesystem().getSnapshotManager()
+          .setAllowNestedSnapshots(true);
       TestDirectoryTree.Node[] ssNodes = createSnapshots();
       
       // prepare the modifications for the snapshotted dirs

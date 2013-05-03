@@ -1448,7 +1448,11 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   public String createSnapshot(String snapshotRoot, String snapshotName)
       throws IOException {
     checkOpen();
-    return namenode.createSnapshot(snapshotRoot, snapshotName);
+    try {
+      return namenode.createSnapshot(snapshotRoot, snapshotName);
+    } catch(RemoteException re) {
+      throw re.unwrapRemoteException();
+    }
   }
    
   /**
@@ -1462,7 +1466,11 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    */
   public void deleteSnapshot(String snapshotRoot, String snapshotName)
       throws IOException {
-    namenode.deleteSnapshot(snapshotRoot, snapshotName);
+    try {
+      namenode.deleteSnapshot(snapshotRoot, snapshotName);
+    } catch(RemoteException re) {
+      throw re.unwrapRemoteException();
+    }
   }
   
   /**
@@ -1476,7 +1484,11 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   public void renameSnapshot(String snapshotDir, String snapshotOldName,
       String snapshotNewName) throws IOException {
     checkOpen();
-    namenode.renameSnapshot(snapshotDir, snapshotOldName, snapshotNewName);
+    try {
+      namenode.renameSnapshot(snapshotDir, snapshotOldName, snapshotNewName);
+    } catch(RemoteException re) {
+      throw re.unwrapRemoteException();
+    }
   }
   
   /**
@@ -1485,7 +1497,12 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    * @see ClientProtocol#allowSnapshot(String)
    */
   public void allowSnapshot(String snapshotRoot) throws IOException {
-    namenode.allowSnapshot(snapshotRoot);
+    checkOpen();
+    try {
+      namenode.allowSnapshot(snapshotRoot);
+    } catch(RemoteException re) {
+      throw re.unwrapRemoteException();
+    }
   }
   
   /**
@@ -1494,7 +1511,13 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    * @see ClientProtocol#disallowSnapshot(String)
    */
   public void disallowSnapshot(String snapshotRoot) throws IOException {
-    namenode.disallowSnapshot(snapshotRoot);
+    checkOpen();
+    try {
+      namenode.disallowSnapshot(snapshotRoot);
+    } catch(RemoteException re) {
+      throw re.unwrapRemoteException();
+    }
+
   }
   
   /**
@@ -1505,8 +1528,12 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   public SnapshotDiffReport getSnapshotDiffReport(Path snapshotDir,
       String fromSnapshot, String toSnapshot) throws IOException {
     checkOpen();
-    return namenode.getSnapshotDiffReport(snapshotDir.toString(), fromSnapshot,
-        toSnapshot);
+    try {
+      return namenode.getSnapshotDiffReport(snapshotDir.toString(),
+          fromSnapshot, toSnapshot);
+    } catch(RemoteException re) {
+      throw re.unwrapRemoteException();
+    }
   }
 
   /**
@@ -1694,7 +1721,11 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   public SnapshottableDirectoryStatus[] getSnapshottableDirListing()
       throws IOException {
     checkOpen();
-    return namenode.getSnapshottableDirListing();
+    try {
+      return namenode.getSnapshottableDirListing();
+    } catch(RemoteException re) {
+      throw re.unwrapRemoteException();
+    }
   }
 
   /** This is a wrapper around connection to datadone
