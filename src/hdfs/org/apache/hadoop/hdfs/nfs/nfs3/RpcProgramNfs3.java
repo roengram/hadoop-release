@@ -851,7 +851,9 @@ public class RpcProgramNfs3 extends RpcProgram implements Nfs3Interface {
       }
 
       if (fstat.getChildrenNum() > 0) {
-        WccData wccData = new WccData(preOpDirAttr, null);
+        Nfs3FileAttributes postOpDirAttr = Nfs3Utils.getFileAttr(dfsClient,
+            dirFileIdPath, iug);
+        WccData wccData = new WccData(preOpDirAttr, postOpDirAttr);
         return new RMDIR3Response(Nfs3Status.NFS3ERR_NOTEMPTY, wccData);
       }
 

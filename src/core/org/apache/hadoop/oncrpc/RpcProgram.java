@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.oncrpc;
 
+import java.io.IOException;
 import java.net.InetAddress;
 
 import org.apache.commons.logging.Log;
@@ -86,13 +87,19 @@ public abstract class RpcProgram {
   }
   
   /**
-   * Register the program with Portmap
+   * Register the program with Portmap or Rpcbind
    */
   protected void register(PortmapMapping mapEntry) {
     XDR mappingRequest = PortmapRequest.create(mapEntry);
-    RegistrationClient registrationClient = new RegistrationClient(host,
+    SimpleUdpClient registrationClient = new SimpleUdpClient(host,
         RPCB_PORT, mappingRequest);
-    registrationClient.run();
+    try {
+      registrationClient.run();
+    } catch (IOException e) {
+      LOG.error("Registration failure with " + host + ":" + port
+          + ", portmap entry: " + mapEntry);
+      System.exit(-1);
+    }
   }
 
   /**
