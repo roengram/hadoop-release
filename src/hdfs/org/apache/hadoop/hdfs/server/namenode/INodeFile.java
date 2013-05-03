@@ -31,9 +31,9 @@ import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
 import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 import org.apache.hadoop.hdfs.server.namenode.Content.CountsMap.Key;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.FileDiffList;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot.FileDiff;
-import org.apache.hadoop.hdfs.server.namenode.snapshot.FileDiffList;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot.Util;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 
@@ -346,7 +346,7 @@ public class INodeFile extends INodeWithAdditionalFields {
       } else if (last.getId() < lastSnapshotId) {
         dsDelta = computeFileSize() * getFileReplication();
       } else {
-        Snapshot s = fileDiffList.searchSnapshotById(lastSnapshotId);
+        Snapshot s = fileDiffList.getSnapshotById(lastSnapshotId);
         dsDelta = diskspaceConsumed(s);      
       }
     } else {
@@ -430,6 +430,40 @@ public class INodeFile extends INodeWithAdditionalFields {
     long size = 0;
     //sum other blocks
     for(int i = 0; i < blocks.length; i++) {
+      size += blocks[i].getNumBytes();
+    }
+    return size;
+  }
+  
+  /**
+   * Compute file size of the current file.
+   * 
+   * @param includesLastUcBlock
+   *          If the last block is under construction, should it be included?
+   * @param usePreferredBlockSize4LastUcBlock
+   *          If the last block is under construction, should we use actual
+   *          block size or preferred block size?
+   *          Note that usePreferredBlockSize4LastUcBlock is ignored
+   *          if includesLastUcBlock == false.
+   * @return file size
+   */
+  public final long computeFileSize(boolean includesLastUcBlock,
+      boolean usePreferredBlockSize4LastUcBlock) {
+    if (blocks == null || blocks.length == 0) {
+      return 0;
+    }
+    final int last = blocks.length - 1;
+    //check if the last block is BlockInfoUnderConstruction
+    long size = blocks[last] != null ? blocks[last].getNumBytes() : 0;
+    if (isUnderConstruction()) {
+       if (!includesLastUcBlock) {
+         size = 0;
+       } else if (usePreferredBlockSize4LastUcBlock) {
+         size = getPreferredBlockSize();
+       }
+    }
+    //sum other blocks
+    for(int i = 0; i < last; i++) {
       size += blocks[i].getNumBytes();
     }
     return size;

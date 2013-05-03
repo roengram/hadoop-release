@@ -406,8 +406,11 @@ public abstract class INodeReference extends INode {
     @Override
     public final Quota.Counts computeQuotaUsage(Quota.Counts counts,
         boolean useCache, int lastSnapshotId) {
-      if (!(lastSnapshotId == Snapshot.INVALID_ID
-          || this.lastSnapshotId <= lastSnapshotId)) {
+      // if this.lastSnapshotId < lastSnapshotId, the rename of the referred
+      // node happened before the rename of its ancestor. This should be
+      // impossible since for WithName node we only count its children at the
+      // time of the rename. 
+      if (this.lastSnapshotId < lastSnapshotId) {
         throw new IllegalArgumentException("this.lastSnapshotId="
             + this.lastSnapshotId + ", the given lastSnapshotId is "
             + lastSnapshotId);
