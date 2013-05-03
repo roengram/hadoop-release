@@ -44,10 +44,8 @@ import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants.StartupOption;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
-import org.apache.hadoop.hdfs.server.namenode.Content.CountsMap;
 import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
 import org.apache.hadoop.hdfs.server.namenode.INodeReference.WithCount;
-import org.apache.hadoop.hdfs.server.namenode.Quota.Counts;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectoryWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
@@ -55,8 +53,6 @@ import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot.Root;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotAccessControlException;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotException;
 import org.apache.hadoop.hdfs.util.ByteArray;
-import org.apache.hadoop.hdfs.util.GSet;
-import org.apache.hadoop.hdfs.util.LightWeightGSet;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
 
 /*************************************************
@@ -95,7 +91,7 @@ public class FSDirectory implements FSConstants, Closeable {
   FSImage fsImage;  
   private boolean ready = false;
   private final int lsLimit;  // max list limit
-  private final GSet<INode, INodeWithAdditionalFields> inodeMap; // Synchronized using "this"
+  private final INodeMap inodeMap; // Synchronized using "this"
 
   /**
    * Caches frequently used file names used in {@link INode} to reuse 
@@ -132,8 +128,7 @@ public class FSDirectory implements FSConstants, Closeable {
     NameNode.LOG.info("Caching file names occuring more than " + threshold
         + " times ");
     nameCache = new NameCache<ByteArray>(threshold);
-    inodeMap = initInodeMap(conf, rootDir);
-
+    inodeMap = INodeMap.newInstance(rootDir);
   }
 
   void loadFSImage(Collection<File> dataDirs,
@@ -168,16 +163,6 @@ public class FSDirectory implements FSConstants, Closeable {
   private void incrDeletedFileCount(long count) {
     if (namesystem != null)
       NameNode.getNameNodeMetrics().incrFilesDeleted(count);
-  }
-  
-  static GSet<INode, INodeWithAdditionalFields> initInodeMap(
-      Configuration conf, INodeDirectory rootDir) {
-    // Compute the map capacity by allocating 1% of total memory
-    int capacity = LightWeightGSet.computeCapacity(1, "INodeMap");
-    GSet<INode, INodeWithAdditionalFields> map 
-        = new LightWeightGSet<INode, INodeWithAdditionalFields>(capacity);
-    map.put(rootDir);
-    return map;
   }
     
   /**
@@ -246,10 +231,6 @@ public class FSDirectory implements FSConstants, Closeable {
 
     NameNode.stateChangeLog.debug("DIR* addFile: " + path + " is added");
     return newNode;
-  }
-
-  private synchronized INode getFromINodeMap(INode inode) {
-    return inodeMap.get(inode);
   }
   
   INode unprotectedAddFile( long id,
@@ -478,7 +459,8 @@ public class FSDirectory implements FSConstants, Closeable {
       // snapshot is taken on the dst tree, changes will be recorded in the
       // latest snapshot of the src tree.
       if (isSrcInSnapshot) {
-        srcChild = srcChild.recordModification(srcIIP.getLatestSnapshot());
+        srcChild = srcChild.recordModification(srcIIP.getLatestSnapshot(),
+            inodeMap);
         srcIIP.setLastINode(srcChild);
       }
       
@@ -547,10 +529,10 @@ public class FSDirectory implements FSConstants, Closeable {
           // update modification time of dst and the parent of src
           final INode srcParent = srcIIP.getINode(-2);
           srcParent.updateModificationTime(timestamp,
-              srcIIP.getLatestSnapshot());
+              srcIIP.getLatestSnapshot(), inodeMap);
           dstParent = dstIIP.getINode(-2); // refresh dstParent
           dstParent.updateModificationTime(timestamp,
-              dstIIP.getLatestSnapshot());
+              dstIIP.getLatestSnapshot(), inodeMap);
           
           // update the quota usage in src tree
           if (isSrcInSnapshot) {
@@ -643,7 +625,8 @@ public class FSDirectory implements FSConstants, Closeable {
       updateCount(iip, 0, dsDelta, true);
     }
 
-    file = file.setFileReplication(replication, iip.getLatestSnapshot());
+    file = file.setFileReplication(replication, iip.getLatestSnapshot(),
+        inodeMap);
     
     final short newBR = file.getBlockReplication(); 
     // check newBR < oldBR case. 
@@ -698,7 +681,7 @@ public class FSDirectory implements FSConstants, Closeable {
       if (inode == null) {
         throw new FileNotFoundException("File does not exist: " + src);
       }
-      inode.setPermission(permissions, iip.getLatestSnapshot());
+      inode.setPermission(permissions, iip.getLatestSnapshot(), inodeMap);
     }
   }
 
@@ -718,10 +701,10 @@ public class FSDirectory implements FSConstants, Closeable {
           throw new FileNotFoundException("File does not exist: " + src);
       }
       if (username != null) {
-        inode = inode.setUser(username, iip.getLatestSnapshot());
+        inode = inode.setUser(username, iip.getLatestSnapshot(), inodeMap);
       }
       if (groupname != null) {
-        inode.setGroup(groupname, iip.getLatestSnapshot());
+        inode.setGroup(groupname, iip.getLatestSnapshot(), inodeMap);
       }
     }
   }
@@ -794,13 +777,13 @@ public class FSDirectory implements FSConstants, Closeable {
       if(nodeToRemove == null) continue;
       
       nodeToRemove.setBlocks(null);
-      trgParent.removeChild(nodeToRemove, trgLatestSnapshot);
+      trgParent.removeChild(nodeToRemove, trgLatestSnapshot, null);
       inodeMap.remove(nodeToRemove);
       count++;
     }
 
-    trgInode.setModificationTime(timestamp, trgLatestSnapshot);
-    trgParent.setModificationTime(timestamp, trgLatestSnapshot);
+    trgInode.setModificationTime(timestamp, trgLatestSnapshot, inodeMap);
+    trgParent.setModificationTime(timestamp, trgLatestSnapshot, inodeMap);
     // update quota on the parent directory ('count' files removed, 0 space)
     unprotectedUpdateCount(trgINodes, trgINodes.length-1, -count, 0);
   }
@@ -938,7 +921,7 @@ public class FSDirectory implements FSConstants, Closeable {
     
     // record modification
     final Snapshot latestSnapshot = iip.getLatestSnapshot();
-    targetNode = targetNode.recordModification(latestSnapshot);
+    targetNode = targetNode.recordModification(latestSnapshot, inodeMap);
     iip.setLastINode(targetNode);
 
     // Remove the node from the namespace
@@ -949,7 +932,7 @@ public class FSDirectory implements FSConstants, Closeable {
     
     // set the parent's modification time
     final INodeDirectory parent = targetNode.getParent();
-    parent.updateModificationTime(mtime, latestSnapshot);
+    parent.updateModificationTime(mtime, latestSnapshot, inodeMap);
     if (removed == 0) {
       return 0;
     }
@@ -972,20 +955,46 @@ public class FSDirectory implements FSConstants, Closeable {
     return removedNum;
   }
 
-  /** This method is always called with writeLock held */
-  final void addToInodeMapUnprotected(INode inode) {
+  public INodeMap getINodeMap() {
+    return inodeMap;
+  }
+  
+  /**
+   * This method is always called with lock of FSDirectory held.
+   */
+  public final void addToInodeMap(INode inode) {
     if (inode instanceof INodeWithAdditionalFields) {
       inodeMap.put((INodeWithAdditionalFields)inode);
     }
   }
-
-  /* This method is always called with writeLock held */
-  final void removeFromInodeMap(List<INode> inodes) {
+  
+  /**
+   * This method is always called with lock of FSDirectory held.
+   */
+  public final void removeFromInodeMap(List<? extends INode> inodes) {
     if (inodes != null) {
       for (INode inode : inodes) {
-        inodeMap.remove(inode);
+        if (inode != null && inode instanceof INodeWithAdditionalFields) {
+          inodeMap.remove(inode);
+        }
       }
     }
+  }
+  
+  /**
+   * Get the inode from inodeMap based on its inode id.
+   * @param id The given id
+   * @return The inode associated with the given id
+   */
+  public INode getInode(long id) {
+    synchronized (this) {
+      return inodeMap.get(id);  
+    }
+  }
+  
+  // Visible for testing
+  int getInodeMapSize() {
+    return inodeMap != null ? inodeMap.size() : 0;
   }
   
   /**
@@ -1032,8 +1041,9 @@ public class FSDirectory implements FSConstants, Closeable {
   /** Replace an INodeFile and record modification for the latest snapshot. */
   void unprotectedReplaceINodeFile(final String path, final INodeFile oldnode,
       final INodeFile newnode) {
-    oldnode.getParent().replaceChild(oldnode, newnode);
+    oldnode.getParent().replaceChild(oldnode, newnode, inodeMap);
     oldnode.clear();
+    
     /* Currently oldnode and newnode are assumed to contain the same
      * blocks. Otherwise, blocks need to be removed from the blocksMap.
      */
@@ -1044,7 +1054,7 @@ public class FSDirectory implements FSConstants, Closeable {
       index++;
     }
     // Update inodeMap
-    addToInodeMapUnprotected(newnode);
+    addToInodeMap(newnode);
   }
 
   /**
@@ -1695,13 +1705,13 @@ public class FSDirectory implements FSConstants, Closeable {
         counts.get(Quota.NAMESPACE), counts.get(Quota.DISKSPACE), checkQuota);
     final INodeDirectory parent = inodes[pos-1].asDirectory();
     final boolean added = parent.addChild(child, inheritPermission,
-        iip.getLatestSnapshot());
+        iip.getLatestSnapshot(), inodeMap);
     if (!added) {
       updateCountNoQuotaCheck(iip, pos,
           -counts.get(Quota.NAMESPACE), -counts.get(Quota.DISKSPACE));
     } else {
       iip.setINode(pos - 1, child.getParent());
-      addToInodeMapUnprotected(child);
+      addToInodeMap(child);
     }
     return added;
   }
@@ -1729,14 +1739,12 @@ public class FSDirectory implements FSConstants, Closeable {
     final Snapshot latestSnapshot = iip.getLatestSnapshot();
     final INode last = iip.getLastINode();
     final INodeDirectory parent = iip.getINode(-2).asDirectory();
-    if (!parent.removeChild(last, latestSnapshot)) {
+    if (!parent.removeChild(last, latestSnapshot, inodeMap)) {
       return -1;
     }
     
     INodeDirectory newParent = last.getParent();
     if (parent != newParent) {
-      // parent is changed
-      addToInodeMapUnprotected(newParent);
       iip.setINode(-2, newParent);
     }
     
@@ -1835,19 +1843,12 @@ public class FSDirectory implements FSConstants, Closeable {
           if (!(quotaNode instanceof INodeDirectoryWithSnapshot)) {
             // will not come here for root because root is snapshottable and
             // root's nsQuota is always set
-            INodeDirectory newNode = quotaNode.replaceSelf4INodeDirectory();
-            // update the inodeMap
-            addToInodeMapUnprotected(newNode);
-            return newNode;
+            return quotaNode.replaceSelf4INodeDirectory(inodeMap);
           } 
         }
       } else {
         // a non-quota directory; so replace it with a directory with quota
-        INodeDirectory newNode = dirNode.replaceSelf4Quota(latest, nsQuota,
-            dsQuota);
-        // update the inodeMap
-        addToInodeMapUnprotected(newNode);
-        return newNode;
+        return dirNode.replaceSelf4Quota(latest, nsQuota, dsQuota, inodeMap);
       }      
       return (oldNsQuota != nsQuota || oldDsQuota != dsQuota) ? dirNode : null;
     }
@@ -1903,7 +1904,7 @@ public class FSDirectory implements FSConstants, Closeable {
       throws QuotaExceededException {
     boolean status = false;
     if (mtime != -1) {
-      inode = inode.setModificationTime(mtime, latest);
+      inode = inode.setModificationTime(mtime, latest, inodeMap);
       status = true;
     }
     if (atime != -1) {
@@ -1914,7 +1915,7 @@ public class FSDirectory implements FSConstants, Closeable {
       if (atime <= inodeTime + namesystem.getAccessTimePrecision() && !force) {
         status =  false;
       } else {
-        inode.setAccessTime(atime, latest);
+        inode.setAccessTime(atime, latest, inodeMap);
         status = true;
       }
     } 
@@ -1980,51 +1981,6 @@ public class FSDirectory implements FSConstants, Closeable {
     if (name != null) {
       inode.setLocalName(name.getBytes());
     }
-  }
-  
-  INode getInode(long id) {
-    INode inode = new INodeWithAdditionalFields(id, null, new PermissionStatus(
-        "", "", new FsPermission((short) 0)), 0, 0) {
-      @Override
-      public boolean isDirectory() {
-        return false;
-      }
-
-      @Override
-      INode recordModification(Snapshot latest) throws QuotaExceededException {
-        return null;
-      }
-
-      @Override
-      public Counts cleanSubtree(Snapshot snapshot, Snapshot prior,
-          BlocksMapUpdateInfo collectedBlocks, List<INode> removedINodes)
-          throws QuotaExceededException {
-        return null;
-      }
-
-      @Override
-      public void destroyAndCollectBlocks(BlocksMapUpdateInfo collectedBlocks,
-          List<INode> removedINodes) {
-        // Empty
-      }
-
-      @Override
-      public CountsMap computeContentSummary(CountsMap countsMap) {
-        return null;
-      }
-
-      @Override
-      public Content.Counts computeContentSummary(Content.Counts counts) {
-        return null;
-      }
-
-      @Override
-      public Counts computeQuotaUsage(Counts counts, boolean useCache,
-          int lastSnapshotId) {
-        return null;
-      }
-    };
-    return getFromINodeMap(inode);
   }
   
   /**
@@ -2140,14 +2096,10 @@ public class FSDirectory implements FSConstants, Closeable {
     }
     return getINode(src, DFSUtil.bytes2String(pathComponents[3]), fsd);
   }
-  
-  // Visible for testing
-  int getInodeMapSize() {
-    return inodeMap != null ? inodeMap.size() : 0;
-  }
 
   void shutdown() {
     nameCache.reset();
+    inodeMap.clear();
   }
   
   /** Check if a given inode name is reserved */

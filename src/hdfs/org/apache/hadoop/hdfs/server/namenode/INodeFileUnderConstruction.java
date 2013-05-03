@@ -24,6 +24,7 @@ import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeFileUnderConstructionWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 
 
@@ -108,12 +109,16 @@ public class INodeFileUnderConstruction extends INodeFile {
   }
   
   @Override
-  public INodeFileUnderConstruction recordModification(final Snapshot latest)
-      throws QuotaExceededException {
-    return isInLatestSnapshot(latest) ?
-        getParent().replaceChild4INodeFileUcWithSnapshot(this)
-            .recordModification(latest)
-        : this;
+  public INodeFileUnderConstruction recordModification(final Snapshot latest,
+      final INodeMap inodeMap) throws QuotaExceededException {
+    if (isInLatestSnapshot(latest)) {
+      INodeFileUnderConstructionWithSnapshot newFile = getParent()
+          .replaceChild4INodeFileUcWithSnapshot(this, inodeMap)
+          .recordModification(latest, inodeMap);
+      return newFile;
+    } else {
+      return this;
+    }
   }
 
   DatanodeDescriptor[] getTargets() {

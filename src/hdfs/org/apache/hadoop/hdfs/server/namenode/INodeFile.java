@@ -35,6 +35,7 @@ import org.apache.hadoop.hdfs.server.namenode.snapshot.FileDiffList;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot.FileDiff;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot.Util;
+import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeFileWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 
 public class INodeFile extends INodeWithAdditionalFields {
@@ -125,12 +126,16 @@ public class INodeFile extends INodeWithAdditionalFields {
   }
 
   @Override
-  public INodeFile recordModification(final Snapshot latest)
-      throws QuotaExceededException {
-    return isInLatestSnapshot(latest)?
-        getParent().replaceChild4INodeFileWithSnapshot(this)
-            .recordModification(latest)
-        : this;
+  public INodeFile recordModification(final Snapshot latest,
+      final INodeMap inodeMap) throws QuotaExceededException {
+    if (isInLatestSnapshot(latest)) {
+      INodeFileWithSnapshot newFile = getParent()
+          .replaceChild4INodeFileWithSnapshot(this, inodeMap)
+          .recordModification(latest, inodeMap);
+      return newFile;
+    } else {
+      return this;
+    }
   }
   
   /**
@@ -149,9 +154,9 @@ public class INodeFile extends INodeWithAdditionalFields {
    * the {@link FsAction#EXECUTE} action, if any, is ignored.
    */
   @Override
-  final INode setPermission(FsPermission permission, Snapshot latest)
-      throws QuotaExceededException {
-    return super.setPermission(permission, latest);
+  final INode setPermission(FsPermission permission, Snapshot latest,
+      final INodeMap inodeMap) throws QuotaExceededException {
+    return super.setPermission(permission, latest, inodeMap);
   }
 
   /** @return the replication factor of the file. */
@@ -180,9 +185,9 @@ public class INodeFile extends INodeWithAdditionalFields {
   }
 
   /** Set the replication factor of this file. */
-  public final INodeFile setFileReplication(short replication, Snapshot latest)
-      throws QuotaExceededException {
-    final INodeFile nodeToUpdate = recordModification(latest);
+  public final INodeFile setFileReplication(short replication, Snapshot latest,
+      final INodeMap inodeMap) throws QuotaExceededException {
+    final INodeFile nodeToUpdate = recordModification(latest, inodeMap);
     nodeToUpdate.setFileReplication(replication);
     return nodeToUpdate;
   }

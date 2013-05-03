@@ -49,6 +49,7 @@ import org.apache.hadoop.hdfs.server.namenode.FSDirectory;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
+import org.apache.hadoop.hdfs.server.namenode.INodeMap;
 import org.apache.hadoop.hdfs.server.namenode.INodeReference;
 import org.apache.hadoop.hdfs.server.namenode.INodeReference.WithCount;
 import org.apache.hadoop.hdfs.server.namenode.SnapshotTestHelper;
@@ -1195,9 +1196,9 @@ public class TestRenameWithSnapshots {
     INodeDirectory dir2 = fsdir.getINode4Write(sdir2.toString()).asDirectory();
     INodeDirectory mockDir2 = spy(dir2);
     doReturn(false).when(mockDir2).addChild((INode) anyObject(), anyBoolean(),
-            (Snapshot) anyObject());
+            (Snapshot) anyObject(), (INodeMap) anyObject());
     INodeDirectory root = fsdir.getINode4Write("/").asDirectory();
-    root.replaceChild(dir2, mockDir2);
+    root.replaceChild(dir2, mockDir2, fsdir.getINodeMap());
     
     final Path newfoo = new Path(sdir2, "foo");
     boolean result = hdfs.rename(foo, newfoo);
@@ -1263,9 +1264,9 @@ public class TestRenameWithSnapshots {
     INodeDirectory dir2 = fsdir.getINode4Write(sdir2.toString()).asDirectory();
     INodeDirectory mockDir2 = spy(dir2);
     doReturn(false).when(mockDir2).addChild((INode) anyObject(), anyBoolean(),
-            (Snapshot) anyObject());
+            (Snapshot) anyObject(), (INodeMap) anyObject());
     INodeDirectory root = fsdir.getINode4Write("/").asDirectory();
-    root.replaceChild(dir2, mockDir2);
+    root.replaceChild(dir2, mockDir2, fsdir.getINodeMap());
     
     final Path newfoo = new Path(sdir2, "foo");
     boolean result = hdfs.rename(foo, newfoo);
@@ -1325,9 +1326,9 @@ public class TestRenameWithSnapshots {
     INodeDirectory dir3 = fsdir.getINode4Write(sdir3.toString()).asDirectory();
     INodeDirectory mockDir3 = spy(dir3);
     doReturn(false).when(mockDir3).addChild((INode) anyObject(), anyBoolean(),
-            (Snapshot) anyObject());
+            (Snapshot) anyObject(), (INodeMap) anyObject());
     INodeDirectory root = fsdir.getINode4Write("/").asDirectory();
-    root.replaceChild(dir3, mockDir3);
+    root.replaceChild(dir3, mockDir3, fsdir.getINodeMap());
     
     final Path foo_dir2 = new Path(sdir2, "foo");
     final Path foo_dir3 = new Path(sdir3, "foo");

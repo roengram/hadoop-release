@@ -646,7 +646,7 @@ public class TestINodeFile {
         continue;
       }
       dir = new INodeDirectory(++id, component, permstatus, 0);
-      prev.addChild(dir, false, null);
+      prev.addChild(dir, false, null, null);
       prev = dir;
     }
     return dir; // Last Inode in the chain
