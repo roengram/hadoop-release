@@ -28,6 +28,7 @@ import org.apache.hadoop.nfs.nfs3.IdUserGroup;
 import org.apache.hadoop.nfs.nfs3.Nfs3Constant;
 import org.apache.hadoop.nfs.nfs3.Nfs3FileAttributes;
 import org.apache.hadoop.nfs.nfs3.response.WccAttr;
+import org.apache.hadoop.nfs.nfs3.response.WccData;
 import org.apache.hadoop.oncrpc.XDR;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.Channel;
@@ -87,6 +88,13 @@ public class Nfs3Utils {
     return new WccAttr(attr.getSize(), attr.getMtime(), attr.getCtime());
   }
 
+  public static WccData createWccData(final WccAttr preOpAttr,
+      DFSClient dfsClient, final String fileIdPath, final IdUserGroup iug)
+      throws IOException {
+    Nfs3FileAttributes postOpDirAttr = getFileAttr(dfsClient, fileIdPath, iug);
+    return new WccData(preOpAttr, postOpDirAttr);
+  }
+  
   /**
    * Send a write response to the netty network socket channel
    */
