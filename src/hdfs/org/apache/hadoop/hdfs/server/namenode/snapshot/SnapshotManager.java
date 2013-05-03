@@ -51,7 +51,9 @@ import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottab
  * if necessary.
  */
 public class SnapshotManager implements SnapshotStats {
+  private boolean allowNestedSnapshots = false;
   private final FSDirectory fsdir;
+  private static final int SNAPSHOT_ID_BIT_WIDTH = 24;
   
   private AtomicInteger numSnapshots = new AtomicInteger();
   
@@ -64,10 +66,41 @@ public class SnapshotManager implements SnapshotStats {
   public SnapshotManager(final FSDirectory fsdir) {
     this.fsdir = fsdir;
   }
+  
+  /** Used in tests only */
+  void setAllowNestedSnapshots(boolean allowNestedSnapshots) {
+    this.allowNestedSnapshots = allowNestedSnapshots;
+  }
 
-  public void setSnapshottable(final String path) throws IOException {
-    final INodesInPath iip = fsdir.getLastINodeInPath(path);
-    final INodeDirectory d = INodeDirectory.valueOf(iip.getINode(0), path);
+  private void checkNestedSnapshottable(INodeDirectory dir, String path)
+      throws SnapshotException {
+    if (allowNestedSnapshots) {
+      return;
+    }
+
+    for(INodeDirectorySnapshottable s : snapshottables.values()) {
+      if (s.isAncestorDirectory(dir)) {
+        throw new SnapshotException(
+            "Nested snapshottable directories not allowed: path=" + path
+            + ", the ancestor " + s.getFullPathName()
+            + " is already a snapshottable directory.");
+      }
+      if (dir.isAncestorDirectory(s)) {
+        throw new SnapshotException(
+            "Nested snapshottable directories not allowed: path=" + path
+            + ", the subdirectory " + s.getFullPathName()
+            + " is already a snapshottable directory.");
+      }
+    }
+  }
+
+  public void setSnapshottable(final String path, boolean checkNestedSnapshottable)
+      throws IOException {
+    final INodesInPath iip = fsdir.getINodesInPath4Write(path);
+    final INodeDirectory d = INodeDirectory.valueOf(iip.getLastINode(), path);
+    if (checkNestedSnapshottable) {
+      checkNestedSnapshottable(d, path);
+    }
 
     final INodeDirectorySnapshottable s;
     if (d.isSnapshottable()) {
@@ -75,7 +108,8 @@ public class SnapshotManager implements SnapshotStats {
       s = (INodeDirectorySnapshottable)d; 
       s.setSnapshotQuota(INodeDirectorySnapshottable.SNAPSHOT_LIMIT);
     } else {
-      s = d.replaceSelf4INodeDirectorySnapshottable(iip.getLatestSnapshot());
+      s = d.replaceSelf4INodeDirectorySnapshottable(iip.getLatestSnapshot(),
+          fsdir.getINodeMap());
     }
     addSnapshottable(s);
   }
@@ -109,9 +143,9 @@ public class SnapshotManager implements SnapshotStats {
    * @throws SnapshotException if there are snapshots in the directory.
    */
   public void resetSnapshottable(final String path) throws IOException {
-    final INodesInPath iip = fsdir.getLastINodeInPath(path);
+    final INodesInPath iip = fsdir.getINodesInPath4Write(path);
     final INodeDirectorySnapshottable s = INodeDirectorySnapshottable.valueOf(
-        iip.getINode(0), path);
+        iip.getLastINode(), path);
     if (s.getNumSnapshots() > 0) {
       throw new SnapshotException("The directory " + path + " has snapshot(s). "
           + "Please redo the operation after removing all the snapshots.");
@@ -120,13 +154,31 @@ public class SnapshotManager implements SnapshotStats {
     if (s == fsdir.getRoot()) {
       s.setSnapshotQuota(0); 
     } else {
-      s.replaceSelf(iip.getLatestSnapshot());
+      s.replaceSelf(iip.getLatestSnapshot(), fsdir.getINodeMap());
     }
     removeSnapshottable(s);
   }
   
+  /**
+   * Find the source root directory where the snapshot will be taken 
+   * for a given path.
+   * 
+   * @param path The directory path where the snapshot will be taken.
+   * @return Snapshottable directory.
+   * @throws IOException
+   *           Throw IOException when the given path does not lead to an
+   *           existing snapshottable directory.
+   */
+  public INodeDirectorySnapshottable getSnapshottableRoot(final String path
+      ) throws IOException {
+    final INodesInPath i = fsdir.getINodesInPath4Write(path);
+    return INodeDirectorySnapshottable.valueOf(i.getLastINode(), path);
+  }
+  
   /** 
    * Create a snapshot of given path.
+   * It is assumed that the caller will perform synchronization.
+   * 
    * @param path
    *          The directory path where the snapshot will be taken.
    * @param snapshotName
@@ -139,10 +191,17 @@ public class SnapshotManager implements SnapshotStats {
    */
   public String createSnapshot(final String path, String snapshotName)
       throws IOException {
-    // Find the source root directory path where the snapshot is taken.
-    final INodesInPath i = fsdir.getINodesInPath4Write(path);
-    final INodeDirectorySnapshottable srcRoot
-         = INodeDirectorySnapshottable.valueOf(i.getLastINode(), path);
+    INodeDirectorySnapshottable srcRoot = getSnapshottableRoot(path);
+
+    if (snapshotCounter == getMaxSnapshotID()) {
+      // We have reached the maximum allowable snapshot ID and since we don't
+      // handle rollover we will fail all subsequent snapshot creation
+      // requests.
+      //
+      throw new SnapshotException(
+          "Failed to create the snapshot. The FileSystem has run out of " +
+          "snapshot IDs and ID rollover is not supported.");
+    }
     
     srcRoot.addSnapshot(snapshotCounter, snapshotName);
     
@@ -189,14 +248,10 @@ public class SnapshotManager implements SnapshotStats {
       BlocksMapUpdateInfo collectedBlocks, final List<INode> removedINodes)
       throws IOException {
     // parse the path, and check if the path is a snapshot path
-    INodesInPath inodesInPath = fsdir.getINodesInPath4Write(path.toString());
-    // transfer the inode for path to an INodeDirectorySnapshottable.
     // the INodeDirectorySnapshottable#valueOf method will throw Exception 
     // if the path is not for a snapshottable directory
-    INodeDirectorySnapshottable dir = INodeDirectorySnapshottable.valueOf(
-        inodesInPath.getLastINode(), path.toString());
-    
-    dir.removeSnapshot(snapshotName, collectedBlocks, removedINodes);
+    INodeDirectorySnapshottable srcRoot = getSnapshottableRoot(path);
+    srcRoot.removeSnapshot(snapshotName, collectedBlocks, removedINodes);
     numSnapshots.getAndDecrement();
   }
 
@@ -295,5 +350,15 @@ public class SnapshotManager implements SnapshotStats {
         .valueOf(inodesInPath.getLastINode(), path);
     
     return snapshotRoot.computeDiff(from, to);
+  }
+
+  /**
+   * Returns the maximum allowable snapshot ID based on the bit width of the
+   * snapshot ID.
+   *
+   * @return maximum allowable snapshot ID.
+   */
+   public int getMaxSnapshotID() {
+    return ((1 << SNAPSHOT_ID_BIT_WIDTH) - 1);
   }
 }

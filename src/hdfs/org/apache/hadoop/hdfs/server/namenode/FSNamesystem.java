@@ -1680,7 +1680,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
           // Recreate in-memory lease record.
           //
           Snapshot latestSnapshot = iip.getLatestSnapshot();
-          myFile = myFile.recordModification(latestSnapshot);
+          myFile = myFile.recordModification(latestSnapshot, dir.getINodeMap());
           final INodeFileUnderConstruction cons = myFile.toUnderConstruction(
               holder, clientMachine, clientNode);
           dir.unprotectedReplaceINodeFile(src, myFile, cons);
@@ -2764,7 +2764,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
                                  " from client " + pendingFile.clientName);
     leaseManager.removeLease(pendingFile.clientName, src);
     
-    pendingFile = pendingFile.recordModification(latestSnapshot);
+    pendingFile = pendingFile.recordModification(latestSnapshot,
+        dir.getINodeMap());
     // The file is no longer pending.
     // Create permanent INode, update blockmap
     INodeFile newFile = pendingFile.toINodeFile(now());
@@ -6738,7 +6739,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     return getCorruptFileBlocks();
   }
   
-  SnapshotManager getSnapshotManager() {
+  public SnapshotManager getSnapshotManager() {
     return snapshotManager;
   }
     
@@ -6751,7 +6752,9 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       }
       checkSuperuserPrivilege();
       
-      snapshotManager.setSnapshottable(path);
+      synchronized (dir) {
+        snapshotManager.setSnapshottable(path, true);  
+      }
       getEditLog().logAllowSnapshot(path);
     }
     getEditLog().logSync(); 
@@ -6771,8 +6774,10 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
             safeMode);
       }
       checkSuperuserPrivilege();
-    
-      snapshotManager.resetSnapshottable(path);
+      
+      synchronized (dir) {
+        snapshotManager.resetSnapshottable(path);
+      }
       getEditLog().logDisallowSnapshot(path);
     }
     getEditLog().logSync();
@@ -6805,7 +6810,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
       }
       dir.verifySnapshotName(snapshotName, snapshotRoot);
       
-      synchronized (dir.rootDir) {
+      synchronized (dir) {
         snapshotPath = snapshotManager.createSnapshot(snapshotRoot,
             snapshotName);
       }

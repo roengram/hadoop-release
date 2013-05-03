@@ -185,9 +185,9 @@ public abstract class INodeReference extends INode {
   }
   
   @Override
-  public final INode updateModificationTime(long mtime, Snapshot latest)
-      throws QuotaExceededException {
-    return referred.updateModificationTime(mtime, latest);
+  public final INode updateModificationTime(long mtime, Snapshot latest,
+      INodeMap inodeMap) throws QuotaExceededException {
+    return referred.updateModificationTime(mtime, latest, inodeMap);
   }
   
   @Override
@@ -206,8 +206,9 @@ public abstract class INodeReference extends INode {
   }
 
   @Override
-  final INode recordModification(Snapshot latest) throws QuotaExceededException {
-    referred.recordModification(latest);
+  final INode recordModification(Snapshot latest, final INodeMap inodeMap)
+      throws QuotaExceededException {
+    referred.recordModification(latest, inodeMap);
     // reference is never replaced 
     return this;
   }
@@ -406,8 +407,11 @@ public abstract class INodeReference extends INode {
     @Override
     public final Quota.Counts computeQuotaUsage(Quota.Counts counts,
         boolean useCache, int lastSnapshotId) {
-      if (!(lastSnapshotId == Snapshot.INVALID_ID
-          || this.lastSnapshotId <= lastSnapshotId)) {
+      // if this.lastSnapshotId < lastSnapshotId, the rename of the referred
+      // node happened before the rename of its ancestor. This should be
+      // impossible since for WithName node we only count its children at the
+      // time of the rename. 
+      if (this.lastSnapshotId < lastSnapshotId) {
         throw new IllegalArgumentException("this.lastSnapshotId="
             + this.lastSnapshotId + ", the given lastSnapshotId is "
             + lastSnapshotId);

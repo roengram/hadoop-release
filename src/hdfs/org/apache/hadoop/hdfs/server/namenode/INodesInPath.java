@@ -25,7 +25,6 @@ import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottable;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectoryWithSnapshot;
-import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeFileWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 
 /**
@@ -123,10 +122,6 @@ public class INodesInPath {
                 && curNode.asDirectory() instanceof INodeDirectoryWithSnapshot) {
               lastSnapshot = ((INodeDirectoryWithSnapshot) curNode
                   .asDirectory()).getLastSnapshot();
-            } else if (curNode.isFile()
-                && curNode.asFile() instanceof INodeFileWithSnapshot) {
-              lastSnapshot = ((INodeFileWithSnapshot) curNode
-                  .asFile()).getDiffs().getLastSnapshot();
             }
             existing.setSnapshot(lastSnapshot);
           }

@@ -240,7 +240,7 @@ public class FSImageFormat {
       final byte[] localName = FSImageSerialization.readLocalName(in);
       INode inode = loadINode(id, localName, isSnapshotINode, in);
       if (supportINodeId) {
-        namesystem.dir.addToInodeMapUnprotected(inode);
+        namesystem.dir.addToInodeMap(inode);
       }
       return inode;
     }

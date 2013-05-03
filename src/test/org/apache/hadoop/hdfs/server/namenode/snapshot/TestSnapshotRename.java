@@ -38,7 +38,6 @@ import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.SnapshotTestHelper;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectoryWithSnapshot.DirectoryDiff;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
-import org.apache.hadoop.ipc.RemoteException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -177,7 +176,7 @@ public class TestSnapshotRename {
     try {
       hdfs.renameSnapshot(sub1, "wrongName", "s2");
       fail("Did not throw exception when given a non-existing old snapshot name");
-    } catch (RemoteException e) {
+    } catch (SnapshotException e) {
       String error = "The snapshot wrongName does not exist for directory "
           + sub1.toString();
       assertTrue(e.getMessage().contains(error));
@@ -197,7 +196,7 @@ public class TestSnapshotRename {
     try {
       hdfs.renameSnapshot(sub1, "s1", "s2");
       fail("Did not throw exception when new snapshot name already exists");
-    } catch (RemoteException e) {
+    } catch (SnapshotException e) {
       String error = "The snapshot s2 already exists for directory "
           + sub1.toString();
       assertTrue(e.getMessage().contains(error));

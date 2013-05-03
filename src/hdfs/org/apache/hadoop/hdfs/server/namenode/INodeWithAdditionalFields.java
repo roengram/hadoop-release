@@ -220,8 +220,8 @@ public abstract class INodeWithAdditionalFields extends INode
 
 
   /** Update modification time if it is larger than the current value. */
-  public final INode updateModificationTime(long mtime, Snapshot latest)
-      throws QuotaExceededException {
+  public final INode updateModificationTime(long mtime, Snapshot latest,
+      final INodeMap inodeMap) throws QuotaExceededException {
     if (!isDirectory()) {
       throw new IllegalStateException("this is not a directory: "
           + this.toDetailString());
@@ -229,7 +229,7 @@ public abstract class INodeWithAdditionalFields extends INode
     if (mtime <= modificationTime) {
       return this;
     }
-    return setModificationTime(mtime, latest);
+    return setModificationTime(mtime, latest, inodeMap);
   }
 
   final void cloneModificationTime(INodeWithAdditionalFields that) {

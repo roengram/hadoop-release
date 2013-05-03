@@ -81,6 +81,9 @@ public class TestSnapshotMetrics {
    */
   @Test
   public void testSnapshottableDirs() throws Exception {
+    cluster.getNameNode().getNamesystem().getSnapshotManager()
+        .setAllowNestedSnapshots(true);
+
     assertGauge("SnapshottableDirectories", 0, getMetrics(fsnMetrics));
     assertCounter("AllowSnapshotOps", 0, getMetrics(nnMetrics));
     assertCounter("DisallowSnapshotOps", 0, getMetrics(nnMetrics));
@@ -133,6 +136,9 @@ public class TestSnapshotMetrics {
    */
   @Test
   public void testSnapshots() throws Exception {
+    cluster.getNameNode().getNamesystem().getSnapshotManager()
+        .setAllowNestedSnapshots(true);
+    
     assertGauge("Snapshots", 0, getMetrics(fsnMetrics));
     assertCounter("CreateSnapshotOps", 0, getMetrics(nnMetrics));
     
