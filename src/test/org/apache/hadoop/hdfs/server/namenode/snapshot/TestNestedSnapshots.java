@@ -140,6 +140,9 @@ public class TestNestedSnapshots {
     }
   }
 
+  /**
+   * Test the snapshot limit of a single snapshottable directory.
+   */
   @Test
   public void testSnapshotLimit() throws Exception {
     final int step = 1000;

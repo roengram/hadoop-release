@@ -52,6 +52,7 @@ import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectorySnapshottab
  */
 public class SnapshotManager implements SnapshotStats {
   private final FSDirectory fsdir;
+  private static final int SNAPSHOT_ID_BIT_WIDTH = 24;
   
   private AtomicInteger numSnapshots = new AtomicInteger();
   
@@ -125,8 +126,26 @@ public class SnapshotManager implements SnapshotStats {
     removeSnapshottable(s);
   }
   
+  /**
+   * Find the source root directory where the snapshot will be taken 
+   * for a given path.
+   * 
+   * @param path The directory path where the snapshot will be taken.
+   * @return Snapshottable directory.
+   * @throws IOException
+   *           Throw IOException when the given path does not lead to an
+   *           existing snapshottable directory.
+   */
+  public INodeDirectorySnapshottable getSnapshottableRoot(final String path
+      ) throws IOException {
+    final INodesInPath i = fsdir.getINodesInPath4Write(path);
+    return INodeDirectorySnapshottable.valueOf(i.getLastINode(), path);
+  }
+  
   /** 
    * Create a snapshot of given path.
+   * It is assumed that the caller will perform synchronization.
+   * 
    * @param path
    *          The directory path where the snapshot will be taken.
    * @param snapshotName
@@ -139,10 +158,17 @@ public class SnapshotManager implements SnapshotStats {
    */
   public String createSnapshot(final String path, String snapshotName)
       throws IOException {
-    // Find the source root directory path where the snapshot is taken.
-    final INodesInPath i = fsdir.getINodesInPath4Write(path);
-    final INodeDirectorySnapshottable srcRoot
-         = INodeDirectorySnapshottable.valueOf(i.getLastINode(), path);
+    INodeDirectorySnapshottable srcRoot = getSnapshottableRoot(path);
+
+    if (snapshotCounter == getMaxSnapshotID()) {
+      // We have reached the maximum allowable snapshot ID and since we don't
+      // handle rollover we will fail all subsequent snapshot creation
+      // requests.
+      //
+      throw new SnapshotException(
+          "Failed to create the snapshot. The FileSystem has run out of " +
+          "snapshot IDs and ID rollover is not supported.");
+    }
     
     srcRoot.addSnapshot(snapshotCounter, snapshotName);
     
@@ -189,14 +215,10 @@ public class SnapshotManager implements SnapshotStats {
       BlocksMapUpdateInfo collectedBlocks, final List<INode> removedINodes)
       throws IOException {
     // parse the path, and check if the path is a snapshot path
-    INodesInPath inodesInPath = fsdir.getINodesInPath4Write(path.toString());
-    // transfer the inode for path to an INodeDirectorySnapshottable.
     // the INodeDirectorySnapshottable#valueOf method will throw Exception 
     // if the path is not for a snapshottable directory
-    INodeDirectorySnapshottable dir = INodeDirectorySnapshottable.valueOf(
-        inodesInPath.getLastINode(), path.toString());
-    
-    dir.removeSnapshot(snapshotName, collectedBlocks, removedINodes);
+    INodeDirectorySnapshottable srcRoot = getSnapshottableRoot(path);
+    srcRoot.removeSnapshot(snapshotName, collectedBlocks, removedINodes);
     numSnapshots.getAndDecrement();
   }
 
@@ -295,5 +317,15 @@ public class SnapshotManager implements SnapshotStats {
         .valueOf(inodesInPath.getLastINode(), path);
     
     return snapshotRoot.computeDiff(from, to);
+  }
+
+  /**
+   * Returns the maximum allowable snapshot ID based on the bit width of the
+   * snapshot ID.
+   *
+   * @return maximum allowable snapshot ID.
+   */
+   public int getMaxSnapshotID() {
+    return ((1 << SNAPSHOT_ID_BIT_WIDTH) - 1);
   }
 }
