@@ -162,8 +162,9 @@ public class TestNestedSnapshots {
     }
   }
   
-  static void assertNestedSnapshotException(SnapshotException se, String substring) {
-    Assert.assertTrue(se.getMessage().startsWith(
+  static void assertNestedSnapshotException(SnapshotException se,
+      String substring) {
+    Assert.assertTrue(se.getMessage().contains(
         "Nested snapshottable directories not allowed"));
     Assert.assertTrue(se.getMessage().contains(substring));
   }
