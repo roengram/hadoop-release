@@ -88,7 +88,11 @@ public class LayoutVersion {
     RESERVED_REL22(-33, -27, "Reserved for release 0.22", true),
     RESERVED_REL23(-34, -30, "Reserved for release 0.23", true),
     // layout versions -35 - -40 are features not present on this branch
-    RESERVED_REL1_2_0(-41, -32, "Reserved for release 1.2.0", true, CONCAT);
+    RESERVED_REL1_2_0(-41, -32, "Reserved for release 1.2.0", true, CONCAT),
+    ADD_INODE_ID(-42, -40, "Assign a unique inode id for each inode", false),
+    SNAPSHOT(-43, "Support for snapshot feature"),
+    RESERVED_REL1_3_0(-44, -41,
+        "Reserved for release 1.3.0", true, ADD_INODE_ID, SNAPSHOT);
     
     final int lv;
     final int ancestorLV;
