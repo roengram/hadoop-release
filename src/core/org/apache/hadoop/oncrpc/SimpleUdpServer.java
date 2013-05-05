@@ -23,6 +23,7 @@ import java.util.concurrent.Executors;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.jboss.netty.bootstrap.ConnectionlessBootstrap;
+import org.jboss.netty.channel.ChannelException;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
 import org.jboss.netty.channel.Channels;
@@ -67,7 +68,13 @@ public class SimpleUdpServer {
     b.setOption("receiveBufferSize", RECEIVE_BUFFER_SIZE);
     
     // Listen to the UDP port
-    b.bind(new InetSocketAddress(port));
+    try {
+      b.bind(new InetSocketAddress(port));
+    } catch (ChannelException e) {
+      LOG.error("Can't bind UDP port " + port + " for " + rpcProgram
+          + ", error: " + e);
+      System.exit(-1);
+    }
     LOG.info("Started listening to UDP requests at port " + port
         + " for " + rpcProgram + " with workerCount " + workerCount);
   }

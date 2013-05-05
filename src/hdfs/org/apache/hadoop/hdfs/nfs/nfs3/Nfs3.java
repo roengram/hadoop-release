@@ -24,6 +24,7 @@ import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.nfs.mount.Mountd;
 import org.apache.hadoop.nfs.nfs3.Nfs3Base;
+import org.apache.hadoop.util.StringUtils;
 
 /**
  * Nfs server. Supports NFS v3 using {@link RpcProgramNfs3}.
@@ -40,6 +41,7 @@ public class Nfs3 extends Nfs3Base {
   }
 
   public static void main(String[] args) throws IOException {
+    StringUtils.startupShutdownMessage(Nfs3.class, args, LOG);
     List<String> exports = new ArrayList<String>();
     exports.add("/");
     final Nfs3 nfsServer = new Nfs3(exports);
