@@ -759,8 +759,17 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
     queue.addLast(inode);
     while (!queue.isEmpty()) {
       INode topNode = queue.pollFirst();
-      if (topNode.isFile() && topNode.asFile() instanceof FileWithSnapshot) {
-        FileWithSnapshot fs = (FileWithSnapshot) topNode.asFile();
+      if (topNode.isReference()) {
+        if (inode instanceof INodeReference.WithName) {
+          INodeReference.WithName wn = (INodeReference.WithName) inode;
+          if (wn.getLastSnapshotId() >= post.getId()) {
+            wn.cleanSubtree(post, prior, collectedBlocks, removedINodes);
+          }
+        } else {
+          inode.cleanSubtree(post, prior, collectedBlocks, removedINodes);
+        }
+      } else if (topNode instanceof FileWithSnapshot) {
+        FileWithSnapshot fs = (FileWithSnapshot) topNode;
         counts.add(fs.getDiffs().deleteSnapshotDiff(post, prior,
             topNode.asFile(), collectedBlocks, removedINodes));
       } else if (topNode.isDirectory()) {
@@ -858,7 +867,7 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
       final List<INode> removedINodes) throws QuotaExceededException {
     Preconditions.checkArgument(prior != null);
     if (inode.isReference()) {
-      if (inode instanceof INodeReference.WithName) {
+      if (inode instanceof INodeReference.WithName && snapshot != null) {
         // this inode has been renamed before the deletion of the DstReference
         // subtree
         inode.cleanSubtree(snapshot, prior, collectedBlocks, removedINodes);
