@@ -259,8 +259,7 @@ public class FSImageFormat {
         throw new IOException("First node is not root");
       }
       final long id = LayoutVersion.supports(Feature.ADD_INODE_ID,
-          storage.layoutVersion) ? in.readLong() : namesystem
-          .allocateNewInodeId();
+          storage.layoutVersion) ? in.readLong() : INodeId.ROOT_INODE_ID;
       assert id == INodeId.ROOT_INODE_ID : "Unexpected root ID " + id;
       final INodeDirectory root = loadINode(INodeId.ROOT_INODE_ID, null, false,
           in).asDirectory();
@@ -538,7 +537,7 @@ public class FSImageFormat {
 
     private void loadSecretManagerState(int version, DataInput in,
         FSNamesystem fs) throws IOException {
-      if (!LayoutVersion.supports(Feature.STICKY_BIT, version)) { // > -19
+      if (!LayoutVersion.supports(Feature.DELEGATION_TOKEN, version)) {
         // SecretManagerState is not available.
         // This must not happen if security is turned on.
         return;
