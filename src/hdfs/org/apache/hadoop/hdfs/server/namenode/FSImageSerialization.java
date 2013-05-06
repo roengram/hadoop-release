@@ -85,10 +85,11 @@ public class FSImageSerialization {
   // from the input stream
   //
   static INodeFileUnderConstruction readINodeUnderConstruction(
-      DataInput in, boolean toReadInodeId) throws IOException {
-    final long id = toReadInodeId ? in.readLong() : FSNamesystem
-        .getFSNamesystem().allocateNewInodeId();
-    byte[] name = FSImageSerialization.readBytes(in);
+      DataInput in, FSNamesystem fsNamesys, boolean toReadInodeId) 
+      throws IOException {
+    byte[] name = readBytes(in);
+    final long id = toReadInodeId ? in.readLong() : fsNamesys
+        .allocateNewInodeId();
     short blockReplication = in.readShort();
     long modificationTime = in.readLong();
     long preferredBlockSize = in.readLong();
@@ -142,8 +143,8 @@ public class FSImageSerialization {
   private static void writeINodeReference(INodeReference ref, DataOutput out,
       boolean writeUnderConstruction, ReferenceMap referenceMap
       ) throws IOException {
-    out.writeLong(ref.getId());
     writeLocalName(ref, out);
+    out.writeLong(ref.getId());
     out.writeShort(0);  // replication
     out.writeLong(0);   // modification time
     out.writeLong(0);   // access time
@@ -184,8 +185,8 @@ public class FSImageSerialization {
   
   public static void writeINodeFile(INodeFile file, DataOutput out,
       boolean writeUnderConstruction) throws IOException {
-    out.writeLong(file.getId());
     writeLocalName(file, out);
+    out.writeLong(file.getId());
     out.writeShort(file.getFileReplication());
     out.writeLong(file.getModificationTime());
     out.writeLong(file.getAccessTime());
@@ -210,8 +211,8 @@ public class FSImageSerialization {
 
   public static void writeINodeDirectory(INodeDirectory node, DataOutput out)
       throws IOException {
-    out.writeLong(node.getId());
     writeLocalName(node, out);
+    out.writeLong(node.getId());
     out.writeShort(0);  // replication
     out.writeLong(node.getModificationTime());
     out.writeLong(0);   // access time
@@ -249,8 +250,8 @@ public class FSImageSerialization {
                                            INodeFileUnderConstruction cons,
                                            String path) 
                                            throws IOException {
-    out.writeLong(cons.getId());
     writeString(path, out);
+    out.writeLong(cons.getId());
     out.writeShort(cons.getFileReplication());
     out.writeLong(cons.getModificationTime());
     out.writeLong(cons.getPreferredBlockSize());

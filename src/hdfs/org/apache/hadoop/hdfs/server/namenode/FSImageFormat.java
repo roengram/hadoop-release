@@ -36,6 +36,8 @@ import org.apache.commons.logging.Log;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
+import org.apache.hadoop.hdfs.protocol.LayoutVersion;
+import org.apache.hadoop.hdfs.protocol.LayoutVersion.Feature;
 import org.apache.hadoop.hdfs.server.common.StorageInfo;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 import org.apache.hadoop.hdfs.server.namenode.FSImage.DatanodeImage;
@@ -114,7 +116,7 @@ public class FSImageFormat {
 
         // read number of files
         long numFiles;
-        if (imgVersion <= -16) {
+        if (LayoutVersion.supports(Feature.NAMESPACE_QUOTA, imgVersion)) {// -16
           numFiles = in.readLong();
         } else {
           numFiles = in.readInt();
@@ -130,7 +132,7 @@ public class FSImageFormat {
         needToSave = (imgVersion != FSConstants.LAYOUT_VERSION);
         
         // read the last allocated inode id in the fsimage
-        if (imgVersion <= -42) {
+        if (LayoutVersion.supports(Feature.ADD_INODE_ID, imgVersion)) {
           long lastInodeId = in.readLong();
           namesystem.resetLastInodeId(lastInodeId);
           LOG.info("load last allocated InodeId from fsimage:" + lastInodeId);
@@ -139,7 +141,7 @@ public class FSImageFormat {
               + " Will assign new id for each inode.");
         }
 
-        if (storage.layoutVersion <= -41) {
+        if (LayoutVersion.supports(Feature.SNAPSHOT, imgVersion)) {
           snapshotMap = namesystem.getSnapshotManager().read(in, this);
           loadLocalNameINodesWithSnapshot(in);
         } else {
@@ -234,10 +236,11 @@ public class FSImageFormat {
     
     public INode loadINodeWithLocalName(boolean isSnapshotINode,
         DataInput in) throws IOException {
-      boolean supportINodeId = storage.layoutVersion <= -42;
+      final byte[] localName = FSImageSerialization.readLocalName(in);
+      boolean supportINodeId = LayoutVersion.supports(Feature.ADD_INODE_ID,
+          storage.layoutVersion);
       final long id = supportINodeId ? in.readLong()
           : namesystem.allocateNewInodeId();
-      final byte[] localName = FSImageSerialization.readLocalName(in);
       INode inode = loadINode(id, localName, isSnapshotINode, in);
       if (supportINodeId) {
         namesystem.dir.addToInodeMap(inode);
@@ -251,13 +254,14 @@ public class FSImageFormat {
      * @param in The {@link DataInputStream} instance to read.
      */
     private void loadRoot(DataInput in) throws IOException {
-      final long id = (storage.layoutVersion <= -42) ? in.readLong()
-          : namesystem.allocateNewInodeId();
-      assert id == INodeId.ROOT_INODE_ID : "Unexpected root ID " + id;
       // load root
       if (in.readShort() != 0) {
         throw new IOException("First node is not root");
       }
+      final long id = LayoutVersion.supports(Feature.ADD_INODE_ID,
+          storage.layoutVersion) ? in.readLong() : namesystem
+          .allocateNewInodeId();
+      assert id == INodeId.ROOT_INODE_ID : "Unexpected root ID " + id;
       final INodeDirectory root = loadINode(INodeId.ROOT_INODE_ID, null, false,
           in).asDirectory();
       // update the root's attributes
@@ -375,14 +379,14 @@ public class FSImageFormat {
     private INode loadINode(long id, final byte[] localName,
         boolean isSnapshotINode, DataInput in) throws IOException {
       int layoutVersion = storage.getLayoutVersion();
-      if (layoutVersion <= -41) { // support snapshot
+      if (LayoutVersion.supports(Feature.SNAPSHOT, layoutVersion)) {
         namesystem.getFSDirectory().verifyINodeName(localName);
       }
       short replication = FSEditLog.adjustReplication(in.readShort());
       long modificationTime = in.readLong();
       long atime = 0;
       
-      if (layoutVersion <= -17) {
+      if (LayoutVersion.supports(Feature.FILE_ACCESS_TIME, layoutVersion)) {
         atime = in.readLong();
       }
       long blockSize = 0;
@@ -424,7 +428,7 @@ public class FSImageFormat {
         String clientMachine = "";
         boolean underConstruction = false;
         FileDiffList fileDiffs = null;
-        if (layoutVersion <= -41) { // support snapshot
+        if (LayoutVersion.supports(Feature.SNAPSHOT, layoutVersion)) {
           // read diffs
           fileDiffs = SnapshotFSImageFormat.loadFileDiffList(in, this);
 
@@ -450,7 +454,7 @@ public class FSImageFormat {
                 file, clientName, clientMachine, null)
             : file;
       } else if (numBlocks == -3) {
-        //reference
+        //reference, only used in Snapshot
 
         final boolean isWithName = in.readBoolean();
         // lastSnapshotId for WithName node, dstSnapshotId for DstReference node
@@ -470,17 +474,17 @@ public class FSImageFormat {
       } else {
         // get quota only when the node is a directory
         long nsQuota = -1L;
-        if (layoutVersion <= -16) {
+        if (LayoutVersion.supports(Feature.NAMESPACE_QUOTA, layoutVersion)) {
           nsQuota = in.readLong();
         }
         long dsQuota = -1L;
-        if (layoutVersion <= -18) {
+        if (LayoutVersion.supports(Feature.DISKSPACE_QUOTA, layoutVersion)) {
           dsQuota = in.readLong();
         }
         // read snapshot info
         boolean snapshottable = false;
         boolean withSnapshot = false;
-        if (layoutVersion <= -41) {
+        if (LayoutVersion.supports(Feature.SNAPSHOT, layoutVersion)) {
           snapshottable = in.readBoolean();
           if (!snapshottable) {
             withSnapshot = in.readBoolean();
@@ -512,7 +516,8 @@ public class FSImageFormat {
 
       for (int i = 0; i < size; i++) {
         INodeFileUnderConstruction cons = FSImageSerialization
-            .readINodeUnderConstruction(in, storage.layoutVersion <= -42);
+            .readINodeUnderConstruction(in, namesystem, 
+              LayoutVersion.supports(Feature.SNAPSHOT, storage.layoutVersion));
 
         // verify that file exists in namespace
         String path = cons.getLocalName();
@@ -533,7 +538,7 @@ public class FSImageFormat {
 
     private void loadSecretManagerState(int version, DataInput in,
         FSNamesystem fs) throws IOException {
-      if (version > -19) {
+      if (!LayoutVersion.supports(Feature.STICKY_BIT, version)) { // > -19
         // SecretManagerState is not available.
         // This must not happen if security is turned on.
         return;
