@@ -142,7 +142,7 @@ public class RpcProgramNfs3 extends RpcProgram implements Nfs3Interface {
    
     config.set(FsPermission.UMASK_LABEL, "000");
     iug = new IdUserGroup();
-    writeManager = new WriteManager(iug);
+    writeManager = new WriteManager(iug, config);
     clientCache = new DFSClientCache(config);
     superUserClient = new DFSClient(config);
     replication = (short) config.getInt(DFSConfigKeys.DFS_REPLICATION_KEY,

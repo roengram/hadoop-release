@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentMap;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.DFSClient;
 import org.apache.hadoop.nfs.NfsFileType;
 import org.apache.hadoop.nfs.nfs3.FileHandle;
@@ -56,12 +57,31 @@ public class WriteManager {
 
   private final StreamMonitor streamMonitor;
   
+  /**
+   * The time limit to wait for accumulate reordered sequential writes to the
+   * same file before the write is considered done.
+   */
+  private long streamTimeout;
+  
+  public static long DEFAULT_STREAM_TIMEOUT = 10*1000; // 10 second
+  public static long MINIMIUM_STREAM_TIMEOUT = 1*1000; // 1 second
+  
   void addOpenFileStream(FileHandle h, OpenFileCtx ctx) {
     openFileMap.put(h, ctx);
   }
 
-  WriteManager(IdUserGroup iug) {
+  WriteManager(IdUserGroup iug, final Configuration config) {
     this.iug = iug;
+    
+    streamTimeout = config.getLong("dfs.nfs3.stream.timeout",
+        DEFAULT_STREAM_TIMEOUT);
+    LOG.info("Stream timeout is " + streamTimeout + "ms.");
+    if (streamTimeout < MINIMIUM_STREAM_TIMEOUT) {
+      LOG.info("Reset stream timeout to minimum value "
+          + MINIMIUM_STREAM_TIMEOUT + "ms.");
+      streamTimeout = MINIMIUM_STREAM_TIMEOUT;
+    }
+    
     this.streamMonitor = new StreamMonitor();
   }
 
@@ -202,7 +222,7 @@ public class WriteManager {
     }
     return attr;
   }
-
+  
   /**
    * StreamMonitor wakes up periodically to find and closes idle streams.
    */
@@ -218,7 +238,7 @@ public class WriteManager {
         while (it.hasNext()) {
           Entry<FileHandle, OpenFileCtx> pairs = it.next();
           OpenFileCtx ctx = pairs.getValue();
-          if (ctx.streamCleanup((pairs.getKey()).getFileId())) {
+          if (ctx.streamCleanup((pairs.getKey()).getFileId(), streamTimeout)) {
             it.remove();
           }
         }

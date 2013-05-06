@@ -18,6 +18,7 @@
 package org.apache.hadoop.hdfs.nfs.nfs3;
 
 import java.io.IOException;
+import java.security.InvalidParameterException;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.locks.ReentrantLock;
@@ -53,12 +54,6 @@ class OpenFileCtx {
    * any read/write operation to an OpenFileCtx object
    */
   private final ReentrantLock ctxLock;
-  
-  /**
-   * The time limit to wait for accumulate reordered sequential writes to the
-   * same file before the write is considered done.
-   */
-  private static int streamTimeout = 10*1000; 
 
   // The stream status. False means the stream is closed.
   private boolean activeState;
@@ -287,7 +282,12 @@ class OpenFileCtx {
    * Check stream status to decide if it should be closed
    * @return true, remove stream; false, keep stream
    */
-  public boolean streamCleanup(long fileId) {
+  public boolean streamCleanup(long fileId, long streamTimeout) {
+    if (streamTimeout < WriteManager.MINIMIUM_STREAM_TIMEOUT) {
+      throw new InvalidParameterException("StreamTimeout" + streamTimeout
+          + "ms is less than MINIMIUM_STREAM_TIMEOUT "
+          + WriteManager.MINIMIUM_STREAM_TIMEOUT + "ms");
+    }
     if (!ctxLock.tryLock()) {
       // Another thread is working on it
       return false;
