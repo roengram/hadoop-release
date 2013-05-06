@@ -759,17 +759,16 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
     queue.addLast(inode);
     while (!queue.isEmpty()) {
       INode topNode = queue.pollFirst();
-      if (topNode.isReference()) {
-        if (inode instanceof INodeReference.WithName) {
-          INodeReference.WithName wn = (INodeReference.WithName) inode;
-          if (wn.getLastSnapshotId() >= post.getId()) {
-            wn.cleanSubtree(post, prior, collectedBlocks, removedINodes);
-          }
-        } else {
-          inode.cleanSubtree(post, prior, collectedBlocks, removedINodes);
+      if (topNode instanceof INodeReference.WithName) {
+        INodeReference.WithName wn = (INodeReference.WithName) topNode;
+        if (wn.getLastSnapshotId() >= post.getId()) {
+          wn.cleanSubtree(post, prior, collectedBlocks, removedINodes);
         }
-      } else if (topNode instanceof FileWithSnapshot) {
-        FileWithSnapshot fs = (FileWithSnapshot) topNode;
+        // For DstReference node, since the node is not in the created list of
+        // prior, we should treat it as regular file/dir
+      } else if (topNode.isFile()
+          && topNode.asFile() instanceof FileWithSnapshot) {
+        FileWithSnapshot fs = (FileWithSnapshot) topNode.asFile();
         counts.add(fs.getDiffs().deleteSnapshotDiff(post, prior,
             topNode.asFile(), collectedBlocks, removedINodes));
       } else if (topNode.isDirectory()) {
