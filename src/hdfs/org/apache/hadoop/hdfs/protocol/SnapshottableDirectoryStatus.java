@@ -120,10 +120,16 @@ public class SnapshottableDirectoryStatus implements Writable {
    */
   public Path getFullPath() {
     String parentFullPathStr = 
-        (parentFullPath == null || parentFullPath.length == 0) ? "/"
-        : DFSUtil.bytes2String(parentFullPath);
-    return parentFullPathStr == null ? new Path(dirStatus.getLocalName())
-        : new Path(parentFullPathStr, dirStatus.getLocalName());
+        (parentFullPath == null || parentFullPath.length == 0) ? 
+            null : DFSUtil.bytes2String(parentFullPath);
+    if (parentFullPathStr == null
+        && dirStatus.getLocalNameInBytes().length == 0) {
+      // root
+      return new Path("/");
+    } else {
+      return parentFullPathStr == null ? new Path(dirStatus.getLocalName())
+          : new Path(parentFullPathStr, dirStatus.getLocalName());
+    }
   }
   
   /**
