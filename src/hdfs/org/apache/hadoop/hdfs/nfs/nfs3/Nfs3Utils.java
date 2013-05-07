@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 
 import org.apache.hadoop.hdfs.DFSClient;
 import org.apache.hadoop.hdfs.protocol.ExtendedHdfsFileStatus;
+import org.apache.hadoop.nfs.NfsFileType;
 import org.apache.hadoop.nfs.NfsTime;
 import org.apache.hadoop.nfs.nfs3.FileHandle;
 import org.apache.hadoop.nfs.nfs3.IdUserGroup;
@@ -107,20 +108,26 @@ public class Nfs3Utils {
     return (access & bits) == bits;
   }
 
-  public static int getAccessRights(int mode) {
+  public static int getAccessRights(int mode, int type) {
     int rtn = 0;
     if (isSet(mode, Nfs3Constant.ACCESS_MODE_READ)) {
       rtn |= Nfs3Constant.ACCESS3_READ;
-      // LOOKUP is only meaningful for dir, set anyway.
-      rtn |= Nfs3Constant.ACCESS3_LOOKUP;
+      // LOOKUP is only meaningful for dir
+      if (type == NfsFileType.NFSDIR.toValue()) {
+        rtn |= Nfs3Constant.ACCESS3_LOOKUP;
+      }
     }
     if (isSet(mode, Nfs3Constant.ACCESS_MODE_WRITE)) {
       rtn |= Nfs3Constant.ACCESS3_MODIFY;
       rtn |= Nfs3Constant.ACCESS3_EXTEND;
-      // Never set delete bit since it's up to parent dir op permission
+      // Set delete bit, UNIX may ignore it for regular file since it's up to
+      // parent dir op permission
+      rtn |= Nfs3Constant.ACCESS3_DELETE;
     }
     if (isSet(mode, Nfs3Constant.ACCESS_MODE_EXECUTE)) {
-      rtn |= Nfs3Constant.ACCESS3_EXECUTE;
+      if (type == NfsFileType.NFSREG.toValue()) {
+        rtn |= Nfs3Constant.ACCESS3_EXECUTE;
+      }
     }
     return rtn;
   }
@@ -130,17 +137,12 @@ public class Nfs3Utils {
     int mode = attr.getMode();
     int rtn = 0;
     if (uid == attr.getUid()) {
-      rtn |= getAccessRights(mode);
+      return rtn |= getAccessRights(mode >> 6, attr.getType());
     }
-    mode = mode >> 3;
     if (gid == attr.getGid()) {
-      rtn |= getAccessRights(mode);
+      return rtn |= getAccessRights(mode >> 3, attr.getType());
     }
-    mode = mode >> 3;
-    if (uid == attr.getUid()) {
-      rtn |= getAccessRights(mode);
-    }
-    return rtn;
+    return rtn |= getAccessRights(mode, attr.getType());
   }
 
   public static long bytesToLong(byte[] data) {

@@ -773,8 +773,13 @@ public class RpcProgramNfs3 extends RpcProgram implements Nfs3Interface {
         }
       }
       WccData dirWcc = new WccData(preOpDirAttr, postOpDirAttr);
-      return new MKDIR3Response(Nfs3Status.NFS3ERR_IO, objFileHandle,
-          postOpObjAttr, dirWcc);
+      if (e instanceof AccessControlException) {
+        return new MKDIR3Response(Nfs3Status.NFS3ERR_PERM, objFileHandle,
+            postOpObjAttr, dirWcc);
+      } else {
+        return new MKDIR3Response(Nfs3Status.NFS3ERR_IO, objFileHandle,
+            postOpObjAttr, dirWcc);
+      }
     }
   }
 
@@ -854,7 +859,11 @@ public class RpcProgramNfs3 extends RpcProgram implements Nfs3Interface {
         }
       }
       WccData dirWcc = new WccData(preOpDirAttr, postOpDirAttr);
-      return new REMOVE3Response(Nfs3Status.NFS3ERR_IO, dirWcc);
+      if (e instanceof AccessControlException) {
+        return new REMOVE3Response(Nfs3Status.NFS3ERR_PERM, dirWcc);
+      } else {
+        return new REMOVE3Response(Nfs3Status.NFS3ERR_IO, dirWcc);
+      }
     }
   }
 
@@ -936,7 +945,11 @@ public class RpcProgramNfs3 extends RpcProgram implements Nfs3Interface {
         }
       }
       WccData dirWcc = new WccData(preOpDirAttr, postOpDirAttr);
-      return new RMDIR3Response(Nfs3Status.NFS3ERR_IO, dirWcc);
+      if (e instanceof AccessControlException) {
+        return new RMDIR3Response(Nfs3Status.NFS3ERR_PERM, dirWcc);
+      } else {
+        return new RMDIR3Response(Nfs3Status.NFS3ERR_IO, dirWcc);
+      }
     }
   }
 
@@ -1021,7 +1034,12 @@ public class RpcProgramNfs3 extends RpcProgram implements Nfs3Interface {
         LOG.info("Can't get postOpDirAttr for " + fromDirFileIdPath + " or"
             + toDirFileIdPath);
       }
-      return new RENAME3Response(Nfs3Status.NFS3ERR_IO, fromDirWcc, toDirWcc);
+      if (e instanceof AccessControlException) {
+        return new RENAME3Response(Nfs3Status.NFS3ERR_PERM, fromDirWcc,
+            toDirWcc);
+      } else {
+        return new RENAME3Response(Nfs3Status.NFS3ERR_IO, fromDirWcc, toDirWcc);
+      }
     }
   }
 
