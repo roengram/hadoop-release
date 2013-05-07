@@ -22,6 +22,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.oncrpc.RpcProgram;
 import org.apache.hadoop.oncrpc.SimpleTcpServer;
 import org.apache.hadoop.oncrpc.SimpleUdpServer;
+import org.apache.hadoop.util.StringUtils;
 
 /**
  * Portmap service for binding RPC protocols. See RFC 1833 for details.
@@ -44,6 +45,7 @@ public class Portmap {
   }
 
   public static void main(String[] args) {
+    StringUtils.startupShutdownMessage(Portmap.class, args, LOG);
     RpcProgramPortmap program = new RpcProgramPortmap();
     startUDPServer(program);
     startTCPServer(program);
