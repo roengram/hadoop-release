@@ -363,7 +363,7 @@ public class Diff<K, E extends Diff.Element<K>> {
     // (A1) All lists are sorted.
     // (A2) All elements in dlist must be in previous.
     // (A3) All elements in clist must be not in tmp = previous - dlist.
-    final List<E> tmp = new ArrayList<E>();
+    final List<E> tmp = new ArrayList<E>(previous.size() - dlist.size());
     {
       // tmp = previous - dlist
       final Iterator<E> i = previous.iterator();
@@ -380,7 +380,7 @@ public class Diff<K, E extends Diff.Element<K>> {
       }
     }
 
-    final List<E> current = new ArrayList<E>();
+    final List<E> current = new ArrayList<E>(tmp.size() + clist.size());
     {
       // current = tmp + clist
       final Iterator<E> tmpIterator = tmp.iterator();
