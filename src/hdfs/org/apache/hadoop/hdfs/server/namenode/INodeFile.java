@@ -30,7 +30,6 @@ import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
 import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
-import org.apache.hadoop.hdfs.server.namenode.Content.CountsMap.Key;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileDiffList;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot.FileDiff;
@@ -360,15 +359,6 @@ public class INodeFile extends INodeWithAdditionalFields {
     counts.add(Quota.NAMESPACE, nsDelta);
     counts.add(Quota.DISKSPACE, dsDelta);
     return counts;
-  }
-
-
-  @Override
-  public final Content.CountsMap computeContentSummary(
-      final Content.CountsMap countsMap) {
-    computeContentSummary4Snapshot(countsMap.getCounts(Key.SNAPSHOT));
-    computeContentSummary4Current(countsMap.getCounts(Key.CURRENT));
-    return countsMap;
   }
 
   @Override
