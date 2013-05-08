@@ -20,9 +20,7 @@ package org.apache.hadoop.mapred.lib;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Set;
@@ -35,8 +33,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.PathFilter;
-import org.apache.hadoop.io.compress.CompressionCodec;
-import org.apache.hadoop.io.compress.CompressionCodecFactory;
 import org.apache.hadoop.io.compress.SplittableCompressionCodec;
 import org.apache.hadoop.net.NodeBase;
 import org.apache.hadoop.net.NetworkTopology;
@@ -79,7 +75,7 @@ public abstract class CombineFileInputFormat<K, V>
   private ArrayList<MultiPathFilter> pools = new  ArrayList<MultiPathFilter>();
 
   // mapping from a rack name to the set of Nodes in the rack 
-  private HashMap<String, Set<String>> rackToNodes = 
+  private static HashMap<String, Set<String>> rackToNodes = 
                             new HashMap<String, Set<String>>();
   /**
    * Specify the maximum size (in bytes) of each split. Each split is
@@ -132,16 +128,6 @@ public abstract class CombineFileInputFormat<K, V>
     pools.add(multi);
   }
 
-  @Override
-  protected boolean isSplitable(FileSystem fs, Path file) {
-    final CompressionCodec codec =
-      new CompressionCodecFactory(fs.getConf()).getCodec(file);
-    if (null == codec) {
-      return true;
-    }
-    return codec instanceof SplittableCompressionCodec;
-  }
-  
   /**
    * default constructor
    */
@@ -195,31 +181,24 @@ public abstract class CombineFileInputFormat<K, V>
     if (paths.length == 0) {
       return splits.toArray(new CombineFileSplit[splits.size()]);    
     }
-    
-    // Convert them to Paths first. This is a costly operation and 
-    // we should do it first, otherwise we will incur doing it multiple
-    // times, one time each for each pool in the next loop.
-    List<Path> newpaths = new LinkedList<Path>();
-    for (int i = 0; i < paths.length; i++) {
-      FileSystem fs = paths[i].getFileSystem(job);
-      Path p = fs.makeQualified(paths[i]);
-      newpaths.add(p);
-    }
-    paths = null;
 
     // In one single iteration, process all the paths in a single pool.
-    // Processing one pool at a time ensures that a split contains paths
+    // Processing one pool at a time ensures that a split contans paths
     // from a single pool only.
     for (MultiPathFilter onepool : pools) {
       ArrayList<Path> myPaths = new ArrayList<Path>();
       
       // pick one input path. If it matches all the filters in a pool,
       // add it to the output set
-      for (Iterator<Path> iter = newpaths.iterator(); iter.hasNext();) {
-        Path p = iter.next();
+      for (int i = 0; i < paths.length; i++) {
+        if (paths[i] == null) {  // already processed
+          continue;
+        }
+        FileSystem fs = paths[i].getFileSystem(job);
+        Path p = new Path(paths[i].toUri().getPath());
         if (onepool.accept(p)) {
-          myPaths.add(p); // add it to my output set
-          iter.remove();
+          myPaths.add(paths[i]); // add it to my output set
+          paths[i] = null;       // already processed
         }
       }
       // create splits for all files in this pool.
@@ -227,8 +206,16 @@ public abstract class CombineFileInputFormat<K, V>
                     maxSize, minSizeNode, minSizeRack, splits);
     }
 
+    // Finally, process all paths that do not belong to any pool.
+    ArrayList<Path> myPaths = new ArrayList<Path>();
+    for (int i = 0; i < paths.length; i++) {
+      if (paths[i] == null) {  // already processed
+        continue;
+      }
+      myPaths.add(paths[i]);
+    }
     // create splits for all files that are not in any pool.
-    getMoreSplits(job, newpaths.toArray(new Path[newpaths.size()]), 
+    getMoreSplits(job, myPaths.toArray(new Path[myPaths.size()]), 
                   maxSize, minSizeNode, minSizeRack, splits);
 
     // free up rackToNodes map
@@ -267,15 +254,13 @@ public abstract class CombineFileInputFormat<K, V>
     // populate all the blocks for all files
     long totLength = 0;
     for (int i = 0; i < paths.length; i++) {
-      files[i] = new OneFileInfo(paths[i], job,
-                                  isSplitable(paths[i].getFileSystem(job), paths[i]),
-                                 rackToBlocks, blockToNodes, nodeToBlocks,
-                                 rackToNodes, maxSize);
+      files[i] = new OneFileInfo(paths[i], job, 
+                                 rackToBlocks, blockToNodes, nodeToBlocks);
       totLength += files[i].getLength();
     }
 
     ArrayList<OneBlockInfo> validBlocks = new ArrayList<OneBlockInfo>();
-    Set<String> nodes = new HashSet<String>();
+    ArrayList<String> nodes = new ArrayList<String>();
     long curSplitSize = 0;
 
     // process all nodes and create splits that are local
@@ -328,7 +313,7 @@ public abstract class CombineFileInputFormat<K, V>
     // in 'overflow'. After the processing of all racks is complete, these overflow
     // blocks will be combined into splits.
     ArrayList<OneBlockInfo> overflowBlocks = new ArrayList<OneBlockInfo>();
-    Set<String> racks = new HashSet<String>();
+    ArrayList<String> racks = new ArrayList<String>();
 
     // Process all racks over and over again until there is no more work to do.
     while (blockToNodes.size() > 0) {
@@ -433,7 +418,7 @@ public abstract class CombineFileInputFormat<K, V>
    */
   private void addCreatedSplit(JobConf job,
                                List<CombineFileSplit> splitList, 
-                               Collection<String> locations, 
+                               List<String> locations, 
                                ArrayList<OneBlockInfo> validBlocks) {
     // create an input split
     Path[] fl = new Path[validBlocks.size()];
@@ -466,12 +451,9 @@ public abstract class CombineFileInputFormat<K, V>
     private OneBlockInfo[] blocks;       // all blocks in this file
 
     OneFileInfo(Path path, JobConf job,
-                boolean isSplitable,
                 HashMap<String, List<OneBlockInfo>> rackToBlocks,
                 HashMap<OneBlockInfo, String[]> blockToNodes,
-                HashMap<String, List<OneBlockInfo>> nodeToBlocks,
-                HashMap<String, Set<String>> rackToNodes,
-                long maxSize)
+                HashMap<String, List<OneBlockInfo>> nodeToBlocks)
                 throws IOException {
       this.fileSize = 0;
 
@@ -484,77 +466,32 @@ public abstract class CombineFileInputFormat<K, V>
       if (locations == null) {
         blocks = new OneBlockInfo[0];
       } else {
-        if (!isSplitable) {
-          // if the file is not splitable, just create the one block with
-          // full file length
-          blocks = new OneBlockInfo[1];
-          fileSize = stat.getLen();
-          blocks[0] = new OneBlockInfo(path, 0, fileSize, locations[0]
-              .getHosts(), locations[0].getTopologyPaths());
-        } else {
-          ArrayList<OneBlockInfo> blocksList = new ArrayList<OneBlockInfo>(
-              locations.length);
-          for (int i = 0; i < locations.length; i++) {
-            fileSize += locations[i].getLength();
+        blocks = new OneBlockInfo[locations.length];
+        for (int i = 0; i < locations.length; i++) {
+           
+          fileSize += locations[i].getLength();
+          OneBlockInfo oneblock =  new OneBlockInfo(path, 
+                                       locations[i].getOffset(), 
+                                       locations[i].getLength(),
+                                       locations[i].getHosts(),
+                                       locations[i].getTopologyPaths()); 
+          blocks[i] = oneblock;
 
-            // each split can be a maximum of maxSize
-            long left = locations[i].getLength();
-            long myOffset = locations[i].getOffset();
-            long myLength = 0;
-            while (left > 0) {
-              if (maxSize == 0) {
-                myLength = left;
-              } else {
-                if (left > maxSize && left < 2 * maxSize) {
-                  // if remainder is between max and 2*max - then
-                  // instead of creating splits of size max, left-max we
-                  // create splits of size left/2 and left/2. This is
-                  // a heuristic to avoid creating really really small
-                  // splits.
-                  myLength = left / 2;
-                } else {
-                  myLength = Math.min(maxSize, left);
-                }
-              }
-              OneBlockInfo oneblock = new OneBlockInfo(path, myOffset,
-                  myLength, locations[i].getHosts(), locations[i]
-                      .getTopologyPaths());
-              left -= myLength;
-              myOffset += myLength;
-
-              blocksList.add(oneblock);
-            }
-          }
-          blocks = blocksList.toArray(new OneBlockInfo[blocksList.size()]);
-        }
-
-        for (OneBlockInfo oneblock : blocks) {
           // add this block to the block --> node locations map
           blockToNodes.put(oneblock, oneblock.hosts);
 
-          // For blocks that do not have host/rack information,
-          // assign to default  rack.
-          String[] racks = null;
-          if (oneblock.hosts.length == 0) {
-            racks = new String[]{NetworkTopology.DEFAULT_RACK};
-          } else {
-            racks = oneblock.racks;
-          }
-
           // add this block to the rack --> block map
-          for (int j = 0; j < racks.length; j++) {
-            String rack = racks[j];
+          for (int j = 0; j < oneblock.racks.length; j++) {
+            String rack = oneblock.racks[j];
             List<OneBlockInfo> blklist = rackToBlocks.get(rack);
             if (blklist == null) {
               blklist = new ArrayList<OneBlockInfo>();
               rackToBlocks.put(rack, blklist);
             }
             blklist.add(oneblock);
-            if (!racks[j].equals(NetworkTopology.DEFAULT_RACK)) {
-              // Add this host to rackToNodes map
-              addHostToRack(rackToNodes, racks[j], oneblock.hosts[j]);
-            }
-          }
+            // Add this host to rackToNodes map
+            addHostToRack(oneblock.racks[j], oneblock.hosts[j]);
+         }
 
           // add this block to the node --> block map
           for (int j = 0; j < oneblock.hosts.length; j++) {
@@ -617,8 +554,7 @@ public abstract class CombineFileInputFormat<K, V>
     }
   }
 
-  private static void addHostToRack(HashMap<String, Set<String>> rackToNodes,
-      String rack, String host) {
+  private static void addHostToRack(String rack, String host) {
     Set<String> hosts = rackToNodes.get(rack);
     if (hosts == null) {
       hosts = new HashSet<String>();
@@ -626,14 +562,11 @@ public abstract class CombineFileInputFormat<K, V>
     }
     hosts.add(host);
   }
-
   
-  private Set<String> getHosts(Set<String> racks) {
-    Set<String> hosts = new HashSet<String>();
+  private static List<String> getHosts(List<String> racks) {
+    List<String> hosts = new ArrayList<String>();
     for (String rack : racks) {
-      if (rackToNodes.containsKey(rack)) {
-        hosts.addAll(rackToNodes.get(rack));
-      }
+      hosts.addAll(rackToNodes.get(rack));
     }
     return hosts;
   }
