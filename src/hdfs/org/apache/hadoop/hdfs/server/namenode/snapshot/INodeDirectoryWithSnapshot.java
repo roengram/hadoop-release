@@ -555,7 +555,7 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
       Snapshot latest, final INodeMap inodeMap) throws QuotaExceededException {
     ChildrenDiff diff = null;
     Integer undoInfo = null;
-    if (latest != null) {
+    if (isInLatestSnapshot(latest)) {
       diff = diffs.checkAndAddLatestSnapshotDiff(latest, this).diff;
       undoInfo = diff.create(inode);
     }
@@ -572,7 +572,7 @@ public class INodeDirectoryWithSnapshot extends INodeDirectoryWithQuota {
       final INodeMap inodeMap) throws QuotaExceededException {
     ChildrenDiff diff = null;
     UndoInfo<INode> undoInfo = null;
-    if (latest != null) {
+    if (isInLatestSnapshot(latest)) {
       diff = diffs.checkAndAddLatestSnapshotDiff(latest, this).diff;
       undoInfo = diff.delete(child);
     }
