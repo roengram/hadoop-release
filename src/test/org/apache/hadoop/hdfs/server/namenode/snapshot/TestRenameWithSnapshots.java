@@ -53,6 +53,7 @@ import org.apache.hadoop.hdfs.server.namenode.INodeFile;
 import org.apache.hadoop.hdfs.server.namenode.INodeMap;
 import org.apache.hadoop.hdfs.server.namenode.INodeReference;
 import org.apache.hadoop.hdfs.server.namenode.INodeReference.WithCount;
+import org.apache.hadoop.hdfs.server.namenode.Quota;
 import org.apache.hadoop.hdfs.server.namenode.SnapshotTestHelper;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshot.FileDiff;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.INodeDirectoryWithSnapshot.ChildrenDiff;
@@ -400,7 +401,7 @@ public class TestRenameWithSnapshots {
    * Test renaming a dir and then delete snapshots.
    */
   @Test
-  public void testRenameDirAndDeleteSnapshot() throws Exception {
+  public void testRenameDirAndDeleteSnapshot_1() throws Exception {
     final Path sdir1 = new Path("/dir1");
     final Path sdir2 = new Path("/dir2");
     hdfs.mkdirs(sdir1);
@@ -1181,7 +1182,7 @@ public class TestRenameWithSnapshots {
    * file/dir before taking the snapshot.
    */
   @Test
-  public void testRenameUndo() throws Exception {
+  public void testRenameUndo_1() throws Exception {
     final Path sdir1 = new Path("/dir1");
     final Path sdir2 = new Path("/dir2");
     hdfs.mkdirs(sdir1);
@@ -1397,6 +1398,78 @@ public class TestRenameWithSnapshots {
   }
   
   /**
+   * Test rename while the rename operation will exceed the quota in the dst
+   * tree.
+   */
+  @Test
+  public void testRenameUndo_4() throws Exception {
+    final Path test = new Path("/test");
+    final Path dir1 = new Path(test, "dir1");
+    final Path dir2 = new Path(test, "dir2");
+    final Path subdir2 = new Path(dir2, "subdir2");
+    hdfs.mkdirs(dir1);
+    hdfs.mkdirs(subdir2);
+    
+    final Path foo = new Path(dir1, "foo");
+    final Path bar = new Path(foo, "bar");
+    DFSTestUtil.createFile(hdfs, bar, BLOCKSIZE, REPL, SEED);
+    
+    SnapshotTestHelper.createSnapshot(hdfs, dir1, "s1");
+    SnapshotTestHelper.createSnapshot(hdfs, dir2, "s2");
+    
+    // set ns quota of dir2 to 5, so the current remaining is 2 (already has
+    // dir2, subdir2, and s2)
+    hdfs.setQuota(dir2, 5, Long.MAX_VALUE - 1);
+    
+    final Path foo2 = new Path(subdir2, foo.getName());
+    // rename /test/dir1/foo to /test/dir2/subdir2/foo. 
+    // FSDirectory#verifyQuota4Rename will pass since foo/bar only be counted 
+    // as 2 in NS quota. However, the rename operation will fail when adding
+    // foo to subdir2, since we will create a snapshot diff for subdir2. 
+    boolean rename = hdfs.rename(foo, foo2);
+    assertFalse(rename);
+    
+    // check the undo
+    assertTrue(hdfs.exists(foo));
+    assertTrue(hdfs.exists(bar));
+    INodeDirectory dir1Node = fsdir.getINode4Write(dir1.toString())
+        .asDirectory();
+    List<INode> childrenList = ReadOnlyList.Util.asList(dir1Node
+        .getChildrenList(null));
+    assertEquals(1, childrenList.size());
+    INode fooNode = childrenList.get(0);
+    assertTrue(fooNode.getClass() == INodeDirectoryWithSnapshot.class);
+    INode barNode = fsdir.getINode4Write(bar.toString());
+    assertTrue(barNode.getClass() == INodeFile.class);
+    assertSame(fooNode, barNode.getParent());
+    List<DirectoryDiff> diffList = ((INodeDirectorySnapshottable) dir1Node)
+        .getDiffs().asList();
+    assertEquals(1, diffList.size());
+    DirectoryDiff diff = diffList.get(0);
+    assertTrue(diff.getChildrenDiff().getList(ListType.CREATED).isEmpty());
+    assertTrue(diff.getChildrenDiff().getList(ListType.DELETED).isEmpty());
+    
+    // check dir2
+    INode dir2Node = fsdir.getINode4Write(dir2.toString());
+    assertTrue(dir2Node.getClass() == INodeDirectorySnapshottable.class);
+    Quota.Counts counts = dir2Node.computeQuotaUsage();
+    assertEquals(3, counts.get(Quota.NAMESPACE));
+    assertEquals(0, counts.get(Quota.DISKSPACE));
+    childrenList = ReadOnlyList.Util.asList(dir2Node.asDirectory()
+        .getChildrenList(null));
+    assertEquals(1, childrenList.size());
+    INode subdir2Node = childrenList.get(0);
+    assertSame(dir2Node, subdir2Node.getParent());
+    assertSame(subdir2Node, fsdir.getINode4Write(subdir2.toString()));
+    diffList = ((INodeDirectorySnapshottable) dir2Node)
+        .getDiffs().asList();
+    assertEquals(1, diffList.size());
+    diff = diffList.get(0);
+    assertTrue(diff.getChildrenDiff().getList(ListType.CREATED).isEmpty());
+    assertTrue(diff.getChildrenDiff().getList(ListType.DELETED).isEmpty());
+  }
+  
+  /**
    * After the following operations:
    * Rename a dir -> create a snapshot s on dst tree -> delete the renamed dir
    * -> delete snapshot s on dst tree
@@ -1571,7 +1644,7 @@ public class TestRenameWithSnapshots {
    * added/removed child should be recorded in snapshots.
    */
   @Test
-  public void testRenameAndDeleteSnapshot_5() throws Exception {
+  public void testRenameDirAndDeleteSnapshot_5() throws Exception {
     final Path dir1 = new Path("/dir1");
     final Path dir2 = new Path("/dir2");
     final Path dir3 = new Path("/dir3");
