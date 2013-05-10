@@ -14,6 +14,9 @@ Condor release branched from Apache @ https://svn.apache.org/repos/asf/hadoop/co
 
   BUG FIXES
 
+    MAPREDUCE-5217. Fix DistCP to work when launched by Oozie on a secure
+        cluster. (Venkat Ranganathan via sseth)
+
 
   Snapshot feature has been merged to condor branch
 
