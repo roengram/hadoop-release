@@ -130,14 +130,22 @@ public class IdUserGroup {
     return id.intValue();
   }
 
-  synchronized public String getUserName(int uid) {
+  synchronized public String getUserName(int uid, String unknown) {
     checkAndUpdateMaps();
-    return uidNameMap.get(Integer.valueOf(uid));
+    String uname = uidNameMap.get(Integer.valueOf(uid));
+    if (uname == null) {
+      uname = unknown;
+    }
+    return uname;
   }
 
-  synchronized public String getGroupName(int gid) {
+  synchronized public String getGroupName(int gid, String unknown) {
     checkAndUpdateMaps();
-    return gidNameMap.get(Integer.valueOf(gid));
+    String gname = gidNameMap.get(Integer.valueOf(gid));
+    if (gname == null) {
+      gname = unknown;
+    }
+    return gname;
   }
 
   // When can't map user, return user name's string hashcode
