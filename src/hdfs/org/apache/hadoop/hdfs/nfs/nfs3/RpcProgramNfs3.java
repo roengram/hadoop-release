@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hdfs.nfs.nfs3;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.EnumSet;
@@ -27,6 +28,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.FileSystem.Statistics;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.DFSClient;
@@ -130,7 +132,8 @@ public class RpcProgramNfs3 extends RpcProgram implements Nfs3Interface {
   private final long blockSize;
   private final int bufferSize;
   private Statistics statistics;
-
+  private String writeDumpDir; // The dir save dump files
+  
   public RpcProgramNfs3(List<String> exports) throws IOException {
     this(exports, new Configuration());
   }
@@ -150,6 +153,29 @@ public class RpcProgramNfs3 extends RpcProgram implements Nfs3Interface {
     blockSize = config.getLong(DFSConfigKeys.DFS_BLOCK_SIZE_KEY,
         DFSConfigKeys.DFS_BLOCK_SIZE_DEFAULT);
     bufferSize = config.getInt("io.file.buffer.size", 4096);
+    
+    writeDumpDir = config.get("dfs.nfs3.dump.dir", "/tmp/.hdfs-nfs");    
+    boolean enableDump = config.getBoolean("dfs.nfs3.enableDump", true);
+    if (!enableDump) {
+      writeDumpDir = null;
+    } else {
+      clearDirectory(writeDumpDir);
+    }
+  }
+
+  private void clearDirectory(String writeDumpDir) throws IOException {
+    File dumpDir = new File(writeDumpDir);
+    if (dumpDir.exists()) {
+      LOG.info("Delete current dump directory " + writeDumpDir);
+      if (!(FileUtil.fullyDelete(dumpDir))) {
+        throw new IOException("Cannot remove current dump directory: "
+            + dumpDir);
+      }
+    }
+    LOG.info("Create new dump directory " + writeDumpDir);
+    if (!dumpDir.mkdirs()) {
+      throw new IOException("Cannot create dump directory " + dumpDir);
+    }
   }
   
   /******************************************************
@@ -547,7 +573,8 @@ public class RpcProgramNfs3 extends RpcProgram implements Nfs3Interface {
     FileHandle handle = request.getHandle();
     if (LOG.isDebugEnabled()) {
       LOG.debug("NFS WRITE fileId: " + handle.getFileId() + " offset: "
-          + offset + " length:" + count + " stableHow:" + stableHow.getValue());
+          + offset + " length:" + count + " stableHow:" + stableHow.getValue()
+          + " xid:" + xid);
     }
 
     Nfs3FileAttributes preOpAttr = null;
@@ -684,7 +711,8 @@ public class RpcProgramNfs3 extends RpcProgram implements Nfs3Interface {
     }
     
     // Add open stream
-    OpenFileCtx openFileCtx = new OpenFileCtx(fos, postOpObjAttr);
+    OpenFileCtx openFileCtx = new OpenFileCtx(fos, postOpObjAttr, writeDumpDir
+        + "/" + postOpObjAttr.getFileId());
     fileHandle = new FileHandle(postOpObjAttr.getFileId());
     writeManager.addOpenFileStream(fileHandle, openFileCtx);
     if (LOG.isDebugEnabled()) {

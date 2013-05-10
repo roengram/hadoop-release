@@ -17,7 +17,14 @@
  */
 package org.apache.hadoop.hdfs.nfs.nfs3;
 
-import org.apache.hadoop.nfs.nfs3.request.WRITE3Request;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.nfs.nfs3.FileHandle;
+import org.apache.hadoop.nfs.nfs3.Nfs3Constant.WriteStableHow;
 import org.jboss.netty.channel.Channel;
 
 /**
@@ -25,13 +32,78 @@ import org.jboss.netty.channel.Channel;
  * xid and reply status.
  */
 class WriteCtx {
-  private final WRITE3Request request;
+  public static final Log LOG = LogFactory.getLog(WriteCtx.class);
+
+  private final FileHandle handle;
+  private final long offset;
+  private final int count;
+  private final WriteStableHow stableHow;
+  private byte[] data;
+  
   private final Channel channel;
   private final int xid;
-  private final boolean replied;
+  private boolean replied;
   
-  WRITE3Request getRequest() {
-    return request;
+  private RandomAccessFile raf;
+  private long dumpFileOffset;
+  private boolean dumped;
+
+  public boolean isDumped() {
+    return dumped;
+  }
+  
+  // Return the dumped data size
+  public long dumpData(FileOutputStream dumpOut, RandomAccessFile raf)
+      throws IOException {
+    if (replied || dumped) {
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("No need to dump with status(replied,dumped):" + "("
+            + replied + "," + dumped + ")");
+      }
+      return 0;
+    }
+    this.raf = raf;
+    dumpFileOffset = dumpOut.getChannel().position();
+    dumpOut.write(data, 0, count);
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("After dump, new dumpFileOffset:" + dumpFileOffset);
+    }
+    data = null;
+    dumped = true;
+    return count;
+  }
+
+  public FileHandle getHandle() {
+    return handle;
+  }
+  
+  public long getOffset() {
+    return offset;
+  }
+
+  public int getCount() {
+    return count;
+  }
+
+  public WriteStableHow getStableHow() {
+    return stableHow;
+  }
+
+  public byte[] getData() throws IOException {
+    if (!dumped) {
+      if (data == null) {
+        throw new IOException("Data is not dumpted but has null");
+      }
+    } else {
+      // read back
+      if (data != null) {
+        throw new IOException("Data is dumpted but not null");
+      }
+      data = new byte[count];
+      raf.seek(dumpFileOffset);
+      raf.read(data, 0, count);
+    }
+    return data;
   }
 
   Channel getChannel() {
@@ -46,10 +118,26 @@ class WriteCtx {
     return replied;
   }
   
-  WriteCtx(WRITE3Request request, Channel channel, int xid, boolean replied) {
-    this.request = request;
+  void setReplied(boolean replied) {
+    this.replied = replied;
+  }
+  
+  WriteCtx(FileHandle handle, long offset, int count, WriteStableHow stableHow,
+      byte[] data, Channel channel, int xid, boolean replied) {
+    this.handle = handle;
+    this.offset = offset;
+    this.count = count;
+    this.stableHow = stableHow;
+    this.data = data;
     this.channel = channel;
     this.xid = xid;
     this.replied = replied;
+    raf = null;
+  }
+  
+  @Override
+  public String toString() {
+    return "Id:" + handle.getFileId() + " offset:" + offset + " count:" + count
+        + " stableHow:" + stableHow + " xid:" + xid;
   }
 }

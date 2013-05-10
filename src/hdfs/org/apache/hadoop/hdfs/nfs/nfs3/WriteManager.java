@@ -124,8 +124,13 @@ public class WriteManager {
     FileHandle fileHandle = request.getHandle();
     OpenFileCtx openFileCtx = openFileMap.get(fileHandle);
     if (openFileCtx == null) {
-      throw new IOException("No opened stream for fileId:"
-          + fileHandle.getFileId());
+      LOG.info("No opened stream for fileId:" + fileHandle.getFileId());
+      WccData fileWcc = new WccData(Nfs3Utils.getWccAttr(preOpAttr), preOpAttr);
+      WRITE3Response response = new WRITE3Response(Nfs3Status.NFS3ERR_IO,
+          fileWcc, count, request.getStableHow(),
+          Nfs3Constant.WRITE_COMMIT_VERF);
+      Nfs3Utils.writeChannel(channel, response.send(new XDR(), xid));
+      return;
     }
 
     // Add write into the async job queue
@@ -161,20 +166,23 @@ public class WriteManager {
     long startCommit = System.currentTimeMillis();
     while (true) {
       int ret = openFileCtx.checkCommit(commitOffset);
-      if (ret == 0) {
+      if (ret == OpenFileCtx.COMMIT_FINISHED) {
         // Committed
         return true;
-      } else if (ret == 2) {
+      } else if (ret == OpenFileCtx.COMMIT_INACTIVE_CTX) {
         LOG.info("Inactive stream, fileId=" + fileHandle.getFileId()
             + " commitOffset=" + commitOffset);
         return true;
       }
-
+      assert (ret == OpenFileCtx.COMMIT_WAIT || ret == OpenFileCtx.COMMIT_ERROR);
+      if (ret == OpenFileCtx.COMMIT_ERROR) {
+        return false;
+      }
+      
       if (LOG.isDebugEnabled()) {
         LOG.debug("Not committed yet, wait., fileId=" + fileHandle.getFileId()
             + " commitOffset=" + commitOffset);
       }
-      assert (ret == 1);
       if (System.currentTimeMillis() - startCommit > timeout) {
         // Commit took too long, return error
         return false;
