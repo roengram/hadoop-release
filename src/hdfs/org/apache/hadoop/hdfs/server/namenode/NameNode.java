@@ -326,7 +326,9 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
     this.server = RPC.getServer(this, socAddr.getHostName(),
         socAddr.getPort(), handlerCount, false, conf, namesystem
         .getDelegationTokenSecretManager());
-
+    // Set terse exception whose stack trace won't be logged
+    this.server.addTerseExceptions(SafeModeException.class);
+    
     // The rpc-server port can be ephemeral... ensure we have the correct info
     this.serverAddress = this.server.getListenerAddress(); 
     FileSystem.setDefaultUri(conf, getUri(serverAddress));
@@ -725,6 +727,11 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
     LocatedBlock info = namesystem.appendFile(src, clientName, clientMachine);
     myMetrics.incrNumFilesAppended();
     return info;
+  }
+
+  /** {@inheritDoc} */
+  public boolean isFileClosed(String src) throws IOException {
+    return namesystem.isFileClosed(src);
   }
 
   /** {@inheritDoc} */
