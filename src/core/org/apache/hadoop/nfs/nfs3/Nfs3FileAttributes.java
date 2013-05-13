@@ -84,8 +84,8 @@ public class Nfs3FileAttributes {
     this.uid = uid;
     this.gid = gid;
     this.size = size;
-    if(isDir) { 
-      size = getDirSize(nlink);
+    if(isDir) {
+      this.size = getDirSize(nlink);
     }
     this.used = this.size;
     this.rdev = new Specdata3();
