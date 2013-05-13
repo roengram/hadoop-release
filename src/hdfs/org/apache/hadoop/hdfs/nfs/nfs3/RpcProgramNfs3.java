@@ -1135,7 +1135,21 @@ public class RpcProgramNfs3 extends RpcProgram implements Nfs3Interface {
       return new READDIR3Response(Nfs3Status.NFS3ERR_IO);
     }
 
-    // Set up the dirents in the response
+    /**
+     * Set up the dirents in the response. fileId is used as the cookie with one
+     * exception. Linux client can either be stuck with "ls" command (on REHL)
+     * or report "Too many levels of symbolic links" (Ubuntu).
+     * 
+     * The problem is that, only two items returned, "." and ".." when the
+     * namespace is empty. Both of them are "/" with the same cookie(root
+     * fileId). Linux client doesn't think such a directory is a real directory.
+     * Even though NFS protocol specifies cookie is an opaque data, Linux client
+     * somehow doesn't like an empty dir returns same cookie for both "." and
+     * "..".
+     * 
+     * The workaround is to use 0 as the cookie for "." and always return "." as
+     * the first entry in readdir/readdirplus response.
+     */
     ExtendedHdfsFileStatus[] fstatus = dlisting.getPartialListing();    
     int n = (int) Math.min(fstatus.length, count-2);
     boolean eof = (n < fstatus.length) ? false : (dlisting
@@ -1144,16 +1158,15 @@ public class RpcProgramNfs3 extends RpcProgram implements Nfs3Interface {
     Entry3[] entries;
     if (cookie == 0) {
       entries = new Entry3[n + 2];
-      entries[0] = new READDIR3Response.Entry3(postOpAttr.getFileId(), ".",
-          postOpAttr.getFileId());
+      entries[0] = new READDIR3Response.Entry3(postOpAttr.getFileId(), ".", 0);
       entries[1] = new READDIR3Response.Entry3(dotdotFileId, "..", dotdotFileId);
 
-    for (int i = 2; i < n + 2; i++) {
+      for (int i = 2; i < n + 2; i++) {
         entries[i] = new READDIR3Response.Entry3(fstatus[i - 2].getFileId(),
             fstatus[i - 2].getLocalName(), fstatus[i - 2].getFileId());
       }
     } else {
-      // Resume from last readdirplus. If the cookie is "." or "..", the result
+      // Resume from last readdirplus. If the cookie is "..", the result
       // list is up the directory content since HDFS uses name as resume point.    
       entries = new Entry3[n];    
       for (int i = 0; i < n; i++) {
@@ -1268,8 +1281,8 @@ public class RpcProgramNfs3 extends RpcProgram implements Nfs3Interface {
       entries = new READDIRPLUS3Response.EntryPlus3[n+2];
       
       entries[0] = new READDIRPLUS3Response.EntryPlus3(
-          postOpDirAttr.getFileId(), ".", postOpDirAttr.getFileId(),
-          postOpDirAttr, new FileHandle(postOpDirAttr.getFileid()));
+          postOpDirAttr.getFileId(), ".", 0, postOpDirAttr, new FileHandle(
+              postOpDirAttr.getFileid()));
       entries[1] = new READDIRPLUS3Response.EntryPlus3(dotdotFileId, "..",
           dotdotFileId, postOpDirAttr, new FileHandle(dotdotFileId));
 
@@ -1288,7 +1301,7 @@ public class RpcProgramNfs3 extends RpcProgram implements Nfs3Interface {
             fstatus[i - 2].getLocalName(), fileId, attr, childHandle);
       }
     } else {
-      // Resume from last readdirplus. If the cookie is "." or "..", the result
+      // Resume from last readdirplus. If the cookie is "..", the result
       // list is up the directory content since HDFS uses name as resume point.
       entries = new READDIRPLUS3Response.EntryPlus3[n]; 
       for (int i = 0; i < n; i++) {
