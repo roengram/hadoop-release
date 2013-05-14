@@ -241,7 +241,7 @@ class OpenFileCtx {
       throw new RuntimeException(
           "After dump, nonSequentialWriteInMemory is not zero: "
               + nonSequentialWriteInMemory);
-      // TODO: return error instead of throw runtimeexception
+      //TODO: better handling.
     }
   }
   
@@ -256,8 +256,7 @@ class OpenFileCtx {
       if (xid != writeCtx.getXid()) {
         LOG.warn("Got a repeated request, same range, with a different xid:"
             + xid + " xid in old request:" + writeCtx.getXid());
-        //TODO: handle it.
-
+        //TODO: better handling.
       }
       return true;  
     }
@@ -304,7 +303,7 @@ class OpenFileCtx {
           + " nextOffset:" + nextOffset);
       addWrite(new WriteCtx(request.getHandle(), request.getOffset(),
           request.getCount(), request.getStableHow(), request.getData(),
-          channel, xid, true));
+          channel, xid, true, WriteCtx.NO_DUMP));
       nextOffset = offset + count;
       // Create an async task and change openFileCtx status to indicate async
       // task pending
@@ -330,11 +329,19 @@ class OpenFileCtx {
           + nextOffset);
       addWrite(new WriteCtx(request.getHandle(), request.getOffset(),
           request.getCount(), request.getStableHow(), request.getData(),
-          channel, xid, false));
+          channel, xid, true, WriteCtx.ALLOW_DUMP));
       // Check if need to dump some pending requests to file
       checkDump(request.getCount());
       updateLastAccessTime();
       ctxLock.unlock();
+      
+      // Send response immediately for unstable write
+      if (request.getStableHow() == WriteStableHow.UNSTABLE) {
+        WccData fileWcc = new WccData(preOpAttr, latestAttr);
+        WRITE3Response response = new WRITE3Response(Nfs3Status.NFS3_OK,
+            fileWcc, count, stableHow, Nfs3Constant.WRITE_COMMIT_VERF);
+        Nfs3Utils.writeChannel(channel, response.send(new XDR(), xid));
+      }
 
     } else {
       // offset < nextOffset
@@ -575,12 +582,12 @@ class OpenFileCtx {
       }
       nextOffset = fos.getPos();
 
+      // Reduce memory occupation size if request was allowed dumped
+      if (writeCtx.getDataState() == WriteCtx.ALLOW_DUMP) {
+        updateNonSequentialWriteInMemory(-count);
+      }
+      
       if (!writeCtx.getReplied()) {
-        // Reduce memory occupation size if request was not dumped
-        if (!writeCtx.isDumped()) {
-          updateNonSequentialWriteInMemory(-count);
-        }
-        
         WccAttr preOpAttr = latestAttr.getWccAttr();
         WccData fileWcc = new WccData(preOpAttr, latestAttr);
         WRITE3Response response = new WRITE3Response(Nfs3Status.NFS3_OK,
@@ -623,6 +630,7 @@ class OpenFileCtx {
       OffsetRange key = pendingWrites.firstKey();
       LOG.info("Fail pending write: (" + key.getMin() + "," + key.getMax()
           + "), nextOffset=" + getNextOffset());
+      // TODO: may not need to reply if it's already replied
       WriteCtx writeCtx = pendingWrites.remove(key);
       WccData fileWcc = new WccData(preOpAttr, latestAttr);
       WRITE3Response response = new WRITE3Response(Nfs3Status.NFS3ERR_IO,

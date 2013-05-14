@@ -44,21 +44,34 @@ class WriteCtx {
   private final int xid;
   private boolean replied;
   
+  /**
+   * In memory write data has 3 states. ALLOW_DUMP: not sequential write, still
+   * wait for prerequisit writes. NO_DUMP: sequential write, no need to dump
+   * since it will be written to HDFS soon. DUMPED: already dumped to a file.
+   */
+  public final static int ALLOW_DUMP = 0;
+  public final static int NO_DUMP = 1;
+  public final static int DUMPED = 2;
+  private int dataState;
+
+  public int getDataState() {
+    return dataState;
+  }
+
+  public void setDataState(int dataState) {
+    this.dataState = dataState;
+  }
+
   private RandomAccessFile raf;
   private long dumpFileOffset;
-  private boolean dumped;
-
-  public boolean isDumped() {
-    return dumped;
-  }
   
   // Return the dumped data size
   public long dumpData(FileOutputStream dumpOut, RandomAccessFile raf)
       throws IOException {
-    if (replied || dumped) {
+    if (dataState != ALLOW_DUMP) {
       if (LOG.isDebugEnabled()) {
-        LOG.debug("No need to dump with status(replied,dumped):" + "("
-            + replied + "," + dumped + ")");
+        LOG.debug("No need to dump with status(replied,dataState):" + "("
+            + replied + "," + dataState + ")");
       }
       return 0;
     }
@@ -69,7 +82,7 @@ class WriteCtx {
       LOG.debug("After dump, new dumpFileOffset:" + dumpFileOffset);
     }
     data = null;
-    dumped = true;
+    dataState = DUMPED;
     return count;
   }
 
@@ -90,9 +103,9 @@ class WriteCtx {
   }
 
   public byte[] getData() throws IOException {
-    if (!dumped) {
+    if (dataState != DUMPED) {
       if (data == null) {
-        throw new IOException("Data is not dumpted but has null");
+        throw new IOException("Data is not dumpted but has null:" + this);
       }
     } else {
       // read back
@@ -123,7 +136,7 @@ class WriteCtx {
   }
   
   WriteCtx(FileHandle handle, long offset, int count, WriteStableHow stableHow,
-      byte[] data, Channel channel, int xid, boolean replied) {
+      byte[] data, Channel channel, int xid, boolean replied, int dataState) {
     this.handle = handle;
     this.offset = offset;
     this.count = count;
@@ -132,12 +145,14 @@ class WriteCtx {
     this.channel = channel;
     this.xid = xid;
     this.replied = replied;
+    this.dataState = dataState;
     raf = null;
   }
   
   @Override
   public String toString() {
     return "Id:" + handle.getFileId() + " offset:" + offset + " count:" + count
-        + " stableHow:" + stableHow + " xid:" + xid;
+        + " stableHow:" + stableHow + " replied:" + replied + " dataState:"
+        + dataState + " xid:" + xid;
   }
 }
