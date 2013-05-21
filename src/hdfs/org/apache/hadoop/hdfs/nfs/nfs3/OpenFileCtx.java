@@ -278,8 +278,6 @@ class OpenFileCtx {
        WRITE3Response response = new WRITE3Response(Nfs3Status.NFS3ERR_IO,
            fileWcc, 0, stableHow, Nfs3Constant.WRITE_COMMIT_VERF);
        Nfs3Utils.writeChannel(channel, response.send(new XDR(), xid));
-       
-       ctxLock.unlock();
        return;
     }
     
@@ -316,12 +314,11 @@ class OpenFileCtx {
       
       // Update the write time first
       updateLastAccessTime();
-      Nfs3FileAttributes postOpAttr = new Nfs3FileAttributes(latestAttr);
       ctxLock.unlock();
 
       // Send response immediately for unstable write
       if (request.getStableHow() == WriteStableHow.UNSTABLE) {
-        WccData fileWcc = new WccData(preOpAttr, postOpAttr);
+        WccData fileWcc = new WccData(preOpAttr, latestAttr);
         WRITE3Response response = new WRITE3Response(Nfs3Status.NFS3_OK,
             fileWcc, count, stableHow, Nfs3Constant.WRITE_COMMIT_VERF);
         Nfs3Utils.writeChannel(channel, response.send(new XDR(), xid));
@@ -336,12 +333,11 @@ class OpenFileCtx {
       // Check if need to dump some pending requests to file
       checkDump(request.getCount());
       updateLastAccessTime();
-      Nfs3FileAttributes postOpAttr = new Nfs3FileAttributes(latestAttr);
       ctxLock.unlock();
       
       // Send response immediately for unstable write
       if (request.getStableHow() == WriteStableHow.UNSTABLE) {
-        WccData fileWcc = new WccData(preOpAttr, postOpAttr);
+        WccData fileWcc = new WccData(preOpAttr, latestAttr);
         WRITE3Response response = new WRITE3Response(Nfs3Status.NFS3_OK,
             fileWcc, count, stableHow, Nfs3Constant.WRITE_COMMIT_VERF);
         Nfs3Utils.writeChannel(channel, response.send(new XDR(), xid));
@@ -349,20 +345,15 @@ class OpenFileCtx {
 
     } else {
       // offset < nextOffset
-      LOG.warn("(offset,count,nextOffset):" + "(" + offset + "," + "count"
-          + "," + "nextOffset" + ")");
       WccData wccData = new WccData(preOpAttr, null);
       WRITE3Response response;
 
       if (offset + count > nextOffset) {
-        LOG.warn("Haven't noticed any partial overwrite out of a sequential file"
-            + "write requests, so treat it as a real random write, no support.");
+        // Haven't noticed any partial overwrite out of a sequential file
+        // write requests, so treat it as a real random write, no support.
         response = new WRITE3Response(Nfs3Status.NFS3ERR_INVAL, wccData, 0,
             WriteStableHow.UNSTABLE, 0);
       } else {
-        if (LOG.isDebugEnabled()) {
-          LOG.debug("Process perfectOverWrite");
-        }
         response = processPerfectOverWrite(dfsClient, offset, count, stableHow,
             request.getData(), Nfs3Utils.getFileIdPath(request.getHandle()),
             wccData, iug);
@@ -516,9 +507,7 @@ class OpenFileCtx {
           + WriteManager.MINIMIUM_STREAM_TIMEOUT + "ms");
     }
     if (!ctxLock.tryLock()) {
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("Another thread is working on it" + ctxLock.toString());
-      }
+      // Another thread is working on it
       return false;
     }
     boolean flag = false;
@@ -577,7 +566,6 @@ class OpenFileCtx {
           + count + " error:" + e1);
       // Cleanup everything
       cleanup();
-      return;
     }
     assert (data.length == count);
 
@@ -623,7 +611,6 @@ class OpenFileCtx {
   }
 
   private void cleanup() {
-    assert(ctxLock.isLocked());
     activeState = false;
     
     // Close stream

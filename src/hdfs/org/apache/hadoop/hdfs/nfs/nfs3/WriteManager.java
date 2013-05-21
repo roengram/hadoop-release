@@ -243,9 +243,6 @@ public class WriteManager {
       while (true) {
         Iterator<Entry<FileHandle, OpenFileCtx>> it = openFileMap.entrySet()
             .iterator();
-        if (LOG.isTraceEnabled()) {
-          LOG.trace("openFileMap size:" + openFileMap.size());
-        }
         while (it.hasNext()) {
           Entry<FileHandle, OpenFileCtx> pairs = it.next();
           OpenFileCtx ctx = pairs.getValue();
