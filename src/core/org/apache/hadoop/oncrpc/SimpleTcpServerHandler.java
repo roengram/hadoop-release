@@ -51,7 +51,7 @@ public class SimpleTcpServerHandler extends SimpleChannelHandler {
     Channel outChannel = e.getChannel();
     XDR response = rpcProgram.handle(request, remoteInetAddr, outChannel);
     if (response.size() > 0) {
-      outChannel.write(XDR.writeRequest(response, true));
+      outChannel.write(XDR.writeMessageTcp(response, true));
     }
   }
 

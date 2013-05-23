@@ -399,8 +399,8 @@ public class XDR {
     return (xdr.bytearr.length - xdr.cursor) >= len;
   }
 
-  /** Write an XDR request to a ChannelBuffer */
-  public static ChannelBuffer writeRequest(XDR request, boolean last) {
+  /** Write an XDR message to a TCP ChannelBuffer */
+  public static ChannelBuffer writeMessageTcp(XDR request, boolean last) {
     byte[] fragmentHeader = XDR.recordMark(request.bytearr.length, last);
     ChannelBuffer outBuf = ChannelBuffers.buffer(fragmentHeader.length
         + request.bytearr.length);
@@ -409,8 +409,8 @@ public class XDR {
     return outBuf;
   }
 
-  /** Write an XDR response to a ChannelBuffer */
-  public static ChannelBuffer writeResponse(XDR response) {
+  /** Write an XDR message to a UDP ChannelBuffer */
+  public static ChannelBuffer writeMessageUdp(XDR response) {
     ChannelBuffer outBuf = ChannelBuffers.buffer(response.bytearr.length);
     outBuf.writeBytes(response.bytearr);
     return outBuf;

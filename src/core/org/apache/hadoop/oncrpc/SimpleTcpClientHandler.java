@@ -43,7 +43,7 @@ public class SimpleTcpClientHandler extends SimpleChannelHandler {
     if (LOG.isDebugEnabled()) {
       LOG.debug("sending PRC request");
     }
-    ChannelBuffer outBuf = XDR.writeRequest(request, true);
+    ChannelBuffer outBuf = XDR.writeMessageTcp(request, true);
     e.getChannel().write(outBuf);
   }
 

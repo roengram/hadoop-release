@@ -100,7 +100,7 @@ public class Nfs3Utils {
    * Send a write response to the netty network socket channel
    */
   public static void writeChannel(Channel channel, XDR out) {
-    ChannelBuffer outBuf = XDR.writeRequest(out, true);
+    ChannelBuffer outBuf = XDR.writeMessageTcp(out, true);
     channel.write(outBuf);
   }
 

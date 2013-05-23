@@ -49,7 +49,7 @@ public class SimpleUdpServerHandler extends SimpleChannelHandler {
     InetAddress remoteInetAddr = ((InetSocketAddress) e.getRemoteAddress())
         .getAddress();
     XDR response = rpcProgram.handle(request, remoteInetAddr, null);
-    e.getChannel().write(XDR.writeResponse(response), e.getRemoteAddress());
+    e.getChannel().write(XDR.writeMessageUdp(response), e.getRemoteAddress());
   }
 
   @Override
