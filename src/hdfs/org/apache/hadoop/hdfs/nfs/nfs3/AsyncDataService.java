@@ -22,6 +22,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -64,6 +65,11 @@ public class AsyncDataService {
   synchronized void execute(Runnable task) {
     if (executor == null) {
       throw new RuntimeException("AsyncDataService is already shutdown");
+    }
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Current active thread number: " + executor.getActiveCount()
+          + " queue size:" + executor.getQueue().size()
+          + " scheduled task number:" + executor.getTaskCount());
     }
     executor.execute(task);
   }
@@ -124,7 +130,12 @@ public class AsyncDataService {
     }
 
     public void run() {
-      openFileCtx.executeWriteBack();
+      try {
+        openFileCtx.executeWriteBack();
+      } catch (Throwable t) {
+        LOG.error("Asyn data service got error:"
+            + ExceptionUtils.getFullStackTrace(t));
+      }
     }
   }
 }

@@ -98,8 +98,11 @@ class OpenFileCtx {
       LOG.debug("Update nonSequentialWriteInMemory by " + count + " new value:"
           + nonSequentialWriteInMemory);
     }
+
     if (nonSequentialWriteInMemory < 0) {
-      throw new InvalidParameterException(
+      LOG.error("nonSequentialWriteInMemory is negative after update with count "
+          + count);
+      throw new IllegalArgumentException(
           "nonSequentialWriteInMemory is negative after update with count "
               + count);
     }
@@ -151,13 +154,17 @@ class OpenFileCtx {
   // Check if need to dump the new writes
   private void checkDump(long count) {
     assert (ctxLock.isLocked());
+
+    // Always update the in memory count
+    updateNonSequentialWriteInMemory(count);
+
     if (!enabledDump) {
       if (LOG.isDebugEnabled()) {
         LOG.debug("Do nothing, dump is disabled.");
       }
       return;
     }
-    updateNonSequentialWriteInMemory(count);
+
     if (nonSequentialWriteInMemory < DUMP_WRITE_WATER_MARK) {
       return;
     }
@@ -212,23 +219,7 @@ class OpenFileCtx {
       try {
         long dumpedDataSize = writeCtx.dumpData(dumpOut, raf);
         if (dumpedDataSize > 0) {
-          if(dumpedDataSize != writeCtx.getCount()) {
-            throw new RuntimeException("Dumped size, " + dumpedDataSize
-                + ", is not write size:" + writeCtx.getCount());
-          }
           updateNonSequentialWriteInMemory(-dumpedDataSize);
-          
-          // In test, noticed some Linux client sends a batch (e.g., 1MB)
-          // of reordered writes and won't send more writes until it gets
-          // responses of the previous batch. So when dump the request, send
-          // back reply also.
-          WccData fileWcc = new WccData(latestAttr.getWccAttr(), latestAttr);
-          WRITE3Response response = new WRITE3Response(Nfs3Status.NFS3_OK,
-              fileWcc, (int) dumpedDataSize, writeCtx.getStableHow(),
-              Nfs3Constant.WRITE_COMMIT_VERF);
-          Nfs3Utils.writeChannel(writeCtx.getChannel(),
-              response.send(new XDR(), writeCtx.getXid()));
-          writeCtx.setReplied(true);
         }
       } catch (IOException e) {
         LOG.error("Dump data failed:" + writeCtx + " with error:" + e);
@@ -303,9 +294,10 @@ class OpenFileCtx {
     if (offset == nextOffset) {
       LOG.info("Add to the list, update nextOffset and notify the writer,"
           + " nextOffset:" + nextOffset);
-      addWrite(new WriteCtx(request.getHandle(), request.getOffset(),
+      WriteCtx writeCtx = new WriteCtx(request.getHandle(), request.getOffset(),
           request.getCount(), request.getStableHow(), request.getData(),
-          channel, xid, true, WriteCtx.NO_DUMP));
+          channel, xid, false, WriteCtx.NO_DUMP);
+      addWrite(writeCtx);
       nextOffset = offset + count;
       // Create an async task and change openFileCtx status to indicate async
       // task pending
@@ -325,26 +317,33 @@ class OpenFileCtx {
         WRITE3Response response = new WRITE3Response(Nfs3Status.NFS3_OK,
             fileWcc, count, stableHow, Nfs3Constant.WRITE_COMMIT_VERF);
         Nfs3Utils.writeChannel(channel, response.send(new XDR(), xid));
+        writeCtx.setReplied(true);
       }
 
     } else if (offset > nextOffset) {
       LOG.info("Add new write to the list but not update nextOffset:"
           + nextOffset);
-      addWrite(new WriteCtx(request.getHandle(), request.getOffset(),
-          request.getCount(), request.getStableHow(), request.getData(),
-          channel, xid, true, WriteCtx.ALLOW_DUMP));
+      WriteCtx writeCtx = new WriteCtx(request.getHandle(),
+          request.getOffset(), request.getCount(), request.getStableHow(),
+          request.getData(), channel, xid, false, WriteCtx.ALLOW_DUMP);
+      addWrite(writeCtx);
+
       // Check if need to dump some pending requests to file
       checkDump(request.getCount());
       updateLastAccessTime();
       Nfs3FileAttributes postOpAttr = new Nfs3FileAttributes(latestAttr);
       ctxLock.unlock();
       
-      // Send response immediately for unstable write
+      // In test, noticed some Linux client sends a batch (e.g., 1MB)
+      // of reordered writes and won't send more writes until it gets
+      // responses of the previous batch. So here send response immediately for
+      // unstable non-sequential write
       if (request.getStableHow() == WriteStableHow.UNSTABLE) {
         WccData fileWcc = new WccData(preOpAttr, postOpAttr);
         WRITE3Response response = new WRITE3Response(Nfs3Status.NFS3_OK,
             fileWcc, count, stableHow, Nfs3Constant.WRITE_COMMIT_VERF);
         Nfs3Utils.writeChannel(channel, response.send(new XDR(), xid));
+        writeCtx.setReplied(true);
       }
 
     } else {
@@ -610,12 +609,12 @@ class OpenFileCtx {
     } catch (IOException e) {
       LOG.error("Error writing to fileId " + handle.getFileId() + " at offset "
           + offset + " and length " + data.length, e);
-     if (!writeCtx.getReplied()) {
+      if (!writeCtx.getReplied()) {
         WRITE3Response response = new WRITE3Response(Nfs3Status.NFS3ERR_IO);
         Nfs3Utils.writeChannel(channel, response.send(new XDR(), xid));
         // Keep stream open. Either client retries or SteamMonitor closes it.
       }
-     
+
       LOG.info("Clean up open file context for fileId: "
           + latestAttr.getFileid());
       cleanup();

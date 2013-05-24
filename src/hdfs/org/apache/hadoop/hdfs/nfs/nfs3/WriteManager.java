@@ -63,11 +63,15 @@ public class WriteManager {
    */
   private long streamTimeout;
   
-  public static long DEFAULT_STREAM_TIMEOUT = 10*1000; // 10 second
-  public static long MINIMIUM_STREAM_TIMEOUT = 1*1000; // 1 second
+  public static long DEFAULT_STREAM_TIMEOUT = 10 * 1000; // 10 second
+  public static long MINIMIUM_STREAM_TIMEOUT = 1 * 1000; // 1 second
   
   void addOpenFileStream(FileHandle h, OpenFileCtx ctx) {
     openFileMap.put(h, ctx);
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("After add the new stream " + h.getFileId()
+          + ", the stream number:" + openFileMap.size());
+    }
   }
 
   WriteManager(IdUserGroup iug, final Configuration config) {
@@ -251,6 +255,10 @@ public class WriteManager {
           OpenFileCtx ctx = pairs.getValue();
           if (ctx.streamCleanup((pairs.getKey()).getFileId(), streamTimeout)) {
             it.remove();
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("After remove stream " + pairs.getKey().getFileId()
+                  + ", the stream number:" + openFileMap.size());
+            }
           }
         }
 
