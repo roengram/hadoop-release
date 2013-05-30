@@ -129,20 +129,45 @@ class OpenFileCtx {
     ctxLock = new ReentrantLock();
   }
 
+  private void lockCtx() {
+    if (LOG.isTraceEnabled()) {
+      StackTraceElement[] stacktrace = Thread.currentThread().getStackTrace();
+      StackTraceElement e = stacktrace[2];
+      String methodName = e.getMethodName();
+      LOG.trace("lock ctx, caller:" + methodName);
+    }
+    ctxLock.lock();
+  }
+
+  private void unlockCtx() {
+    ctxLock.unlock();
+    if (LOG.isTraceEnabled()) {
+      StackTraceElement[] stacktrace = Thread.currentThread().getStackTrace();
+      StackTraceElement e = stacktrace[2];
+      String methodName = e.getMethodName();
+      LOG.info("unlock ctx, caller:" + methodName);
+    }
+  }
+  
   // Make a copy of the latestAttr
   public Nfs3FileAttributes copyLatestAttr() {
     Nfs3FileAttributes ret;
-    ctxLock.lock();
+    lockCtx();
     ret = new Nfs3FileAttributes(latestAttr);
-    ctxLock.unlock();
+    unlockCtx();
     return ret;
+  }
+  
+  private long getNextOffsetUnprotected() {
+    assert(ctxLock.isLocked());
+    return nextOffset;
   }
 
   public long getNextOffset() {
     long ret;
-    ctxLock.lock();
-    ret = nextOffset;
-    ctxLock.unlock();
+    lockCtx();
+    ret = getNextOffsetUnprotected();
+    unlockCtx();
     return ret;
   }
   
@@ -261,7 +286,7 @@ class OpenFileCtx {
     int count = request.getCount();
     WriteStableHow stableHow = request.getStableHow();
 
-    ctxLock.lock();
+    lockCtx();
     
     if (!activeState) {
        LOG.info("OpenFileCtx is inactive, fileId:"+request.getHandle().getFileId());
@@ -270,7 +295,7 @@ class OpenFileCtx {
            fileWcc, 0, stableHow, Nfs3Constant.WRITE_COMMIT_VERF);
        Nfs3Utils.writeChannel(channel, response.send(new XDR(), xid));
        
-       ctxLock.unlock();
+       unlockCtx();
        return;
     }
     
@@ -280,7 +305,7 @@ class OpenFileCtx {
           + request + " just drop it.");
       // Update the write time first
       updateLastAccessTime();
-      ctxLock.lock();
+      lockCtx();
       return;
     }
     
@@ -290,7 +315,7 @@ class OpenFileCtx {
         + preOpAttr.getSize());
 
     //assert(request.getStableHow() == WriteStableHow.UNSTABLE);
-    long nextOffset = getNextOffset();
+    long nextOffset = getNextOffsetUnprotected();
     if (offset == nextOffset) {
       LOG.info("Add to the list, update nextOffset and notify the writer,"
           + " nextOffset:" + nextOffset);
@@ -309,7 +334,7 @@ class OpenFileCtx {
       // Update the write time first
       updateLastAccessTime();
       Nfs3FileAttributes postOpAttr = new Nfs3FileAttributes(latestAttr);
-      ctxLock.unlock();
+      unlockCtx();
 
       // Send response immediately for unstable write
       if (request.getStableHow() == WriteStableHow.UNSTABLE) {
@@ -332,7 +357,7 @@ class OpenFileCtx {
       checkDump(request.getCount());
       updateLastAccessTime();
       Nfs3FileAttributes postOpAttr = new Nfs3FileAttributes(latestAttr);
-      ctxLock.unlock();
+      unlockCtx();
       
       // In test, noticed some Linux client sends a batch (e.g., 1MB)
       // of reordered writes and won't send more writes until it gets
@@ -348,8 +373,8 @@ class OpenFileCtx {
 
     } else {
       // offset < nextOffset
-      LOG.warn("(offset,count,nextOffset):" + "(" + offset + "," + "count"
-          + "," + "nextOffset" + ")");
+      LOG.warn("(offset,count,nextOffset):" + "(" + offset + "," + count + ","
+          + nextOffset + ")");
       WccData wccData = new WccData(preOpAttr, null);
       WRITE3Response response;
 
@@ -368,7 +393,7 @@ class OpenFileCtx {
       }
       
       updateLastAccessTime();
-      ctxLock.unlock();
+      unlockCtx();
       Nfs3Utils.writeChannel(channel, response.send(new XDR(), xid));
     }
   }
@@ -417,10 +442,12 @@ class OpenFileCtx {
     // Compare with the request
     Comparator comparator = new Comparator();
     if (comparator.compare(readbuffer, 0, readCount, data, 0, count) != 0) {
+      LOG.info("Perfect overwrite has different content");
       response = new WRITE3Response(Nfs3Status.NFS3ERR_INVAL, wccData, 0,
           stableHow, 0);
     } else {
-      // Same content, updating the mtime, return success
+      LOG.info("Perfect overwrite has same content,"
+          + " updating the mtime, then return success");
       Nfs3FileAttributes postOpAttr = null;
       try {
         dfsClient.setTimes(path, System.currentTimeMillis(), -1);
@@ -449,14 +476,14 @@ class OpenFileCtx {
    * error encountered
    */
   public int checkCommit(long commitOffset) {
-    ctxLock.lock();
+    lockCtx();
     if (!activeState) {
-      ctxLock.unlock();
+      unlockCtx();
       return COMMIT_INACTIVE_CTX;
     }
     if (commitOffset == 0) {
       // Commit whole file
-      commitOffset = getNextOffset();
+      commitOffset = getNextOffsetUnprotected();
     }
 
     long flushed = 0;
@@ -464,7 +491,7 @@ class OpenFileCtx {
       flushed = getFlushedOffset();
     } catch (IOException e) {
       LOG.error("Can't get flushed offset, error:" + e);
-      ctxLock.unlock();
+      unlockCtx();
       return COMMIT_ERROR;
     }
 
@@ -472,7 +499,7 @@ class OpenFileCtx {
     if (flushed < commitOffset) {
       // Keep stream active
       updateLastAccessTime();
-      ctxLock.unlock();
+      unlockCtx();
       return COMMIT_WAIT;
     }
 
@@ -489,18 +516,17 @@ class OpenFileCtx {
 
     // Keep stream active
     updateLastAccessTime();
-    ctxLock.unlock();
+    unlockCtx();
     return ret;
   }
   
   private void addWrite(WriteCtx writeCtx) {
+    assert (ctxLock.isLocked());
     long offset = writeCtx.getOffset();
     int count = writeCtx.getCount();
-    
-    ctxLock.lock();
+
     SortedMap<OffsetRange, WriteCtx> writes = getPendingWrites();
     writes.put(new OffsetRange(offset, offset + count), writeCtx);
-    ctxLock.unlock();
   }
   
   
@@ -528,13 +554,13 @@ class OpenFileCtx {
       cleanup();
       flag = true;
     }
-    ctxLock.unlock();
+    unlockCtx();
     return flag;
   }
   
   // Invoked by AsynDataService to do the write back
   public void executeWriteBack() {
-    ctxLock.lock();
+    lockCtx();
     try {
       if (!asyncStatus) {
         // This should never happen.
@@ -556,7 +582,7 @@ class OpenFileCtx {
       // Always reset the async status so another async task can be created
       // for this file
       asyncStatus = false;
-      ctxLock.unlock();
+      unlockCtx();
     }
   }
 
@@ -641,7 +667,7 @@ class OpenFileCtx {
     while (!pendingWrites.isEmpty()) {
       OffsetRange key = pendingWrites.firstKey();
       LOG.info("Fail pending write: (" + key.getMin() + "," + key.getMax()
-          + "), nextOffset=" + getNextOffset());
+          + "), nextOffset=" + getNextOffsetUnprotected());
       // TODO: may not need to reply if it's already replied
       WriteCtx writeCtx = pendingWrites.remove(key);
       WccData fileWcc = new WccData(preOpAttr, latestAttr);
@@ -680,7 +706,7 @@ class OpenFileCtx {
     // Any single write failure can change activeState to false
     while (!pendingWrites.isEmpty() && activeState) {
       // Get the next sequential write
-      nextOffset = getNextOffset();
+      nextOffset = getNextOffsetUnprotected();
       key = pendingWrites.firstKey();
       if (LOG.isTraceEnabled()) {
         LOG.trace("key.getMin()=" + key.getMin() + " nextOffset=" + nextOffset);

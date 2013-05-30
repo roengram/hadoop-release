@@ -69,8 +69,8 @@ class WriteCtx {
   public long dumpData(FileOutputStream dumpOut, RandomAccessFile raf)
       throws IOException {
     if (dataState != ALLOW_DUMP) {
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("No need to dump with status(replied,dataState):" + "("
+      if (LOG.isTraceEnabled()) {
+        LOG.trace("No need to dump with status(replied,dataState):" + "("
             + replied + "," + dataState + ")");
       }
       return 0;
