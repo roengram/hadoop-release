@@ -1,62 +1,13 @@
-Condor release branched from Apache @ https://svn.apache.org/repos/asf/hadoop/common/branches/branch-1@1446352 13f79535-47bb-0310-9956-ffa450edef68
+comanche-branch-1 release branched from condor-branch-1 (SHA1 bb0bbd77479125307c7f08511981e37dd260f767) @ git@github.com:hortonworks/hadoop.git
 
 
-  INCOMPATIBLE CHANGES
+ INCOMPATIBLE CHANGES
 
 
-  NEW FEATURES
+ NEW FEATURES
 
 
-  IMPROVEMENTS
+ IMPROVEMENTS
 
-    MAPREDUCE-5109. Job view-acl should apply to job lists on JobTracker
-    & JobHistory listings too. (vinodkv via acmurthy) 
 
-  BUG FIXES
-
-    MAPREDUCE-5217. Fix DistCP to work when launched by Oozie on a secure
-        cluster. (Venkat Ranganathan via sseth)
-
-    MAPREDUCE-5256. CombineInputFormat isn't thread safe thus affecting
-    HiveServer. (vinodkv)
-
-  Snapshot feature has been merged to condor branch
-
-      Merge is done from the branch condor-1-snap-merge
-
-      BUG-5317. Translate Snapshot doc to forrest.  (szetszwo)
-
-  NFS related chanages
-      
-    No Apache Jira created yet
-        
-        Support execution bit for regular files
-
-        Add support for getting ExtendedFileStatus
-
-        Add support for getting extended file listing
-
-    Changes with Apache jira in trunk
-        
-        HDFS-4334. Add a unique id to each INode.
-
-        HDFS-4635. Move BlockManager#computeCapacity to LightWeightGSet.
-
-        HDFS-4434. Add support for inode ID to inode map
-
-        HDFS-4785. Concat operation does not remove concatenated files from
-        InodeMap. (suresh)
-
-        HDFS-4784. NPE in FSDirectory.resolvePath(). (Brandon Li via suresh)
-
-  Change merged from bimota-1.1.2
-
-    HADOOP-8923. Do not show intermediate web-ui page when authentication
-    cookie (SPENGO/custom) expires.
-
-    HDFS-4108. Fix dfsnodelist to work in secure mode. Contributed by Benoy
-    Antony.
- 
-    HADOOP-9296. Allow users from different realm to authenticate without a
-    trust relationship. (Benoy Antony via acmurthy)
-
+ BUG FIXES
