@@ -153,8 +153,11 @@ class OpenFileCtx {
   public Nfs3FileAttributes copyLatestAttr() {
     Nfs3FileAttributes ret;
     lockCtx();
-    ret = new Nfs3FileAttributes(latestAttr);
-    unlockCtx();
+    try {
+      ret = new Nfs3FileAttributes(latestAttr);
+    } finally {
+      unlockCtx();
+    }
     return ret;
   }
   
@@ -166,8 +169,11 @@ class OpenFileCtx {
   public long getNextOffset() {
     long ret;
     lockCtx();
-    ret = getNextOffsetUnprotected();
-    unlockCtx();
+    try {
+      ret = getNextOffsetUnprotected();
+    } finally {
+      unlockCtx();
+    }
     return ret;
   }
   
@@ -282,39 +288,50 @@ class OpenFileCtx {
   public void receivedNewWrite(DFSClient dfsClient, WRITE3Request request,
       Channel channel, int xid, AsyncDataService asyncDataService,
       IdUserGroup iug) {
+
+    lockCtx();
+    try {
+      if (!activeState) {
+        LOG.info("OpenFileCtx is inactive, fileId:"
+            + request.getHandle().getFileId());
+        WccData fileWcc = new WccData(latestAttr.getWccAttr(), latestAttr);
+        WRITE3Response response = new WRITE3Response(Nfs3Status.NFS3ERR_IO,
+            fileWcc, 0, request.getStableHow(), Nfs3Constant.WRITE_COMMIT_VERF);
+        Nfs3Utils.writeChannel(channel, response.send(new XDR(), xid));
+      } else {
+        // Handle repeated write requests(same xid or not)
+        if (checkRepeatedWriteRequest(request, channel, xid)) {
+          if (LOG.isDebugEnabled()) {
+            LOG.debug("Repeated unstable write request: xid=" + xid
+                + " reqeust:" + request + " just drop it.");
+          }
+          updateLastAccessTime();
+          
+        } else {
+          receivedNewWriteInternal(dfsClient, request, channel, xid,
+              asyncDataService, iug);
+        }
+      }
+
+    } finally {
+      unlockCtx();
+    }
+  }
+
+  private void receivedNewWriteInternal(DFSClient dfsClient,
+      WRITE3Request request, Channel channel, int xid,
+      AsyncDataService asyncDataService, IdUserGroup iug) {
     long offset = request.getOffset();
     int count = request.getCount();
     WriteStableHow stableHow = request.getStableHow();
 
-    lockCtx();
-    
-    if (!activeState) {
-       LOG.info("OpenFileCtx is inactive, fileId:"+request.getHandle().getFileId());
-       WccData fileWcc = new WccData(latestAttr.getWccAttr(), latestAttr);
-       WRITE3Response response = new WRITE3Response(Nfs3Status.NFS3ERR_IO,
-           fileWcc, 0, stableHow, Nfs3Constant.WRITE_COMMIT_VERF);
-       Nfs3Utils.writeChannel(channel, response.send(new XDR(), xid));
-       
-       unlockCtx();
-       return;
-    }
-    
-    // Handle repeated write requests(same xid or not)
-    if (checkRepeatedWriteRequest(request, channel, xid)) {
-      LOG.debug("Repeated unstable write request: xid=" + xid + " reqeust:"
-          + request + " just drop it.");
-      // Update the write time first
-      updateLastAccessTime();
-      lockCtx();
-      return;
-    }
-    
     // Get file length, fail non-append call
     WccAttr preOpAttr = latestAttr.getWccAttr();
-    LOG.info("requesed offset=" + offset + " and current filesize="
-        + preOpAttr.getSize());
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("requesed offset=" + offset + " and current filesize="
+          + preOpAttr.getSize());
+    }
 
-    //assert(request.getStableHow() == WriteStableHow.UNSTABLE);
     long nextOffset = getNextOffsetUnprotected();
     if (offset == nextOffset) {
       LOG.info("Add to the list, update nextOffset and notify the writer,"
@@ -334,7 +351,6 @@ class OpenFileCtx {
       // Update the write time first
       updateLastAccessTime();
       Nfs3FileAttributes postOpAttr = new Nfs3FileAttributes(latestAttr);
-      unlockCtx();
 
       // Send response immediately for unstable write
       if (request.getStableHow() == WriteStableHow.UNSTABLE) {
@@ -357,7 +373,6 @@ class OpenFileCtx {
       checkDump(request.getCount());
       updateLastAccessTime();
       Nfs3FileAttributes postOpAttr = new Nfs3FileAttributes(latestAttr);
-      unlockCtx();
       
       // In test, noticed some Linux client sends a batch (e.g., 1MB)
       // of reordered writes and won't send more writes until it gets
@@ -393,7 +408,6 @@ class OpenFileCtx {
       }
       
       updateLastAccessTime();
-      unlockCtx();
       Nfs3Utils.writeChannel(channel, response.send(new XDR(), xid));
     }
   }
@@ -472,15 +486,26 @@ class OpenFileCtx {
   public final static int COMMIT_ERROR = 3;
 
   /**
-   * return 0: committed, 1: can't commit, need more wait, 2, ctx not active, 3,
-   * error encountered
+   * return one commit status: COMMIT_FINISHED, COMMIT_WAIT,
+   * COMMIT_INACTIVE_CTX, COMMIT_ERROR
    */
   public int checkCommit(long commitOffset) {
+    int ret = COMMIT_WAIT;
+
     lockCtx();
-    if (!activeState) {
+    try {
+      if (!activeState) {
+        ret = COMMIT_INACTIVE_CTX;
+      } else {
+        ret = checkCommitInternal(commitOffset);
+      }
+    } finally {
       unlockCtx();
-      return COMMIT_INACTIVE_CTX;
     }
+    return ret;
+  }
+  
+  private int checkCommitInternal(long commitOffset) {
     if (commitOffset == 0) {
       // Commit whole file
       commitOffset = getNextOffsetUnprotected();
@@ -491,7 +516,6 @@ class OpenFileCtx {
       flushed = getFlushedOffset();
     } catch (IOException e) {
       LOG.error("Can't get flushed offset, error:" + e);
-      unlockCtx();
       return COMMIT_ERROR;
     }
 
@@ -499,7 +523,6 @@ class OpenFileCtx {
     if (flushed < commitOffset) {
       // Keep stream active
       updateLastAccessTime();
-      unlockCtx();
       return COMMIT_WAIT;
     }
 
@@ -516,7 +539,6 @@ class OpenFileCtx {
 
     // Keep stream active
     updateLastAccessTime();
-    unlockCtx();
     return ret;
   }
   
@@ -540,21 +562,25 @@ class OpenFileCtx {
           + "ms is less than MINIMIUM_STREAM_TIMEOUT "
           + WriteManager.MINIMIUM_STREAM_TIMEOUT + "ms");
     }
+    
+    boolean flag = false;
     if (!ctxLock.tryLock()) {
       if (LOG.isTraceEnabled()) {
         LOG.trace("Another thread is working on it" + ctxLock.toString());
       }
-      return false;
+      return flag;
     }
-    boolean flag = false;
-
-    // Check the stream timeout
-    if (checkStreamTimeout(streamTimeout)) {
-      LOG.info("closing stream for fileId:" + fileId);
-      cleanup();
-      flag = true;
+    
+    try {
+      // Check the stream timeout
+      if (checkStreamTimeout(streamTimeout)) {
+        LOG.info("closing stream for fileId:" + fileId);
+        cleanup();
+        flag = true;
+      }
+    } finally {
+      unlockCtx();
     }
-    unlockCtx();
     return flag;
   }
   
