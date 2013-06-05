@@ -228,21 +228,21 @@ public class FSImageFormat {
       int numChildren = in.readInt();
       for (int i = 0; i < numChildren; i++) {
         // load single inode
-        INode newNode = loadINodeWithLocalName(false, in);
+        INode newNode = loadINodeWithLocalName(false, in, true);
         addToParent(parent, newNode);
       }
       return numChildren;
     }
     
     public INode loadINodeWithLocalName(boolean isSnapshotINode,
-        DataInput in) throws IOException {
+        DataInput in, boolean updateINodeMap) throws IOException {
       final byte[] localName = FSImageSerialization.readLocalName(in);
       boolean supportINodeId = LayoutVersion.supports(Feature.ADD_INODE_ID,
           storage.layoutVersion);
       final long id = supportINodeId ? in.readLong()
           : namesystem.allocateNewInodeId();
       INode inode = loadINode(id, localName, isSnapshotINode, in);
-      if (supportINodeId) {
+      if (updateINodeMap && supportINodeId) {
         namesystem.dir.addToInodeMap(inode);
       }
       return inode;
