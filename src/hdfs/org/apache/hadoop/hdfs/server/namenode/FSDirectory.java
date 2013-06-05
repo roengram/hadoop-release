@@ -558,11 +558,13 @@ public class FSDirectory implements FSConstants, Closeable {
             // its reference number here
             final INode originalChild = withCount.getReferredINode();
             srcChild = originalChild;
+            srcChild.setLocalName(srcChildName);
           } else {
             withCount.removeReference(oldSrcChild.asReference());
             final INodeReference originalRef = new INodeReference.DstReference(
                 srcParent, withCount, srcRefDstSnapshot);
             srcChild = originalRef;
+            withCount.getReferredINode().setLocalName(srcChildName);
           }
           
           if (isSrcInSnapshot) {
@@ -1728,7 +1730,7 @@ public class FSDirectory implements FSConstants, Closeable {
     try {
       return addLastINode(inodesInPath, child, inheritPermission, false);
     } catch (QuotaExceededException e) {
-      NameNode.LOG.warn("FSDirectory.addChildNoQuotaCheck - unexpected", e); 
+      NameNode.LOG.warn("FSDirectory.addChildNoQuotaCheck - unexpected", e);
     }
     return false;
   }
