@@ -21,8 +21,12 @@ package org.apache.hadoop.hdfs;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URL;
 import java.net.URLConnection;
 import java.security.PrivilegedExceptionAction;
@@ -34,7 +38,6 @@ import java.util.Random;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
-import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
@@ -377,6 +380,25 @@ public class DFSTestUtil {
 
   public static Statistics getStatistics(FileSystem fs) {
     return FileSystem.getStatistics(fs.getUri().getScheme(), fs.getClass());
+  }
+  
+  /** Copy one file's contents into the other **/
+  public static void copyFile(File src, File dest) throws IOException {
+    InputStream in = null;
+    OutputStream out = null;
+    
+    try {
+      in = new FileInputStream(src);
+      out = new FileOutputStream(dest);
+
+      byte [] b = new byte[1024];
+      while( in.read(b)  > 0 ) {
+        out.write(b);
+      }
+    } finally {
+      if(in != null) in.close();
+      if(out != null) out.close();
+    }
   }
 
   public static byte[] generateSequentialBytes(int start, int length) {
