@@ -1013,7 +1013,7 @@ public class FSDirectory implements FSConstants, Closeable {
         INodeDirectorySnapshottable ssTargetDir = 
             (INodeDirectorySnapshottable) targetDir;
         if (ssTargetDir.getNumSnapshots() > 0) {
-          throw new IOException("The direcotry " + ssTargetDir.getFullPathName()
+          throw new IOException("The directory " + ssTargetDir.getFullPathName()
               + " cannot be deleted since " + ssTargetDir.getFullPathName()
               + " is snapshottable and already has snapshots");
         } else {
