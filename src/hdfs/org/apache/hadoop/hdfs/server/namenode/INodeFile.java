@@ -299,7 +299,8 @@ public class INodeFile extends INodeWithAdditionalFields {
 
   @Override
   public Quota.Counts cleanSubtree(final Snapshot snapshot, Snapshot prior,
-      final BlocksMapUpdateInfo collectedBlocks, final List<INode> removedINodes)
+      final BlocksMapUpdateInfo collectedBlocks,
+      final List<INode> removedINodes, final boolean countDiffChange)
       throws QuotaExceededException {
     Quota.Counts counts = Quota.Counts.newInstance();
     if (snapshot == null && prior == null) {   

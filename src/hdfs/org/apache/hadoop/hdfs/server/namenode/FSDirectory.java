@@ -541,7 +541,7 @@ public class FSDirectory implements FSConstants, Closeable {
                 Quota.Counts.newInstance(), false, Snapshot.INVALID_ID);
             newSrcCounts.subtract(oldSrcCounts);
             srcParent.addSpaceConsumed(newSrcCounts.get(Quota.NAMESPACE),
-                newSrcCounts.get(Quota.DISKSPACE), false, Snapshot.INVALID_ID);
+                newSrcCounts.get(Quota.DISKSPACE), false);
           }
           
           return true;
@@ -945,9 +945,9 @@ public class FSDirectory implements FSConstants, Closeable {
       targetNode.destroyAndCollectBlocks(collectedBlocks, removedINodes);
     } else {
       Quota.Counts counts = targetNode.cleanSubtree(null, latestSnapshot,
-          collectedBlocks, removedINodes);
+          collectedBlocks, removedINodes, true);
       parent.addSpaceConsumed(-counts.get(Quota.NAMESPACE),
-          -counts.get(Quota.DISKSPACE), true, Snapshot.INVALID_ID);
+          -counts.get(Quota.DISKSPACE), true);
       removedNum = counts.get(Quota.NAMESPACE);
     }
     if (NameNode.stateChangeLog.isDebugEnabled()) {
@@ -1397,12 +1397,7 @@ public class FSDirectory implements FSConstants, Closeable {
     if (checkQuota) {
       verifyQuota(inodes, numOfINodes, nsDelta, dsDelta, null);
     }
-    for(int i = 0; i < numOfINodes; i++) {
-      if (inodes[i].isQuotaSet()) { // a directory with quota
-        INodeDirectoryWithQuota node =(INodeDirectoryWithQuota)inodes[i]; 
-        node.addSpaceConsumed2Cache(nsDelta, dsDelta);
-      }
-    }
+    unprotectedUpdateCount(inodes, numOfINodes, nsDelta, dsDelta);
   }
   
   /** 
@@ -1426,7 +1421,8 @@ public class FSDirectory implements FSConstants, Closeable {
                                       long nsDelta, long dsDelta) {
     for(int i=0; i < numOfINodes; i++) {
       if (inodes[i].isQuotaSet()) { // a directory with quota
-        INodeDirectoryWithQuota node =(INodeDirectoryWithQuota)inodes[i]; 
+        INodeDirectoryWithQuota node = (INodeDirectoryWithQuota) inodes[i]
+            .asDirectory(); 
         node.addSpaceConsumed2Cache(nsDelta, dsDelta);
       }
     }
@@ -1625,7 +1621,8 @@ public class FSDirectory implements FSConstants, Closeable {
       }
       if (inodes[i].isQuotaSet()) { // a directory with quota
         try {
-          ((INodeDirectoryWithQuota)inodes[i]).verifyQuota(nsDelta, dsDelta);
+          ((INodeDirectoryWithQuota) inodes[i].asDirectory()).verifyQuota(
+              nsDelta, dsDelta);
         } catch (QuotaExceededException e) {
           e.setPathName(getFullPathName(inodes, i));
           throw e;
