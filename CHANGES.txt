@@ -11,6 +11,9 @@ Release 1.3.0 - unreleased
     HADOOP-9450. HADOOP_USER_CLASSPATH_FIRST is not honored; CLASSPATH
     is PREpended instead of APpended. (Chris Nauroth and harsh via harsh)
 
+    HDFS-4880. Print the image and edits file loaded by the namenode in the
+    logs. (Arpit Agarwal via suresh)
+
   BUG FIXES
 
     MAPREDUCE-5047. keep.failed.task.files=true causes job failure on 

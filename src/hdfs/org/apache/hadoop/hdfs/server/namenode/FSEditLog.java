@@ -646,6 +646,8 @@ public class FSEditLog {
     long startTime = FSNamesystem.now();
     long lastInodeId = fsNamesys.getLastInodeId();
     
+    LOG.info("Start loading edits file " + edits.getName());
+    //
     // Keep track of the file offsets of the last several opcodes.
     // This is handy when manually recovering corrupted edits files.
     PositionTrackingInputStream tracker = 

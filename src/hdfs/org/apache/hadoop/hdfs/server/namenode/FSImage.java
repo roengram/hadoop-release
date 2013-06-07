@@ -808,16 +808,18 @@ public class FSImage extends Storage {
     needToSave |= recoverInterruptedCheckpoint(latestNameSD, latestEditsSD);
 
     long startTime = FSNamesystem.now();
-    long imageSize = getImageFile(latestNameSD, NameNodeFile.IMAGE).length();
+    File imageFile = getImageFile(latestNameSD, NameNodeFile.IMAGE);
+    long imageSize = imageFile.length();
 
     //
     // Load in bits
     //
     latestNameSD.read();
+    LOG.info("Start loading image file " + imageFile.getPath().toString());
     FSImageFormat.Loader loader = new FSImageFormat.Loader(this);
-    needToSave |= loader.load(getImageFile(latestNameSD,
-        NameNodeFile.IMAGE), true);
-    LOG.info("Image file of size " + imageSize + " loaded in " 
+    needToSave |= loader.load(imageFile, true);
+    LOG.info("Image file " + imageFile.getPath().toString() +
+        " of size " + imageSize + " bytes loaded in "
         + (FSNamesystem.now() - startTime)/1000 + " seconds.");
     
     // Load latest edits

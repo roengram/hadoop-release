@@ -613,8 +613,9 @@ public class FSImageFormat {
         out.close();
       }
 
-      LOG.info("Image file of size " + newFile.length() + " saved in " 
-          + (FSNamesystem.now() - startTime)/1000 + " seconds.");
+      LOG.info("Image file " + newFile + " of size " + newFile.length() +
+          " bytes saved in " + (FSNamesystem.now() - startTime)/1000 +
+          " seconds.");
     }
     
     /**
