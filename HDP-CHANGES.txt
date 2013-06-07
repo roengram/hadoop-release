@@ -8,7 +8,8 @@ comanche-branch-1 release branched from condor-branch-1 (SHA1 bb0bbd77479125307c
 
 
   IMPROVEMENTS
-
+    HDFS-4880. Print the image and edits file loaded by the namenode in the
+    logs. (Arpit Agarwal via suresh) 
 
   BUG FIXES
 
@@ -17,21 +18,28 @@ comanche-branch-1 release branched from condor-branch-1 (SHA1 bb0bbd77479125307c
 
     Changes with Apache jira in trunk/branch-2
 
-      HDFS-4842. Snapshot: identify the correct prior snapshot when deleting a snapshot under a renamed subtree. (Jing Zhao)
+      HDFS-4842. Snapshot: identify the correct prior snapshot when deleting 
+      a snapshot under a renamed subtree. (Jing Zhao)
 
-      HDFS-4857. Snapshot.Root and AbstractINodeDiff#snapshotINode should not be put into INodeMap when loading FSImage. (Jing Zhao)
+      HDFS-4857. Snapshot.Root and AbstractINodeDiff#snapshotINode should 
+      not be put into INodeMap when loading FSImage. (Jing Zhao)
       
-      HDFS-4863. The root directory should be added to the snapshottable directory list while loading fsimage. (Jing Zhao)
+      HDFS-4863. The root directory should be added to the snapshottable 
+      directory list while loading fsimage. (Jing Zhao)
 
-      HDFS-4846. Clean up snapshot CLI commands output stacktrace for invalid arguments. (Jing Zhao)
+      HDFS-4846. Clean up snapshot CLI commands output stacktrace for invalid 
+      arguments. (Jing Zhao)
       
-      HDFS-4848. copyFromLocal and renaming a file to .snapshot should output that .snapshot is a reserved name. (Jing Zhao)
+      HDFS-4848. copyFromLocal and renaming a file to .snapshot should output 
+      that .snapshot is a reserved name. (Jing Zhao)
   
-      HDFS-4850. fix OfflineImageViewer to work on fsimages with empty files or snapshots. (Jing Zhao)
+      HDFS-4850. fix OfflineImageViewer to work on fsimages with empty files 
+      or snapshots. (Jing Zhao)
       
       HDFS-4876. The javadoc of FileWithSnapshot is incorrect. (Jing Zhao)
       
-      HDFS-4877. Snapshot: fix the scenario where a directory is renamed under its prior descendant. (Jing Zhao)
+      HDFS-4877. Snapshot: fix the scenario where a directory is renamed under
+      its prior descendant. (Jing Zhao)
    
   NFS related changes
  
@@ -39,13 +47,16 @@ comanche-branch-1 release branched from condor-branch-1 (SHA1 bb0bbd77479125307c
 
       NFS: fix to BUG-5966 fix wrong XDR method names. (Brandon Li)
 
-      NFS: fix to BUG-5750 Input/output error after restarting Namenode while uploading data. (Brandon Li)
+      NFS: fix to BUG-5750 Input/output error after restarting Namenode while 
+      uploading data. (Brandon Li)
       
-      NFS: fix to BUG-5934 RuntimeException causes data loading failure. (Brandon Li)
+      NFS: fix to BUG-5934 RuntimeException causes data loading 
+      failure. (Brandon Li)
 
       NFS: change some trace level and add lock/unlock trace. (Brandon Li)
       
-      NFS: fix to BUG-6111 use final clause to gauarntee OpenFileCtx lock is unlocked eventually. (Brandon Li)
+      NFS: fix to BUG-6111 use final clause to gauarntee OpenFileCtx lock is 
+      unlocked eventually. (Brandon Li)
 
     Changes with Apache jira in trunk
 
