@@ -267,22 +267,21 @@ class OpenFileCtx {
     }
   }
   
-  private boolean checkRepeatedWriteRequest(WRITE3Request request,
+  private WriteCtx checkRepeatedWriteRequest(WRITE3Request request,
       Channel channel, int xid) {
     OffsetRange range = new OffsetRange(request.getOffset(),
         request.getOffset() + request.getCount());
     WriteCtx writeCtx = pendingWrites.get(range);
     if (writeCtx== null) {
-      return false;
+      return null;
     } else {
       if (xid != writeCtx.getXid()) {
         LOG.warn("Got a repeated request, same range, with a different xid:"
             + xid + " xid in old request:" + writeCtx.getXid());
         //TODO: better handling.
       }
-      return true;  
+      return writeCtx;  
     }
-    
   }
   
   public void receivedNewWrite(DFSClient dfsClient, WRITE3Request request,
@@ -299,11 +298,27 @@ class OpenFileCtx {
             fileWcc, 0, request.getStableHow(), Nfs3Constant.WRITE_COMMIT_VERF);
         Nfs3Utils.writeChannel(channel, response.send(new XDR(), xid));
       } else {
-        // Handle repeated write requests(same xid or not)
-        if (checkRepeatedWriteRequest(request, channel, xid)) {
-          if (LOG.isDebugEnabled()) {
-            LOG.debug("Repeated unstable write request: xid=" + xid
-                + " reqeust:" + request + " just drop it.");
+        // Handle repeated write requests(same xid or not).
+        // If already replied, send reply again. If not replied, drop the
+        // repeated request.
+        WriteCtx existantWriteCtx = checkRepeatedWriteRequest(request, channel,
+            xid);
+        if (existantWriteCtx != null) {
+          if (!existantWriteCtx.getReplied()) {
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("Repeated write request which hasn't be served: xid="
+                  + xid + ", drop it.");
+            }
+          } else {
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("Repeated write request which is already served: xid="
+                  + xid + ", resend response.");
+            }
+            WccData fileWcc = new WccData(latestAttr.getWccAttr(), latestAttr);
+            WRITE3Response response = new WRITE3Response(Nfs3Status.NFS3_OK,
+                fileWcc, request.getCount(), request.getStableHow(),
+                Nfs3Constant.WRITE_COMMIT_VERF);
+            Nfs3Utils.writeChannel(channel, response.send(new XDR(), xid));
           }
           updateLastAccessTime();
           
