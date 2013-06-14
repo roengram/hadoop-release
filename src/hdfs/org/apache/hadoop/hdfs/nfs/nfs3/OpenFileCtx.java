@@ -33,6 +33,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.hdfs.DFSClient;
+import org.apache.hadoop.hdfs.DFSClient.DFSOutputStream;
 import org.apache.hadoop.io.BytesWritable.Comparator;
 import org.apache.hadoop.nfs.nfs3.FileHandle;
 import org.apache.hadoop.nfs.nfs3.IdUserGroup;
@@ -444,6 +445,9 @@ class OpenFileCtx {
     int readCount = 0;
     FSDataInputStream fis = null;
     try {
+      // Sync file data and length to avoid partial read failure
+      ((DFSOutputStream) fos.getWrappedStream()).sync(true);
+      
       fis = new DFSClient.DFSDataInputStream(dfsClient.open(path));
       readCount = fis.read((int) offset, readbuffer, 0, count);
       if (readCount < count) {
@@ -543,7 +547,8 @@ class OpenFileCtx {
 
     int ret = COMMIT_WAIT;
     try {
-      fos.sync();
+      // Sync file data and length
+      ((DFSOutputStream) fos.getWrappedStream()).sync(true);
       // Nothing to do for metadata since attr related change is pass-through
       ret = COMMIT_FINISHED;
     } catch (IOException e) {
@@ -601,29 +606,78 @@ class OpenFileCtx {
   
   // Invoked by AsynDataService to do the write back
   public void executeWriteBack() {
-    lockCtx();
+    SortedMap<OffsetRange, WriteCtx> pendingWrites = getPendingWrites();
+    long nextOffset;
+    OffsetRange key;
+    WriteCtx writeCtx;
+
     try {
-      if (!asyncStatus) {
-        // This should never happen.
-        LOG.fatal("The openFileCtx has false async status");
-        System.exit(-1);
-      }
-      if (getPendingWrites().isEmpty()) {
-        // This should never happen.
-        LOG.fatal("The asyn write task has no pendding writes! fileId:"
-            + latestAttr.getFileId());
-        System.exit(-2);
+      // Don't lock OpenFileCtx for all writes to reduce the timeout of other
+      // client request to the same file
+      while (true) {
+        lockCtx();
+        if (!asyncStatus) {
+          // This should never happen. There should be only one thread working
+          // on one OpenFileCtx anytime.
+          LOG.fatal("The openFileCtx has false async status");
+          throw new RuntimeException("The openFileCtx has false async status");
+        }
+        // Any single write failure can change activeState to false, so do the
+        // check each loop.
+        if (pendingWrites.isEmpty()) {
+          if (LOG.isDebugEnabled()) {
+            LOG.debug("The asyn write task has no pendding writes, fileId: "
+                + latestAttr.getFileId());
+          }
+          break;
+        }
+        if (!activeState) {
+          if (LOG.isDebugEnabled()) {
+            LOG.debug("The openFileCtx is not active anymore, fileId: "
+                + latestAttr.getFileId());
+          }
+          break;
+        }
+
+        // Get the next sequential write
+        nextOffset = getNextOffsetUnprotected();
+        key = pendingWrites.firstKey();
+        if (LOG.isTraceEnabled()) {
+          LOG.trace("key.getMin()=" + key.getMin() + " nextOffset="
+              + nextOffset);
+        }
+
+        if (key.getMin() > nextOffset) {
+          if (LOG.isDebugEnabled()) {
+            LOG.info("The next sequencial write has not arrived yet");
+          }
+          break;
+
+        } else if (key.getMin() < nextOffset && key.getMax() > nextOffset) {
+          // Can't handle overlapping write. Didn't see it in tests yet.
+          throw new RuntimeException("Got a overlapping write (" + key.getMin()
+              + "," + key.getMax() + "), nextOffset=" + nextOffset);
+
+        } else {
+          if (LOG.isTraceEnabled()) {
+            LOG.trace("Remove write(" + key.getMin() + "-" + key.getMax()
+                + ") from the list");
+          }
+          writeCtx = pendingWrites.remove(key);
+          // Do the write
+          doSingleWrite(writeCtx);
+          updateLastAccessTime();
+        }
+        unlockCtx();
       }
 
-      doWrites();
-
-    } catch (IOException e) {
-      LOG.info("got exception when writing back:" + e);
     } finally {
       // Always reset the async status so another async task can be created
       // for this file
       asyncStatus = false;
-      unlockCtx();
+      if (ctxLock.isHeldByCurrentThread()) {
+        unlockCtx();
+      }
     }
   }
 
@@ -735,43 +789,5 @@ class OpenFileCtx {
     }
     File dumpFile = new File(dumpFilePath);
     dumpFile.delete();
-  }
-  
-  private void doWrites() throws IOException {
-    assert(ctxLock.isLocked());
-    long nextOffset;
-    OffsetRange key;
-    WriteCtx writeCtx;
-    SortedMap<OffsetRange, WriteCtx> pendingWrites = getPendingWrites();
-
-    // Any single write failure can change activeState to false
-    while (!pendingWrites.isEmpty() && activeState) {
-      // Get the next sequential write
-      nextOffset = getNextOffsetUnprotected();
-      key = pendingWrites.firstKey();
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("key.getMin()=" + key.getMin() + " nextOffset=" + nextOffset);
-      }
-
-      if (key.getMin() > nextOffset) {
-        LOG.info("The next sequencial write has not arrived yet");
-        return;
-
-      } else if (key.getMin() < nextOffset && key.getMax() > nextOffset) {
-        // Can't handle overlapping write. Didn't see it in tests yet.
-        throw new IOException("Got a overlapping write (" + key.getMin() + ","
-            + key.getMax() + "), nextOffset=" + nextOffset);
-
-      } else {
-        if (LOG.isTraceEnabled()) {
-          LOG.trace("Remove write(" + key.getMin() + "-" + key.getMax()
-              + ") from the list");
-        }
-        writeCtx = pendingWrites.remove(key);
-        // Do the write
-        doSingleWrite(writeCtx);
-        updateLastAccessTime();
-      }
-    }
   }
 }
