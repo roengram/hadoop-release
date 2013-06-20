@@ -18,6 +18,7 @@
 package org.apache.hadoop.nfs.nfs3.request;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 import org.apache.hadoop.nfs.nfs3.FileHandle;
 import org.apache.hadoop.nfs.nfs3.Nfs3Constant.WriteStableHow;
@@ -30,18 +31,18 @@ public class WRITE3Request extends RequestWithHandle {
   private final long offset;
   private final int count;
   private final WriteStableHow stableHow;
-  private final byte[] data;
+  private final ByteBuffer data;
 
   public WRITE3Request(XDR xdr) throws IOException {
     super(xdr);
     offset = xdr.readHyper();
     count = xdr.readInt();
     stableHow = WriteStableHow.fromValue(xdr.readInt());
-    data = xdr.readFixedOpaque(xdr.readInt());
+    data = ByteBuffer.wrap(xdr.readFixedOpaque(xdr.readInt()));
   }
 
   public WRITE3Request(FileHandle handle, final long offset, final int count,
-      final WriteStableHow stableHow, final byte[] data) {
+      final WriteStableHow stableHow, final ByteBuffer data) {
     super(handle);
     this.offset = offset;
     this.count = count;
@@ -61,7 +62,7 @@ public class WRITE3Request extends RequestWithHandle {
     return this.stableHow;
   }
 
-  public byte[] getData() {
+  public ByteBuffer getData() {
     return this.data;
   }
 
@@ -72,6 +73,6 @@ public class WRITE3Request extends RequestWithHandle {
     xdr.writeInt(count);
     xdr.writeInt(stableHow.getValue());
     xdr.writeInt(count);
-    xdr.writeFixedOpaque(data, count);
+    xdr.writeFixedOpaque(data.array(), count);
   }
 }

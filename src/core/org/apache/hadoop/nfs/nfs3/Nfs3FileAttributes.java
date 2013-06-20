@@ -53,15 +53,15 @@ public class Nfs3FileAttributes {
    * For Hadoop, currently this field is always zero.
    */
   public static class Specdata3 {
-    final int specdata1 = 0;
-    final int specdata2 = 0;
+    final static int specdata1 = 0;
+    final static int specdata2 = 0;
 
     public int getSpecdata1() {
-      return this.specdata1;
+      return specdata1;
     }
 
     public int getSpecdata2() {
-      return this.specdata2;
+      return specdata2;
     }
     
     @Override
@@ -130,9 +130,6 @@ public class Nfs3FileAttributes {
   }
   
   public static Nfs3FileAttributes deserialize(XDR xdr) {
-    //if (!XDR.verifyLength(xdr, 32)) {
-    //  return false;
-   // }
     Nfs3FileAttributes attr = new Nfs3FileAttributes();
     attr.type = xdr.readInt();
     attr.mode = xdr.readInt();
@@ -196,10 +193,6 @@ public class Nfs3FileAttributes {
   
   public WccAttr getWccAttr() {
     return new WccAttr(size, mtime, ctime);
-  }
-  
-  public void setNlink(int nlink) {
-    this.nlink = nlink;
   }
   
   public long getFileId() {

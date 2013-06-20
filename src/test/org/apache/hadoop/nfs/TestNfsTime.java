@@ -17,25 +17,31 @@
  */
 package org.apache.hadoop.nfs;
 
-/**
- * Class encapsulates different types of files
- */
-public enum NfsFileType {
-  NFSREG(1),    // a regular file
-  NFSDIR(2),    // a directory
-  NFSBLK(3),    // a block special device file
-  NFSCHR(4),    // a character special device
-  NFSLNK(5),    // a symbolic link
-  NFSSOCK(6),   // a socket
-  NFSFIFO(7);   // a named pipe
-  
-  private final int value;
-  
-  NfsFileType(int val) {
-    value = val;
+import junit.framework.Assert;
+
+import org.apache.hadoop.nfs.NfsTime;
+import org.apache.hadoop.oncrpc.XDR;
+import org.junit.Test;
+
+public class TestNfsTime {
+  @Test
+  public void testConstructor() {
+    NfsTime nfstime = new NfsTime(1001);
+    Assert.assertEquals(1, nfstime.getSeconds());
+    Assert.assertEquals(1000000, nfstime.getNseconds());
   }
   
-  public int toValue() {
-    return value;
+  @Test
+  public void testSerializeDeserialize() {
+    // Serialize NfsTime
+    NfsTime t1 = new NfsTime(1001);
+    XDR xdr = new XDR();
+    t1.serialize(xdr);
+    
+    // Deserialize it back
+    NfsTime t2 = NfsTime.deserialize(xdr);
+    
+    // Ensure the NfsTimes are equal
+    Assert.assertEquals(t1, t2);
   }
 }

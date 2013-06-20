@@ -27,7 +27,7 @@ import org.apache.hadoop.oncrpc.RpcAuthInfo.AuthFlavor;
  * Helper class for sending MountResponse
  */
 public class MountResponse {
-  public static int MNT_OK = 0;
+  public final static int MNT_OK = 0;
   
   /** Hidden constructor */
   private MountResponse() {
@@ -64,11 +64,11 @@ public class MountResponse {
   public static XDR writeExportList(XDR xdr, int xid, List<String> exports) {
     RpcAcceptedReply.voidReply(xdr, xid);
     for (String export : exports) {
-      xdr.writeBoolean(true); // Value follows yes
+      xdr.writeBoolean(true); // Value follows - yes
       xdr.writeString(export);
       xdr.writeInt(0);
     }
-    xdr.writeBoolean(false); // Value follows no
+    xdr.writeBoolean(false); // Value follows - no
     return xdr;
   }
 }

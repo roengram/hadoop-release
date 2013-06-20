@@ -35,7 +35,7 @@ public class FileHandle {
   private static final Log LOG = LogFactory.getLog(FileHandle.class);
   private static final String HEXES = "0123456789abcdef";
   private static final int HANDLE_LEN = 32;
-  private byte[] handle; // Opque handle
+  private byte[] handle; // Opaque handle
   private long fileId = -1;
 
   public FileHandle() {
@@ -43,7 +43,7 @@ public class FileHandle {
   }
 
   /**
-   * Handle is a 32 bytes number. Last 8 bytes is the HDFS fileId
+   * Handle is a 32 bytes number. For HDFS, the last 8 bytes is fileId.
    */
   public FileHandle(long v) {
     fileId = v;
@@ -124,7 +124,7 @@ public class FileHandle {
   }
   
   public byte[] getContent() {
-    return handle;
+    return handle.clone();
   }
   
   @Override

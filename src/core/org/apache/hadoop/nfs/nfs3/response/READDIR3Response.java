@@ -21,6 +21,8 @@ import org.apache.hadoop.nfs.nfs3.Nfs3FileAttributes;
 import org.apache.hadoop.nfs.nfs3.Nfs3Status;
 import org.apache.hadoop.oncrpc.XDR;
 
+import com.google.common.collect.ObjectArrays;
+
 /**
  * READDIR3 Response
  */
@@ -54,20 +56,12 @@ public class READDIR3Response extends NFS3Response {
   }
 
   public static class DirList3 {
-    private final Entry3 entries[];
-    private final boolean eof;
+    final Entry3 entries[];
+    final boolean eof;
     
     public DirList3(Entry3[] entries, boolean eof) {
-      this.entries = entries;
+      this.entries = ObjectArrays.newArray(entries, entries.length);
       this.eof = eof;
-    }
-
-    public Entry3[] getEntries() {
-      return entries;
-    }
-
-    public boolean getEof() {
-      return eof;
     }
   }
 
@@ -107,7 +101,7 @@ public class READDIR3Response extends NFS3Response {
 
     if (getStatus() == Nfs3Status.NFS3_OK) {
       xdr.writeLongAsHyper(cookieVerf);
-      Entry3[] f = dirList.getEntries();
+      Entry3[] f = dirList.entries;
       for (int i = 0; i < f.length; i++) {
         xdr.writeBoolean(true); // Value follows
         xdr.writeLongAsHyper(f[i].getFileId());
@@ -116,7 +110,7 @@ public class READDIR3Response extends NFS3Response {
       }
 
       xdr.writeBoolean(false);
-      xdr.writeBoolean(dirList.getEof());
+      xdr.writeBoolean(dirList.eof);
     }
     return xdr;
   }

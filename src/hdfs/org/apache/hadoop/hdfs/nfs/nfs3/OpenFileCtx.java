@@ -353,7 +353,7 @@ class OpenFileCtx {
       LOG.info("Add to the list, update nextOffset and notify the writer,"
           + " nextOffset:" + nextOffset);
       WriteCtx writeCtx = new WriteCtx(request.getHandle(), request.getOffset(),
-          request.getCount(), request.getStableHow(), request.getData(),
+          request.getCount(), request.getStableHow(), request.getData().array(),
           channel, xid, false, WriteCtx.NO_DUMP);
       addWrite(writeCtx);
       nextOffset = offset + count;
@@ -382,7 +382,7 @@ class OpenFileCtx {
           + nextOffset);
       WriteCtx writeCtx = new WriteCtx(request.getHandle(),
           request.getOffset(), request.getCount(), request.getStableHow(),
-          request.getData(), channel, xid, false, WriteCtx.ALLOW_DUMP);
+          request.getData().array(), channel, xid, false, WriteCtx.ALLOW_DUMP);
       addWrite(writeCtx);
 
       // Check if need to dump some pending requests to file
@@ -419,8 +419,8 @@ class OpenFileCtx {
           LOG.debug("Process perfectOverWrite");
         }
         response = processPerfectOverWrite(dfsClient, offset, count, stableHow,
-            request.getData(), Nfs3Utils.getFileIdPath(request.getHandle()),
-            wccData, iug);
+            request.getData().array(),
+            Nfs3Utils.getFileIdPath(request.getHandle()), wccData, iug);
       }
       
       updateLastAccessTime();

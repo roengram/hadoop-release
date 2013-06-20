@@ -36,7 +36,8 @@ public class READLINK3Response extends NFS3Response {
       byte path[]) {
     super(status);
     this.postOpSymlinkAttr = postOpAttr;
-    this.path = path;
+    this.path = new byte[path.length];
+    System.arraycopy(path, 0, this.path, 0, path.length);
   }
 
   @Override

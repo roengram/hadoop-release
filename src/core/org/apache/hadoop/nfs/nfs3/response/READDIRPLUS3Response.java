@@ -22,6 +22,8 @@ import org.apache.hadoop.nfs.nfs3.Nfs3FileAttributes;
 import org.apache.hadoop.nfs.nfs3.Nfs3Status;
 import org.apache.hadoop.oncrpc.XDR;
 
+import com.google.common.collect.ObjectArrays;
+
 /**
  * READDIRPLUS3 Response
  */
@@ -62,7 +64,7 @@ public class READDIRPLUS3Response  extends NFS3Response {
     boolean eof;
     
     public DirListPlus3(EntryPlus3[] entries, boolean eof) {
-      this.entries = entries;
+      this.entries = ObjectArrays.newArray(entries, entries.length);
       this.eof = eof;
     }
 

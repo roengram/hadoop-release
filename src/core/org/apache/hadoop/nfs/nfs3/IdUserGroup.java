@@ -45,8 +45,8 @@ public class IdUserGroup {
   final static long TIMEOUT = 15 * 60 * 1000; // ms
 
   // Maps for id to name map. Guarded by this object monitor lock */
-  private static BiMap<Integer, String> uidNameMap = HashBiMap.create();
-  private static BiMap<Integer, String> gidNameMap = HashBiMap.create();
+  private BiMap<Integer, String> uidNameMap = HashBiMap.create();
+  private BiMap<Integer, String> gidNameMap = HashBiMap.create();
 
   private long lastUpdateTime = 0; // Last time maps were updated
 
@@ -70,23 +70,38 @@ public class IdUserGroup {
    */
   private void updateMapInternal(BiMap<Integer, String> map, String name,
       String command, String regex) throws IOException {
-    Process process = Runtime.getRuntime().exec(
-        new String[] { "bash", "-c", command });
-    BufferedReader br = new BufferedReader(new InputStreamReader(
-        process.getInputStream()));
-    String line = null;
-    while ((line = br.readLine()) != null) {
-      String[] nameId = line.split(regex);
-      if ((nameId == null) || (nameId.length != 2)) {
-        throw new IOException("Can't parse " + name + " list entry:" + line);
+    BufferedReader br = null;
+    try {
+      Process process = Runtime.getRuntime().exec(
+          new String[] { "bash", "-c", command });
+      br = new BufferedReader(new InputStreamReader(process.getInputStream()));
+      String line = null;
+      while ((line = br.readLine()) != null) {
+        String[] nameId = line.split(regex);
+        if ((nameId == null) || (nameId.length != 2)) {
+          throw new IOException("Can't parse " + name + " list entry:" + line);
+        }
+        LOG.debug("add " + name + ":" + nameId[0] + " id:" + nameId[1]);
+        map.put(Integer.valueOf(nameId[1]), nameId[0]);
       }
-      LOG.debug("add " + name + ":" + nameId[0] + " id:" + nameId[1]);
-      map.put(Integer.valueOf(nameId[1]), nameId[0]);
+      LOG.info("Updated " + name + " map size:" + map.size());
+      
+    } catch (IOException e) {
+      LOG.error("Can't update map " + name);
+      throw e;
+    } finally {
+      if (br != null) {
+        try {
+          br.close();
+        } catch (IOException e1) {
+          LOG.error("Can't close BufferedReader of command result");
+          e1.printStackTrace();
+        }
+      }
     }
-    LOG.info("Updated " + name + " map size:" + map.size());
   }
 
-  public void updateMaps() {
+  synchronized public void updateMaps() {
     BiMap<Integer, String> uMap = HashBiMap.create();
     BiMap<Integer, String> gMap = HashBiMap.create();
 

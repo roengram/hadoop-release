@@ -15,27 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hadoop.nfs;
+package org.apache.hadoop.nfs.nfs3;
 
-/**
- * Class encapsulates different types of files
- */
-public enum NfsFileType {
-  NFSREG(1),    // a regular file
-  NFSDIR(2),    // a directory
-  NFSBLK(3),    // a block special device file
-  NFSCHR(4),    // a character special device
-  NFSLNK(5),    // a symbolic link
-  NFSSOCK(6),   // a socket
-  NFSFIFO(7);   // a named pipe
-  
-  private final int value;
-  
-  NfsFileType(int val) {
-    value = val;
-  }
-  
-  public int toValue() {
-    return value;
+import junit.framework.Assert;
+
+import org.apache.hadoop.nfs.nfs3.FileHandle;
+import org.apache.hadoop.oncrpc.XDR;
+import org.junit.Test;
+
+public class TestFileHandle {
+  @Test
+  public void testConstructor() {
+    FileHandle handle = new FileHandle(1024);
+    XDR xdr = new XDR();
+    handle.serialize(xdr);
+    Assert.assertEquals(handle.getFileId(), 1024);
+
+    // Deserialize it back 
+    FileHandle handle2 = new FileHandle();
+    handle2.deserialize(xdr);
+    Assert.assertEquals(handle.getFileId(), 1024);
   }
 }

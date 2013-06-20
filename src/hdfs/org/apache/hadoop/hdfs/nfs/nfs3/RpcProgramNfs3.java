@@ -20,6 +20,7 @@ package org.apache.hadoop.hdfs.nfs.nfs3;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.util.EnumSet;
 import java.util.List;
 
@@ -486,7 +487,8 @@ public class RpcProgramNfs3 extends RpcProgram implements Nfs3Interface {
           authSys.getGid(), attrs);
       if ((access & Nfs3Constant.ACCESS3_READ) != 0) {
         eof = offset < attrs.getSize() ? false : true;
-        return new READ3Response(Nfs3Status.NFS3_OK, attrs, 0, eof, new byte[0]);
+        return new READ3Response(Nfs3Status.NFS3_OK, attrs, 0, eof,
+            ByteBuffer.wrap(new byte[0]));
       } else {
         return new READ3Response(Nfs3Status.NFS3ERR_ACCES);
       }
@@ -515,7 +517,7 @@ public class RpcProgramNfs3 extends RpcProgram implements Nfs3Interface {
       }
       eof = (offset + readCount) < attrs.getSize() ? false : true;
       return new READ3Response(Nfs3Status.NFS3_OK, attrs, readCount, eof,
-          readbuffer);
+          ByteBuffer.wrap(readbuffer));
 
     } catch (IOException e) {
       LOG.warn("Read error: " + e.getClass() + " offset: " + offset
@@ -546,7 +548,7 @@ public class RpcProgramNfs3 extends RpcProgram implements Nfs3Interface {
     long offset = request.getOffset();
     int count = request.getCount();
     WriteStableHow stableHow = request.getStableHow();
-    byte[] data = request.getData();
+    byte[] data = request.getData().array();
     if (data.length < count) {
       LOG.error("Invalid argument, data size is less than count in request");
       return new WRITE3Response(Nfs3Status.NFS3ERR_INVAL);

@@ -64,6 +64,7 @@ public abstract class Nfs3Base {
       @Override
       public ChannelPipelineFactory getPipelineFactory() {
         return new ChannelPipelineFactory() {
+          @Override
           public ChannelPipeline getPipeline() {
             return Channels.pipeline(new RpcFrameDecoder(),
                 new SimpleTcpServerHandler(rpcProgram));

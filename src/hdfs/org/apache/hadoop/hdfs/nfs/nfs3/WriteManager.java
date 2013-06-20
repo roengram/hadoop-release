@@ -111,7 +111,7 @@ public class WriteManager {
     long offset = request.getOffset();
     int count = request.getCount();
     WriteStableHow stableHow = request.getStableHow();
-    byte[] data = request.getData();
+    byte[] data = request.getData().array();
     if (data.length < count) {
       WRITE3Response response = new WRITE3Response(Nfs3Status.NFS3ERR_INVAL);
       Nfs3Utils.writeChannel(channel, response.send(new XDR(), xid));

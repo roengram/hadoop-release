@@ -17,6 +17,8 @@
  */
 package org.apache.hadoop.nfs.nfs3.response;
 
+import java.nio.ByteBuffer;
+
 import org.apache.hadoop.nfs.nfs3.Nfs3FileAttributes;
 import org.apache.hadoop.nfs.nfs3.Nfs3Status;
 import org.apache.hadoop.oncrpc.XDR;
@@ -28,14 +30,14 @@ public class READ3Response extends NFS3Response {
   private final Nfs3FileAttributes postOpAttr;
   private final int count; // The real bytes of read data
   private final boolean eof;
-  private final byte data[];
+  private final ByteBuffer data;
 
   public READ3Response(int status) {
     this(status, new Nfs3FileAttributes(), 0, false, null);
   }
   
   public READ3Response(int status, Nfs3FileAttributes postOpAttr, int count,
-      boolean eof, byte[] data) {
+      boolean eof, ByteBuffer data) {
     super(status);
     this.postOpAttr = postOpAttr;
     this.count = count;
@@ -55,7 +57,7 @@ public class READ3Response extends NFS3Response {
     return eof;
   }
 
-  public byte[] getData() {
+  public ByteBuffer getData() {
     return data;
   }
 
@@ -69,7 +71,7 @@ public class READ3Response extends NFS3Response {
       out.writeInt(count);
       out.writeBoolean(eof);
       out.writeInt(count);
-      out.writeFixedOpaque(data, count);
+      out.writeFixedOpaque(data.array(), count);
     }
     return out;
   }
