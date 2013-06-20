@@ -28,8 +28,8 @@ public class TestRpcAuthSys {
   @Test
   public void testConstructor() {
     RpcAuthSys auth = new RpcAuthSys(0, 1);
-    assertEquals(0, auth.getGid());
-    assertEquals(1, auth.getUid());
+    assertEquals(0, auth.getUid());
+    assertEquals(1, auth.getGid());
   }
   
   @Test
@@ -39,7 +39,7 @@ public class TestRpcAuthSys {
     bytes = XDR.append(bytes, XDR.toBytes(0)); // gid
     bytes = XDR.append(bytes, XDR.toBytes(1)); // uid
     RpcAuthSys auth = RpcAuthSys.from(bytes);
-    assertEquals(0, auth.getGid());
-    assertEquals(1, auth.getUid());
+    assertEquals(0, auth.getUid());
+    assertEquals(1, auth.getGid());
   }
 }
