@@ -23,7 +23,6 @@ import java.util.concurrent.Executors;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.jboss.netty.bootstrap.ServerBootstrap;
-import org.jboss.netty.channel.ChannelException;
 import org.jboss.netty.channel.ChannelFactory;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
@@ -56,6 +55,7 @@ public class SimpleTcpServer {
 
   public ChannelPipelineFactory getPipelineFactory() {
     return new ChannelPipelineFactory() {
+      @Override
       public ChannelPipeline getPipeline() {
         return Channels.pipeline(new RpcFrameDecoder(),
             new SimpleTcpServerHandler(rpcProgram));
@@ -82,14 +82,9 @@ public class SimpleTcpServer {
     bootstrap.setOption("child.keepAlive", true);
     
     // Listen to TCP port
-    try {
-      bootstrap.bind(new InetSocketAddress(port));
-    } catch (ChannelException e) {
-      LOG.error("Can't bind TCP port " + port + " for " + rpcProgram
-          + ", error: " + e);
-      System.exit(-1);
-    }
-    LOG.info("Started listening to TCP requests at port " + port
-        + " for " + rpcProgram + " with workerCount " + workerCount);
+    bootstrap.bind(new InetSocketAddress(port));
+
+    LOG.info("Started listening to TCP requests at port " + port + " for "
+        + rpcProgram + " with workerCount " + workerCount);
   }
 }

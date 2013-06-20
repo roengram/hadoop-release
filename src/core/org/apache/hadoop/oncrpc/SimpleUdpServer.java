@@ -23,7 +23,6 @@ import java.util.concurrent.Executors;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.jboss.netty.bootstrap.ConnectionlessBootstrap;
-import org.jboss.netty.channel.ChannelException;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
 import org.jboss.netty.channel.Channels;
@@ -48,6 +47,7 @@ public class SimpleUdpServer {
     this.rpcProgram = program;
     this.workerCount = workerCount;
     this.pipelineFactory = new ChannelPipelineFactory() {
+      @Override
       public ChannelPipeline getPipeline() {
         return Channels.pipeline(new SimpleUdpServerHandler(rpcProgram));
       }
@@ -68,14 +68,9 @@ public class SimpleUdpServer {
     b.setOption("receiveBufferSize", RECEIVE_BUFFER_SIZE);
     
     // Listen to the UDP port
-    try {
-      b.bind(new InetSocketAddress(port));
-    } catch (ChannelException e) {
-      LOG.error("Can't bind UDP port " + port + " for " + rpcProgram
-          + ", error: " + e);
-      System.exit(-1);
-    }
-    LOG.info("Started listening to UDP requests at port " + port
-        + " for " + rpcProgram + " with workerCount " + workerCount);
+    b.bind(new InetSocketAddress(port));
+
+    LOG.info("Started listening to UDP requests at port " + port + " for "
+        + rpcProgram + " with workerCount " + workerCount);
   }
 }

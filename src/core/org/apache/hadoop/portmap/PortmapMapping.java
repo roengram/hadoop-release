@@ -26,8 +26,8 @@ import org.apache.hadoop.oncrpc.XDR;
  * This maps a program to a port number.
  */
 public class PortmapMapping {
-  public static int TRANSPORT_TCP = 6;
-  public static int TRANSPORT_UDP = 17;
+  public static final int TRANSPORT_TCP = 6;
+  public static final int TRANSPORT_UDP = 17;
 
   private final int program;
   private final int version;

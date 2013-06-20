@@ -47,7 +47,12 @@ public class Portmap {
   public static void main(String[] args) {
     StringUtils.startupShutdownMessage(Portmap.class, args, LOG);
     RpcProgramPortmap program = new RpcProgramPortmap();
-    startUDPServer(program);
-    startTCPServer(program);
+    try {
+      startUDPServer(program);
+      startTCPServer(program);
+    } catch (Throwable e) {
+      LOG.fatal("Start server failure");
+      System.exit(-1);
+    }
   }
 }

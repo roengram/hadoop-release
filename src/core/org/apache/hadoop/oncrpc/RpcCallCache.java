@@ -117,7 +117,7 @@ public class RpcCallCache {
       @Override
       protected boolean removeEldestEntry(
           java.util.Map.Entry<ClientRequest, CacheEntry> eldest) {
-        return size() > maxEntries;
+        return RpcCallCache.this.size() > maxEntries;
       }
     };
   }

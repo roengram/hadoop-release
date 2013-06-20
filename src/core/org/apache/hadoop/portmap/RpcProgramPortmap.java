@@ -34,8 +34,8 @@ import org.jboss.netty.channel.Channel;
  * An rpcbind request handler.
  */
 public class RpcProgramPortmap extends RpcProgram implements PortmapInterface {
-  public static int PROGRAM = 100000;
-  public static int VERSION = 2;
+  public static final int PROGRAM = 100000;
+  public static final int VERSION = 2;
   
   private static final Log LOG = LogFactory.getLog(RpcProgramPortmap.class);
 
@@ -55,11 +55,13 @@ public class RpcProgramPortmap extends RpcProgram implements PortmapInterface {
           + entry.getValue());
     }
   }
-
+  
+  @Override
   public XDR nullOp(int xid, XDR in, XDR out) {
     return PortmapResponse.voidReply(out, xid);
   }
 
+  @Override
   public XDR set(int xid, XDR in, XDR out) {
     PortmapMapping mapping = PortmapRequest.mapping(in);
     String key = PortmapMapping.key(mapping);
@@ -76,6 +78,7 @@ public class RpcProgramPortmap extends RpcProgram implements PortmapInterface {
     return PortmapResponse.intReply(out, xid, value.getPort());
   }
 
+  @Override
   public synchronized XDR unset(int xid, XDR in, XDR out) {
     PortmapMapping mapping = PortmapRequest.mapping(in);
     synchronized(this) {
@@ -84,6 +87,7 @@ public class RpcProgramPortmap extends RpcProgram implements PortmapInterface {
     return PortmapResponse.booleanReply(out, xid, true);
   }
 
+  @Override
   public synchronized XDR getport(int xid, XDR in, XDR out) {
     PortmapMapping mapping = PortmapRequest.mapping(in);
     String key = PortmapMapping.key(mapping);
@@ -106,6 +110,7 @@ public class RpcProgramPortmap extends RpcProgram implements PortmapInterface {
     return PortmapResponse.intReply(out, xid, res);
   }
 
+  @Override
   public synchronized XDR dump(int xid, XDR in, XDR out) {
     PortmapMapping[] pmapList = null;
     synchronized(this) {

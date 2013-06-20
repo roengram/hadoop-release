@@ -91,14 +91,14 @@ public abstract class RpcProgram {
    */
   protected void register(PortmapMapping mapEntry) {
     XDR mappingRequest = PortmapRequest.create(mapEntry);
-    SimpleUdpClient registrationClient = new SimpleUdpClient(host,
-        RPCB_PORT, mappingRequest);
+    SimpleUdpClient registrationClient = new SimpleUdpClient(host, RPCB_PORT,
+        mappingRequest);
     try {
       registrationClient.run();
     } catch (IOException e) {
       LOG.error("Registration failure with " + host + ":" + port
           + ", portmap entry: " + mapEntry);
-      System.exit(-1);
+      throw new RuntimeException("Registration failure");
     }
   }
 
