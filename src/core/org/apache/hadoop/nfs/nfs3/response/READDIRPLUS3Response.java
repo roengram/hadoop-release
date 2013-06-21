@@ -65,6 +65,9 @@ public class READDIRPLUS3Response  extends NFS3Response {
     
     public DirListPlus3(EntryPlus3[] entries, boolean eof) {
       this.entries = ObjectArrays.newArray(entries, entries.length);
+      for (int i = 0; i < entries.length; i++) {
+        this.entries[i] = entries[i];
+      }
       this.eof = eof;
     }
 
