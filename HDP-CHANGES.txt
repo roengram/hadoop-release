@@ -6,6 +6,8 @@ comanche-branch-1 release branched from condor-branch-1 (SHA1 bb0bbd77479125307c
 
   NEW FEATURES
 
+    BUG-6963. Backport several hadoop 2.0 API to Comanche. (Jing Zhao via
+    Brandon)
 
   IMPROVEMENTS
     HDFS-4880. Print the image and edits file loaded by the namenode in the
@@ -65,6 +67,18 @@ comanche-branch-1 release branched from condor-branch-1 (SHA1 bb0bbd77479125307c
       
       NFS: fix to BUG-6111 use final clause to gauarntee OpenFileCtx lock is 
       unlocked eventually. (Brandon Li)
+
+      NFS: fix readdir/readdirplus response to copy dirents to response
+
+      NFS: commit missed file in efb86376a67c1ee17ff5b51f6ef49772ed11578d
+
+      NFS: integrate HADOOP-9515 from trunk
+
+      NFS: integrate HADOOP-9505 from trunk
+
+      NFS: fix to BUG-6609 reduce lock granularity in OpenFileCtx
+
+      NFS: fix to BUG-6352 should resend response for some repeated write request
 
     Changes with Apache jira in trunk
 
