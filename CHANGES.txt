@@ -66,6 +66,14 @@ Release 1.2.1 - Unreleased
     available for previous installs by putting it in hadoop-core.jar.
     (acmurthy)
 
+    MAPREDUCE-5260. Fix JvmManager to deal better with corner-cases in
+    shutting down. (zhaoyunjiong via acmurthy) 
+
+    MAPREDUCE-5318. Escape ampersand in JSPUtil. (Bohou Li via acmurthy)
+
+    HADOOP-9665. Fixed BlockDecompressorStream#decompress to return -1 rather
+    than throw EOF at end of file. (Zhijie Shen via acmurthy)
+
 Release 1.2.0 - 2013.05.05
 
   INCOMPATIBLE CHANGES
