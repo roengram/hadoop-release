@@ -47,6 +47,8 @@ comanche-branch-1 release branched from condor-branch-1 (SHA1 bb0bbd77479125307c
       HDFS-4875. Add a test for testing snapshot file length. (Arpit Agarwal
       via Jing Zhao)
 
+      HDFS-4819. Update Snapshot doc for HDFS-4758. (Tsz Wo (Nicholas), SZE)
+
   NFS related changes
  
     No Apache Jira created yet
