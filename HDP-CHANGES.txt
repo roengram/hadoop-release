@@ -40,7 +40,10 @@ comanche-branch-1 release branched from condor-branch-1 (SHA1 bb0bbd77479125307c
       
       HDFS-4877. Snapshot: fix the scenario where a directory is renamed under
       its prior descendant. (Jing Zhao)
-   
+
+      HDFS-4902. DFSClient.getSnapshotDiffReport should use string path rather 
+      than o.a.h.fs.Path. (Jing Zhao)
+
   NFS related changes
  
     No Apache Jira created yet

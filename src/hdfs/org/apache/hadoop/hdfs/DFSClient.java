@@ -1538,11 +1538,11 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    * current tree of a directory.
    * @see ClientProtocol#getSnapshotDiffReport(String, String, String)
    */
-  public SnapshotDiffReport getSnapshotDiffReport(Path snapshotDir,
+  public SnapshotDiffReport getSnapshotDiffReport(String snapshotDir,
       String fromSnapshot, String toSnapshot) throws IOException {
     checkOpen();
     try {
-      return namenode.getSnapshotDiffReport(snapshotDir.toString(),
+      return namenode.getSnapshotDiffReport(snapshotDir,
           fromSnapshot, toSnapshot);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException();
