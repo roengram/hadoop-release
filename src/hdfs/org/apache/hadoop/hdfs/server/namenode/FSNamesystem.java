@@ -1181,8 +1181,10 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     if (blocks == null) {
       return null;
     }
+    
+    final long fileSize = inode.computeFileSize(iip.getPathSnapshot());
     if (blocks.length == 0) {
-      return inode.createLocatedBlocks(new ArrayList<LocatedBlock>(
+      return inode.createLocatedBlocks(fileSize, new ArrayList<LocatedBlock>(
           blocks.length), iip.getPathSnapshot());
     }
     List<LocatedBlock> results = new ArrayList<LocatedBlock>(blocks.length);
@@ -1201,6 +1203,12 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     
     if (nrBlocks > 0 && curBlk == nrBlocks)   // offset >= end of file
       return null;
+
+    if (iip.isSnapshot()) {
+      // if src indicates a snapshot file, we need to make sure the returned
+      // blocks do not exceed the size of the snapshot file.
+      length = Math.min(length, fileSize - offset);
+    }
     
     long endOff = offset + length;
     
@@ -1252,7 +1260,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
           && curBlk < blocks.length 
           && results.size() < nrBlocksToReturn);
     
-    return inode.createLocatedBlocks(results, iip.getPathSnapshot());
+    return inode.createLocatedBlocks(fileSize, results, iip.getPathSnapshot());
   }
   
 

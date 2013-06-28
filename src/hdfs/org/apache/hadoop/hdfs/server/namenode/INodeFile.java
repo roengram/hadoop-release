@@ -329,10 +329,10 @@ public class INodeFile extends INodeWithAdditionalFields {
     }
   }
 
-  LocatedBlocks createLocatedBlocks(List<LocatedBlock> blocks, 
+  LocatedBlocks createLocatedBlocks(long fileSize, List<LocatedBlock> blocks,
       Snapshot snapshot) {
-    return new LocatedBlocks(computeFileSize(snapshot), blocks,
-        isUnderConstruction());
+    return new LocatedBlocks(fileSize, blocks, 
+        snapshot != null ? false : isUnderConstruction());
   }
   
   @Override
