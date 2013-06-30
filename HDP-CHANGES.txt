@@ -15,6 +15,8 @@ comanche-branch-1 release branched from condor-branch-1 (SHA1 bb0bbd77479125307c
 
   BUG FIXES
 
+    HDFS-4944. WebHDFS cannot create a file path containing characters that must
+    be URI-encoded, such as space. (cnauroth)
 
   Snapshot related changes
 
