@@ -36,7 +36,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.logging.*;
 
-import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.conf.*;
 import org.apache.hadoop.util.*;
 import org.apache.hadoop.fs.permission.FsPermission;
@@ -151,14 +150,6 @@ public abstract class FileSystem extends Configured implements Closeable {
    */
   public static void setDefaultUri(Configuration conf, String uri) {
     setDefaultUri(conf, URI.create(fixName(uri)));
-  }
-  
-  /** Get the number of entries in the filesystem cache
-   * @return the number of entries in the filesystem cache
-   */
-  @Private
-  public static int getCacheSize() {
-    return CACHE.map.size();
   }
 
   /** Called after a new FileSystem instance is constructed.

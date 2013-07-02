@@ -3307,7 +3307,6 @@ public class JobInProgress {
    * removing all delegation token etc.
    */
   void cleanupJob() {
-    FileSystem tempDirFs = null;
     synchronized (this) {
       try {
         // Definitely remove the local-disk copy of the job file
@@ -3325,7 +3324,6 @@ public class JobInProgress {
         if (jobTempDir != null && conf.getKeepTaskFilesPattern() == null &&
             !conf.getKeepFailedTaskFiles()) {
           Path jobTempDirPath = new Path(jobTempDir);
-          tempDirFs = jobTempDirPath.getFileSystem(conf);
           CleanupQueue.getInstance().addToQueue(
               new PathDeletionContext(jobTempDirPath, conf, userUGI, jobId));
         }
@@ -3343,15 +3341,12 @@ public class JobInProgress {
       this.runningReduces = null;
     }
     
-    // Close the user's FS.  Or don't, in the common case of FS being the same
-    // FS as the temp directory FS, as it will be closed by the CleanupQueue.
-    if (tempDirFs != fs) {
-      try {
-        fs.close();
-      } catch (IOException ie) {
-        LOG.warn("Ignoring exception " + StringUtils.stringifyException(ie) + 
-            " while closing FileSystem for " + userUGI);
-      }
+    //close the user's FS
+    try {
+      fs.close();
+    } catch (IOException ie) {
+      LOG.warn("Ignoring exception " + StringUtils.stringifyException(ie) + 
+          " while closing FileSystem for " + userUGI);
     }
   }
 
