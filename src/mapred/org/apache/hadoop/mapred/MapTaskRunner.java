@@ -73,7 +73,8 @@ class MapTaskRunner extends TaskRunner {
   @Override
   public Level getLogLevel(JobConf jobConf) {
     return Level.toLevel(jobConf.get(JobConf.MAPRED_MAP_TASK_LOG_LEVEL, 
-                                     JobConf.DEFAULT_LOG_LEVEL.toString()));
+                                     JobConf.DEFAULT_LOG_LEVEL.toString()), 
+                         Level.INFO);
   }
 
 }
