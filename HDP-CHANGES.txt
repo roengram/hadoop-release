@@ -54,6 +54,8 @@ comanche-branch-1 release branched from condor-branch-1 (SHA1 bb0bbd77479125307c
       HDFS-5005. Move SnapshotException and SnapshotAccessControlException to 
       o.a.h.hdfs.protocol. (Jing Zhao)
 
+      MAPREDUCE-5408. Backport MAPREDUCE-336 to branch-1. (acmurthy)
+
   NFS related changes
  
     No Apache Jira created yet
