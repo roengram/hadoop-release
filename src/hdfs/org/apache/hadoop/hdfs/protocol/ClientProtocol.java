@@ -553,6 +553,14 @@ public interface ClientProtocol extends VersionedProtocol {
    * The file must be currently open for writing.
    * @param src The string representation of the path
    * @param client The string representation of the client
+   */
+  public void fsync(String src, String client) throws IOException;
+  
+  /**
+   * Write all metadata for this file into persistent storage.
+   * The file must be currently open for writing.
+   * @param src The string representation of the path
+   * @param client The string representation of the client
    * @param lastBlockLength The length of the last block (under construction) to
    *        be reported to NameNode
    */

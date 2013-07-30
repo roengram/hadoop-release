@@ -18,6 +18,9 @@ comanche-branch-1 release branched from condor-branch-1 (SHA1 bb0bbd77479125307c
     HDFS-4944. WebHDFS cannot create a file path containing characters that must
     be URI-encoded, such as space. (cnauroth)
 
+    BUG-7668. Fix backwards-incompatible change for ClientProtocol#fsync. 
+    (Jing Zhao)
+
   Snapshot related changes
 
     Changes with Apache jira in trunk/branch-2

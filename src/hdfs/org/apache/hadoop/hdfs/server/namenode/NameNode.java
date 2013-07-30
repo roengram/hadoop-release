@@ -1067,6 +1067,11 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
   }
   
   @Override
+  public void fsync(String src, String clientName) throws IOException {
+    fsync(src, clientName, -1);
+  }
+  
+  @Override
   public void fsync(String src, String clientName, long lastBlockLength)
       throws IOException {
     namesystem.fsync(src, clientName, lastBlockLength);
