@@ -26,6 +26,7 @@
 	import="org.apache.hadoop.hdfs.server.namenode.*"
 	import="org.apache.hadoop.hdfs.server.datanode.*"
 	import="org.apache.hadoop.hdfs.protocol.*"
+	import="org.apache.hadoop.http.*"
 	import="org.apache.hadoop.util.*"
 	import="java.text.DateFormat"
 	import="java.lang.Math"
@@ -73,7 +74,7 @@ String getBrowseUrl ( DatanodeDescriptor d, int nnHttpPort ) throws IOException{
         URLEncoder.encode(d.getHostName() + ":" + d.getInfoPort());
     }
     else {
-      url = "http://" + d.getHostName() + ":" + d.getInfoPort()
+      url = HttpConfig.getSchemePrefix() + d.getHostName() + ":" + d.getInfoPort()
         + "/browseDirectory.jsp?namenodeInfoPort=" + nnHttpPort + "&dir="
         + URLEncoder.encode("/", "UTF-8");
     }

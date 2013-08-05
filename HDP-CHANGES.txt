@@ -59,6 +59,9 @@ comanche-branch-1 release branched from condor-branch-1 (SHA1 bb0bbd77479125307c
 
       MAPREDUCE-5408. Backport MAPREDUCE-336 to branch-1. (acmurthy)
 
+      MAPREDUCE-4661. Backport HTTPS to WebUIs to branch-1. (Michael Wang via
+      acmurthy)
+
   NFS related changes
  
     No Apache Jira created yet

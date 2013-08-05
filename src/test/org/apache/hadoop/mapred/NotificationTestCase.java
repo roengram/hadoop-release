@@ -23,6 +23,7 @@ import org.mortbay.jetty.servlet.Context;
 import org.mortbay.jetty.servlet.ServletHolder;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.http.HttpConfig;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.IntWritable;
 
@@ -133,7 +134,7 @@ public abstract class NotificationTestCase extends HadoopTestCase {
   }
 
   private String getNotificationUrlTemplate() {
-    return "http://localhost:" + port + contextPath + servletPath +
+    return HttpConfig.getSchemePrefix() + "localhost:" + port + contextPath + servletPath +
       "?jobId=$jobId&amp;jobStatus=$jobStatus";
   }
 

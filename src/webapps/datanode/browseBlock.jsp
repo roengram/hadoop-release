@@ -25,6 +25,7 @@
   import="org.apache.hadoop.hdfs.server.datanode.*"
   import="org.apache.hadoop.hdfs.server.common.*"
   import="org.apache.hadoop.hdfs.protocol.*"
+  import="org.apache.hadoop.http.*"
   import="org.apache.hadoop.io.*"
   import="org.apache.hadoop.conf.*"
   import="org.apache.hadoop.net.DNS"
@@ -103,7 +104,7 @@
       dfs.namenode.getBlockLocations(filename, 0, Long.MAX_VALUE).getLocatedBlocks();
     //Add the various links for looking at the file contents
     //URL for downloading the full file
-    String downloadUrl = "http://" + req.getServerName() + ":" +
+    String downloadUrl = HttpConfig.getSchemePrefix() + req.getServerName() + ":" +
                          + req.getServerPort() + "/streamFile"
                          + URLEncoder.encode(filename, "UTF-8")
                          + "?" + JspHelper.DELEGATION_PARAMETER_NAME
@@ -124,7 +125,7 @@
     }
     String fqdn = 
            InetAddress.getByName(chosenNode.getHost()).getCanonicalHostName();
-    String tailUrl = "http://" + fqdn + ":" +
+    String tailUrl = HttpConfig.getSchemePrefix() + fqdn + ":" +
                      chosenNode.getInfoPort() + 
                  "/tail.jsp?filename=" + URLEncoder.encode(filename, "UTF-8") +
                  "&namenodeInfoPort=" + namenodeInfoPort +
@@ -171,7 +172,7 @@
                                         datanodeAddr.indexOf(':') + 1, 
                                     datanodeAddr.length())); 
         fqdn = InetAddress.getByName(locs[j].getHost()).getCanonicalHostName();
-        String blockUrl = "http://"+ fqdn + ":" +
+        String blockUrl = HttpConfig.getSchemePrefix() + fqdn + ":" +
                         locs[j].getInfoPort() +
                         "/browseBlock.jsp?blockId=" + Long.toString(blockId) +
                         "&blockSize=" + blockSize +
@@ -188,7 +189,7 @@
     out.println("</table>");
     out.print("<hr>");
     String namenodeHost = jspHelper.nameNodeAddr.getHostName();
-    out.print("<br><a href=\"http://" + 
+    out.print("<br><a href=\"" + HttpConfig.getSchemePrefix() +
               InetAddress.getByName(namenodeHost).getCanonicalHostName() + ":" +
               namenodeInfoPort + "/dfshealth.jsp\">Go back to DFS home</a>");
     dfs.close();
@@ -286,7 +287,7 @@
     JspHelper.printGotoForm(out, namenodeInfoPort, tokenString, 
                             HtmlQuoting.quoteHtmlChars(parent));
     out.print("<hr>");
-    out.print("<a href=\"http://" + req.getServerName() + ":" + 
+    out.print("<a href=\"" + HttpConfig.getSchemePrefix() + req.getServerName() + ":" + 
               req.getServerPort() + 
               "/browseDirectory.jsp?dir=" + 
               URLEncoder.encode(parent, "UTF-8") +
@@ -337,7 +338,7 @@
     }
     String nextUrl = null;
     if (nextBlockIdStr != null) {
-      nextUrl = "http://" + nextHost + ":" + 
+      nextUrl = HttpConfig.getSchemePrefix() + nextHost + ":" + 
                 nextPort + 
                 "/browseBlock.jsp?blockId=" + nextBlockIdStr +
                 "&blockSize=" + nextBlockSize + "&startOffset=" + 
@@ -394,7 +395,7 @@
 
     String prevUrl = null;
     if (prevBlockIdStr != null) {
-      prevUrl = "http://" + prevHost + ":" + 
+      prevUrl = HttpConfig.getSchemePrefix() + prevHost + ":" + 
                 prevPort + 
                 "/browseBlock.jsp?blockId=" + prevBlockIdStr + 
                 "&blockSize=" + prevBlockSize + "&startOffset=" + 

@@ -27,11 +27,13 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.net.UnknownHostException;
 import java.security.AccessController;
+import java.security.GeneralSecurityException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import javax.net.ssl.SSLServerSocketFactory;
 import javax.security.auth.Subject;
 import javax.security.auth.kerberos.KerberosTicket;
 
@@ -39,13 +41,18 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
+import org.apache.hadoop.http.HttpConfig;
+import org.apache.hadoop.http.HttpServer;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.authentication.client.AuthenticatedURL;
 import org.apache.hadoop.security.authentication.client.AuthenticationException;
 import org.apache.hadoop.security.authentication.util.KerberosUtil;
 import org.apache.hadoop.security.authorize.AccessControlList;
+import org.apache.hadoop.security.ssl.SSLFactory;
 import org.apache.hadoop.security.token.Token;
+import org.mortbay.jetty.Connector;
+import org.mortbay.jetty.security.SslSocketConnector;
 
 //this will need to be replaced someday when there is a suitable replacement
 import sun.net.dns.ResolverConfiguration;
@@ -59,6 +66,9 @@ public class SecurityUtil {
   // by the user; visible for testing
   static boolean useIpForTokenService;
   static HostResolver hostResolver;
+  
+  private static SSLFactory clientSslFactory;
+  private static SSLFactory serverSslFactory = null;
 
   private static final boolean useKsslAuth;
   
@@ -68,6 +78,15 @@ public class SecurityUtil {
       CommonConfigurationKeys.HADOOP_SECURITY_TOKEN_SERVICE_USE_IP,
       CommonConfigurationKeys.HADOOP_SECURITY_TOKEN_SERVICE_USE_IP_DEFAULT);
     setTokenServiceUseIp(useIp);
+    
+    if (HttpConfig.isSecure()) {
+      clientSslFactory = new SSLFactory(SSLFactory.Mode.CLIENT, conf);
+      try {
+        clientSslFactory.init();
+      } catch (Exception ex) {
+        throw new RuntimeException(ex);
+      }
+    }
 
     useKsslAuth = conf.getBoolean(
         CommonConfigurationKeys.HADOOP_SECURITY_USE_WEAK_HTTP_CRYPTO_KEY,
@@ -430,12 +449,62 @@ public class SecurityUtil {
     } else {
       AuthenticatedURL.Token token = new AuthenticatedURL.Token();
       try {
-        return new AuthenticatedURL().openConnection(url, token);
+        return new AuthenticatedURL(null, clientSslFactory).openConnection(url, token);
       } catch (AuthenticationException e) {
         throw new IOException("Exception trying to open authenticated connection to "
             + url, e);
       }
     }
+  }
+  
+  /**
+   * Open a server listener
+   */
+  public static Connector openListener(Configuration conf) throws IOException {
+    if (HttpConfig.isSecure()) {
+      return openSecureListener(conf);
+    }
+    return openBaseListener();
+  }
+
+  /**
+   * Open a base listener
+   *
+   * @return A connector
+   * @throws IOException
+   */
+  public static Connector openBaseListener() throws IOException {
+    return HttpServer.createDefaultChannelConnector();
+  }
+
+  /**
+   * Open a secure listener
+   * 
+   * @param conf server configuration
+   * @return A connector
+   * @throws IOException
+   */
+  public static Connector openSecureListener(Configuration conf) 
+      throws IOException {
+    if (!HttpConfig.isSecure()) {
+      throw new IOException("ssl is not enabled where "
+          + CommonConfigurationKeys.HADOOP_SSL_ENABLED_KEY + " = false");
+    }
+    if (serverSslFactory == null) {
+      serverSslFactory = new SSLFactory(SSLFactory.Mode.SERVER, conf);
+      try {
+        serverSslFactory.init();
+      } catch (GeneralSecurityException ex) {
+        throw new IOException(ex);
+      }
+    }
+    SslSocketConnector sslListener = new SslSocketConnector() {
+      @Override
+      protected SSLServerSocketFactory createFactory() throws Exception {
+        return serverSslFactory.createSSLServerSocketFactory();
+      }
+    };
+    return sslListener;
   }
 
   /**

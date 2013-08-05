@@ -19,7 +19,7 @@
   import="java.io.*"
   import="java.lang.String"
   import="java.util.*"
-  import="org.apache.hadoop.http.HtmlQuoting"
+  import="org.apache.hadoop.http.*"
   import="org.apache.hadoop.mapred.*"
   import="org.apache.hadoop.mapred.JSPUtil.JobWithViewAccessCheck"
   import="org.apache.hadoop.util.*"
@@ -550,7 +550,7 @@
         cleanupTrackerName = tip.machineWhereCleanupRan(status.getTaskID());
         cleanupTracker = tracker.getTaskTrackerStatus(cleanupTrackerName);
         if (cleanupTracker != null) {
-          cleanupAttemptTracker = "http://" + cleanupTracker.getHost() + ":"
+          cleanupAttemptTracker = HttpConfig.getSchemePrefix() + cleanupTracker.getHost() + ":"
             + cleanupTracker.getHttpPort();
         }
         hasCleanupAttempt = true;
@@ -562,7 +562,7 @@
       if (taskTracker == null) {
         out.print(taskTrackerName);
       } else {
-        taskAttemptTracker = "http://" + taskTracker.getHost() + ":"
+        taskAttemptTracker = HttpConfig.getSchemePrefix() + taskTracker.getHost() + ":"
           + taskTracker.getHttpPort();
         out.print("<a href=\"" + taskAttemptTracker + "\">"
           + tracker.getNode(taskTracker.getHost()) + "</a>");

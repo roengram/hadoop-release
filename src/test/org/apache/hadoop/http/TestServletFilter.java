@@ -119,7 +119,7 @@ public class TestServletFilter extends junit.framework.TestCase {
     }
 
     //access the urls as the sequence
-    final String prefix = "http://localhost:" + http.getPort();
+    final String prefix = HttpConfig.getSchemePrefix() + "localhost:" + http.getPort();
     try {
       for(int i = 0; i < sequence.length; i++) {
         access(prefix + urls[sequence[i]]);

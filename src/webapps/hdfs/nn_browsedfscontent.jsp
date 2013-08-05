@@ -26,6 +26,7 @@
   import="org.apache.hadoop.hdfs.server.datanode.*"
   import="org.apache.hadoop.hdfs.protocol.*"
   import="org.apache.hadoop.hdfs.security.token.delegation.*"
+  import="org.apache.hadoop.http.*"
   import="org.apache.hadoop.io.Text"
   import="org.apache.hadoop.security.UserGroupInformation"
   import="org.apache.hadoop.security.token.Token"
@@ -84,7 +85,7 @@
       redirectPort = nn.getHttpAddress().getPort();
     }
     String fqdn = InetAddress.getByName(nodeToRedirect).getCanonicalHostName();
-    redirectLocation = "http://" + fqdn + ":" + redirectPort + 
+    redirectLocation = HttpConfig.getSchemePrefix() + fqdn + ":" + redirectPort + 
                        "/browseDirectory.jsp?namenodeInfoPort=" + 
                        nn.getHttpAddress().getPort() +
                        "&dir=/" + 

@@ -49,6 +49,7 @@ import org.apache.hadoop.jmx.JMXJsonServlet;
 import org.apache.hadoop.log.LogLevel;
 import org.apache.hadoop.security.Krb5AndCertsSslSocketConnector;
 import org.apache.hadoop.security.Krb5AndCertsSslSocketConnector.MODE;
+import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.authorize.AccessControlList;
 import org.apache.hadoop.util.ReflectionUtils;
@@ -86,6 +87,7 @@ public class HttpServer implements FilterContainer {
 
   static final String FILTER_INITIALIZER_PROPERTY
       = "hadoop.http.filter.initializers";
+  static final String HTTP_MAX_THREADS = "hadoop.http.max.threads";
  
   // The ServletContext attribute where the daemon Configuration
   // gets stored.
@@ -150,7 +152,7 @@ public class HttpServer implements FilterContainer {
 
     if(connector == null) {
       listenerStartedExternally = false;
-      listener = createBaseListener(conf);
+      listener = SecurityUtil.openListener(conf);
       listener.setHost(bindAddress);
       listener.setPort(port);
     } else {
@@ -160,7 +162,12 @@ public class HttpServer implements FilterContainer {
     
     webServer.addConnector(listener);
 
-    webServer.setThreadPool(new QueuedThreadPool());
+    int maxThreads = conf.getInt(HTTP_MAX_THREADS, -1);
+    // If HTTP_MAX_THREADS is not configured, QueueThreadPool() will use the
+    // default value (currently 250).
+    QueuedThreadPool threadPool = maxThreads == -1 ?
+        new QueuedThreadPool() : new QueuedThreadPool(maxThreads);
+    webServer.setThreadPool(threadPool);
 
     final String appDir = getWebAppsPath();
     ContextHandlerCollection contexts = new ContextHandlerCollection();

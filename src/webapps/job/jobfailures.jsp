@@ -19,7 +19,7 @@
   import="javax.servlet.http.*"
   import="java.io.*"
   import="java.util.*"
-  import="org.apache.hadoop.http.HtmlQuoting"
+  import="org.apache.hadoop.http.*"
   import="org.apache.hadoop.mapred.*"
   import="org.apache.hadoop.mapred.JSPUtil.JobWithViewAccessCheck"
   import="org.apache.hadoop.mapreduce.TaskType"
@@ -53,7 +53,7 @@
         if (taskTracker == null) {
           out.print("<td>" + taskTrackerName + "</td>");
         } else {
-          out.print("<td><a href=\"http://" + taskTracker.getHost() + ":" +
+          out.print("<td><a href=\"" + HttpConfig.getSchemePrefix() + taskTracker.getHost() + ":" +
                     taskTracker.getHttpPort() + "\">" +  taskTracker.getHost() + 
                     "</a></td>");
         }

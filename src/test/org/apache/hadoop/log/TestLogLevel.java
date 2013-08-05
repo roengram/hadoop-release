@@ -20,6 +20,7 @@ package org.apache.hadoop.log;
 import java.io.*;
 import java.net.*;
 
+import org.apache.hadoop.http.HttpConfig;
 import org.apache.hadoop.http.HttpServer;
 
 import junit.framework.TestCase;
@@ -47,7 +48,7 @@ public class TestLogLevel extends TestCase {
       int port = server.getPort();
 
       //servlet
-      URL url = new URL("http://localhost:" + port
+      URL url = new URL(HttpConfig.getSchemePrefix() + "localhost:" + port
           + "/logLevel?log=" + logName + "&level=" + Level.ERROR);
       out.println("*** Connecting to " + url);
       URLConnection connection = url.openConnection();

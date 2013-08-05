@@ -18,6 +18,7 @@
 package org.apache.hadoop.mapred;
 
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.http.HttpConfig;
 import org.apache.hadoop.mapreduce.TestSleepJob;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.hadoop.conf.Configuration;
@@ -145,7 +146,7 @@ public class TestFairSchedulerSystem {
    * for contents.
    */
   private void checkServlet(boolean advanced) throws Exception {
-    String jtURL = "http://localhost:" +
+    String jtURL = HttpConfig.getSchemePrefix() + "localhost:" +
       mr.getJobTrackerRunner().getJobTrackerInfoPort();
     URL url = new URL(jtURL + "/scheduler" +
                       (advanced ? "?advanced" : ""));
@@ -170,7 +171,7 @@ public class TestFairSchedulerSystem {
   }
 
   private void checkTaskGraphServlet(JobID job) throws Exception {
-    String jtURL = "http://localhost:" +
+    String jtURL = HttpConfig.getSchemePrefix() + "localhost:" +
       mr.getJobTrackerRunner().getJobTrackerInfoPort();
     URL url = new URL(jtURL + "/taskgraph?jobid=" + job.toString() + "&type=map");
     HttpURLConnection connection = (HttpURLConnection)url.openConnection();

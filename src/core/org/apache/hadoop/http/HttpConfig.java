@@ -15,39 +15,38 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package org.apache.hadoop.util;
+package org.apache.hadoop.http;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.CommonConfigurationKeys;
 
 /**
- * A helper class for getting build-info of the java-vm. 
- * 
+ * Singleton to get access to Http related configuration.
  */
-@InterfaceAudience.LimitedPrivate({"HBase"})
+@InterfaceAudience.Private
 @InterfaceStability.Unstable
-public class PlatformName {
-  /**
-   * The complete platform 'name' to identify the platform as 
-   * per the java-vm.
-   */
-  private static final String PLATFORM_NAME = System.getProperty("os.name") + "-" + 
-    System.getProperty("os.arch") + "-" +
-    System.getProperty("sun.arch.data.model");
-  
-  /**
-   * The java vendor name used in this platform. 
-   */
-  public static final String JAVA_VENDOR_NAME = System.getProperty("java.vendor");
+public class HttpConfig {
+  private static boolean sslEnabled;
 
-  /**
-   * A public static variable to indicate the current java vendor is 
-   * IBM java or not. 
-   */
-  public static final boolean IBM_JAVA = JAVA_VENDOR_NAME.contains("IBM");
-  
-  public static void main(String[] args) {
-    System.out.println(PLATFORM_NAME);
+  static {
+    Configuration conf = new Configuration();
+    sslEnabled = conf.getBoolean(
+        CommonConfigurationKeys.HADOOP_SSL_ENABLED_KEY,
+        CommonConfigurationKeys.HADOOP_SSL_ENABLED_DEFAULT);
   }
+
+  static void setSecure(boolean secure) {
+    sslEnabled = secure;
+  }
+
+  public static boolean isSecure() {
+    return sslEnabled;
+  }
+
+  public static String getSchemePrefix() {
+    return (isSecure()) ? "https://" : "http://";
+  }
+
 }

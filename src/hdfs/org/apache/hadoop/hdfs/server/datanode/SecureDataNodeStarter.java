@@ -21,13 +21,12 @@ import static org.apache.hadoop.fs.CommonConfigurationKeys.HADOOP_SECURITY_AUTHE
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.channels.ServerSocketChannel;
-
 import org.apache.commons.daemon.Daemon;
 import org.apache.commons.daemon.DaemonContext;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants;
-import org.apache.hadoop.http.HttpServer;
-import org.mortbay.jetty.nio.SelectChannelConnector;
+import org.apache.hadoop.security.SecurityUtil;
+import org.mortbay.jetty.Connector;
 
 /**
  * Utility class to start a datanode in a secure cluster, first obtaining 
@@ -39,9 +38,9 @@ public class SecureDataNodeStarter implements Daemon {
    */
   public static class SecureResources {
     private final ServerSocket streamingSocket;
-    private final SelectChannelConnector listener;
+    private final Connector listener;
     public SecureResources(ServerSocket streamingSocket,
-        SelectChannelConnector listener) {
+        Connector listener) {
 
       this.streamingSocket = streamingSocket;
       this.listener = listener;
@@ -49,7 +48,7 @@ public class SecureDataNodeStarter implements Daemon {
 
     public ServerSocket getStreamingSocket() { return streamingSocket; }
 
-    public SelectChannelConnector getListener() { return listener; }
+    public Connector getListener() { return listener; }
   }
   
   private String [] args;
@@ -81,8 +80,8 @@ public class SecureDataNodeStarter implements Daemon {
       		"context. Needed " + socAddr.getPort() + ", got " + ss.getLocalPort());
 
     // Obtain secure listener for web server
-    SelectChannelConnector listener = 
-                   (SelectChannelConnector)HttpServer.createDefaultChannelConnector();
+    Connector listener = SecurityUtil.openListener(conf);
+
     InetSocketAddress infoSocAddr = DataNode.getInfoAddr(conf);
     listener.setHost(infoSocAddr.getHostName());
     listener.setPort(infoSocAddr.getPort());

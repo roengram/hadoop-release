@@ -34,6 +34,7 @@ import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
 import org.apache.hadoop.hdfs.protocol.FSConstants.DatanodeReportType;
+import org.apache.hadoop.http.HttpConfig;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IOUtils;
@@ -59,7 +60,7 @@ public class TestDatanodeBlockScanner extends TestCase {
    */
   private static long waitForVerification(DatanodeInfo dn, FileSystem fs, 
                                           Path file, int blocksValidated) throws IOException {
-    URL url = new URL("http://localhost:" + dn.getInfoPort() +
+    URL url = new URL(HttpConfig.getSchemePrefix() + "localhost:" + dn.getInfoPort() +
                       "/blockScannerReport?listblocks");
     long lastWarnTime = System.currentTimeMillis();
     long verificationTime = 0;

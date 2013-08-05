@@ -42,6 +42,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.commons.net.util.SubnetUtils;
 import org.apache.commons.net.util.SubnetUtils.SubnetInfo;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.http.HttpConfig;
 import org.apache.hadoop.ipc.Server;
 import org.apache.hadoop.ipc.VersionedProtocol;
 import org.apache.hadoop.security.SecurityUtil;
@@ -578,7 +579,7 @@ public class NetUtils {
       try {
         uri = new URI(name);
         if (uri.getHost() == null) {
-          uri = new URI("http://" + name);
+          uri = new URI(HttpConfig.getSchemePrefix() + name);
         }
       } catch (URISyntaxException e) {
         uri = null;

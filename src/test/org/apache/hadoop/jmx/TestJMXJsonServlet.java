@@ -28,6 +28,7 @@ import java.util.regex.Pattern;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.http.HttpConfig;
 import org.apache.hadoop.http.HttpServer;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -56,7 +57,7 @@ public class TestJMXJsonServlet {
     server = new HttpServer("test", "0.0.0.0", 0, true);
     server.start();
     int port = server.getPort();
-    baseUrl = new URL("http://localhost:" + port + "/");
+    baseUrl = new URL(HttpConfig.getSchemePrefix() + "localhost:" + port + "/");
   }
   
   @AfterClass public static void cleanup() throws Exception {

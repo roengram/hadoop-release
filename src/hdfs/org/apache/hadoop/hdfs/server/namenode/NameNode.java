@@ -75,6 +75,7 @@ import org.apache.hadoop.hdfs.server.protocol.UpgradeCommand;
 import org.apache.hadoop.hdfs.web.AuthFilter;
 import org.apache.hadoop.hdfs.web.WebHdfsFileSystem;
 import org.apache.hadoop.hdfs.web.resources.Param;
+import org.apache.hadoop.http.HttpConfig;
 import org.apache.hadoop.http.HttpServer;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.ipc.RPC;
@@ -372,7 +373,11 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
    *         or SPNEGO is enabled.
    */
   public static String getHttpUriScheme() {
-    return SecurityUtil.useKsslAuth() ? "https" : "http";
+    return (HttpConfig.isSecure() || SecurityUtil.useKsslAuth()) ? "https" : "http";
+  }
+  
+  public static String getHttpSchemePrefix() {
+    return getHttpUriScheme() + "://";
   }
   
   @SuppressWarnings("deprecation")
@@ -381,7 +386,7 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
         "dfs.info.bindAddress", "dfs.info.port", "dfs.http.address");
     final InetSocketAddress infoSocAddr = NetUtils.createSocketAddr(infoAddr);
     
-    if (SecurityUtil.useKsslAuth()) {
+    if (HttpConfig.isSecure() || SecurityUtil.useKsslAuth()) {
       String httpsUser = SecurityUtil.getServerPrincipal(conf
           .get(DFSConfigKeys.DFS_NAMENODE_KRB_HTTPS_USER_NAME_KEY), infoSocAddr
           .getHostName());
@@ -470,24 +475,33 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
             }
           };
           
-          boolean certSSL = conf.getBoolean("dfs.https.enable", false);
-          if (certSSL || SecurityUtil.useKsslAuth()) {
-            boolean needClientAuth = conf.getBoolean("dfs.https.need.client.auth", false);
-            InetSocketAddress secInfoSocAddr = NetUtils.createSocketAddr(infoHost + ":"+ conf.get(
-                                "dfs.https.port", infoHost + ":" + 0));
-            Configuration sslConf = new Configuration(false);
-            if(certSSL) {
-              sslConf.addResource(conf.get("dfs.https.server.keystore.resource",
-                  "ssl-server.xml"));
-            }
-            httpServer.addSslListener(secInfoSocAddr, sslConf, needClientAuth,
-                SecurityUtil.useKsslAuth());
-            // assume same ssl port for all datanodes
+          if (HttpConfig.isSecure()) {
+            // We enable https on the plain http port
             InetSocketAddress datanodeSslPort = NetUtils.createSocketAddr(conf.get(
+              DFSConfigKeys.DFS_DATANODE_HTTP_ADDRESS_KEY,
+              DFSConfigKeys.DFS_DATANODE_HTTP_ADDRESS_DEFAULT));
+            httpServer.setAttribute("datanode.https.port", datanodeSslPort.getPort());
+          } else {
+            boolean certSSL = conf.getBoolean("dfs.https.enable", false);
+            if (certSSL || SecurityUtil.useKsslAuth()) {
+              boolean needClientAuth = conf.getBoolean("dfs.https.need.client.auth", false);
+              InetSocketAddress secInfoSocAddr = NetUtils.createSocketAddr(infoHost + ":"+ conf.get(
+                "dfs.https.port", infoHost + ":" + 0));
+              Configuration sslConf = new Configuration(false);
+              if(certSSL) {
+                sslConf.addResource(conf.get("dfs.https.server.keystore.resource",
+                    "ssl-server.xml"));
+              }
+              httpServer.addSslListener(secInfoSocAddr, sslConf, needClientAuth,
+                SecurityUtil.useKsslAuth());
+              // assume same ssl port for all datanodes
+              InetSocketAddress datanodeSslPort = NetUtils.createSocketAddr(conf.get(
                 "dfs.datanode.https.address", infoHost + ":" + 50475));
-            httpServer.setAttribute("datanode.https.port", datanodeSslPort
+              httpServer.setAttribute("datanode.https.port", datanodeSslPort
                 .getPort());
+            }
           }
+          
           httpServer.setAttribute("name.node", NameNode.this);
           httpServer.setAttribute("name.node.address", getNameNodeAddress());
           httpServer.setAttribute("name.system.image", getFSImage());

@@ -44,6 +44,7 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.LocalFileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.http.HttpConfig;
 import org.apache.hadoop.mapred.CleanupQueue.PathDeletionContext;
 import org.apache.hadoop.mapred.Counters.CountersExceededException;
 import org.apache.hadoop.mapred.JobHistory.Values;
@@ -370,7 +371,7 @@ public class JobInProgress {
     try {
       this.restartCount = rCount;
       this.jobId = JobID.downgrade(jobInfo.getJobID());
-      String url = "http://" + jobtracker.getJobTrackerMachine() + ":" 
+      String url = HttpConfig.getSchemePrefix() + jobtracker.getJobTrackerMachine() + ":" 
       + jobtracker.getInfoPort() + "/jobdetails.jsp?jobid=" + jobId;
       this.jobtracker = jobtracker;
       this.status = new JobStatus(jobId, 0.0f, 0.0f, JobStatus.PREP);
@@ -1130,7 +1131,8 @@ public class JobInProgress {
         } else {
           host = ttStatus.getHost();
         }
-        httpTaskLogLocation = "http://" + host + ":" + ttStatus.getHttpPort(); 
+        // Note: hardcoded http:// to avoid shuffling over https
+        httpTaskLogLocation = "http://" + host + ":" + ttStatus.getShufflePort(); 
            //+ "/tasklog?plaintext=true&attemptid=" + status.getTaskID();
       }
 
@@ -2630,8 +2632,9 @@ public class JobInProgress {
     Avataar avataar = checkAvataar(tip, taskAttemptId);
     if (status.getIsMap()){
       JobHistory.MapAttempt.logStarted(taskAttemptId, status.getStartTime(), 
-                                       status.getTaskTracker(), 
+                                       status.getTaskTracker(),
                                        ttStatus.getHttpPort(),
+                                       ttStatus.getShufflePort(),
                                        taskType,locality, avataar);
       JobHistory.MapAttempt.logFinished(taskAttemptId, status.getFinishTime(), 
                                         trackerHostname, taskType,
@@ -2640,7 +2643,8 @@ public class JobInProgress {
     }else{
       JobHistory.ReduceAttempt.logStarted(taskAttemptId, status.getStartTime(), 
                                           status.getTaskTracker(),
-                                          ttStatus.getHttpPort(), 
+                                          ttStatus.getHttpPort(),
+                                          ttStatus.getShufflePort(), 
                                           taskType, locality, avataar);
       JobHistory.ReduceAttempt.logFinished(taskAttemptId,
                                            status.getShuffleFinishTime(),
@@ -3078,11 +3082,12 @@ public class JobInProgress {
     TaskStatus taskStatus = tip.getTaskStatus(taskid);
     String taskTrackerName = taskStatus.getTaskTracker();
     String taskTrackerHostName = convertTrackerNameToHostName(taskTrackerName);
-    int taskTrackerPort = -1;
+    int taskTrackerPort = -1, taskTrackerShufflePort = -1;
     TaskTrackerStatus taskTrackerStatus = 
       (taskTracker == null) ? null : taskTracker.getStatus();
     if (taskTrackerStatus != null) {
       taskTrackerPort = taskTrackerStatus.getHttpPort();
+      taskTrackerShufflePort = taskTrackerStatus.getShufflePort();
     }
     long startTime = taskStatus.getStartTime();
     long finishTime = taskStatus.getFinishTime();
@@ -3094,8 +3099,8 @@ public class JobInProgress {
     Locality locality = checkLocality(tip, taskAttemptId);
     Avataar avataar = checkAvataar(tip, taskAttemptId);
     if (taskStatus.getIsMap()) {
-      JobHistory.MapAttempt.logStarted(taskid, startTime, 
-        taskTrackerName, taskTrackerPort, taskType, locality, avataar);
+      JobHistory.MapAttempt.logStarted(taskid, startTime, taskTrackerName, 
+        taskTrackerPort, taskTrackerShufflePort, taskType, locality, avataar);
       if (taskStatus.getRunState() == TaskStatus.State.FAILED) {
         JobHistory.MapAttempt.logFailed(taskid, finishTime,
           taskTrackerHostName, diagInfo, taskType);
@@ -3104,8 +3109,8 @@ public class JobInProgress {
           taskTrackerHostName, diagInfo, taskType);
       }
     } else {
-      JobHistory.ReduceAttempt.logStarted(taskid, startTime, 
-        taskTrackerName, taskTrackerPort, taskType, locality, avataar);
+      JobHistory.ReduceAttempt.logStarted(taskid, startTime, taskTrackerName, 
+        taskTrackerPort, taskTrackerShufflePort, taskType, locality, avataar);
       if (taskStatus.getRunState() == TaskStatus.State.FAILED) {
         JobHistory.ReduceAttempt.logFailed(taskid, finishTime,
           taskTrackerHostName, diagInfo, taskType);

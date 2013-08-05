@@ -27,6 +27,7 @@
   import="org.apache.hadoop.hdfs.server.common.Storage"
   import="org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory"
   import="org.apache.hadoop.hdfs.protocol.*"
+  import="org.apache.hadoop.http.*"
   import="org.apache.hadoop.util.*"
   import="java.text.DateFormat"
   import="java.lang.Math"
@@ -83,7 +84,7 @@
           to interact with datanodes.
     */
     // from nn_browsedfscontent.jsp:
-    String url = "http://" + d.getHostName() + ":" + d.getInfoPort() +
+    String url = HttpConfig.getSchemePrefix() + d.getHostName() + ":" + d.getInfoPort() +
                  "/browseDirectory.jsp?namenodeInfoPort=" +
                  nnHttpPort + "&dir=" +
                  URLEncoder.encode("/", "UTF-8");

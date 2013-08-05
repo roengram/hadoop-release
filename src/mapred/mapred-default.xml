@@ -724,6 +724,15 @@
 </property>
 
 <property>
+  <name>mapred.task.tracker.shuffle.address</name>
+  <value>0.0.0.0:50050</value>
+  <description>
+    The task tracker http server address and port for shuffling.
+    If the port is 0 then the server will start on a free port.
+  </description>
+</property>
+
+<property>
   <name>keep.failed.task.files</name>
   <value>false</value>
   <description>Should the files for failed tasks be kept. This should only be 

@@ -38,6 +38,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.http.HtmlQuoting;
+import org.apache.hadoop.http.HttpConfig;
 import org.apache.hadoop.mapred.JobHistory.JobInfo;
 import org.apache.hadoop.mapred.JobHistory.Keys;
 import org.apache.hadoop.mapred.JobTracker.RetireJobInfo;
@@ -599,7 +600,7 @@ class JSPUtil {
                 "User %s failed to view %s!<br><br>%s"
                     + "<hr>"
                     + "<a href=\"jobhistory.jsp\">Go back to JobHistory</a><br>"
-                    + "<a href=\"http://" + trackerAddress +
+                    + "<a href=\"" + HttpConfig.getSchemePrefix() + trackerAddress +
                     "/jobtracker.jsp\">Go back to JobTracker</a>",
                 user, jobid, e.getMessage());
         JSPUtil.setErrorAndForward(errMsg, request, response);

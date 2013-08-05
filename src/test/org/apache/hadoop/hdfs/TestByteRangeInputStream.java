@@ -24,6 +24,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 
 import org.apache.hadoop.hdfs.server.namenode.StreamFile;
+import org.apache.hadoop.http.HttpConfig;
 import org.junit.Test;
 
 public class TestByteRangeInputStream {
@@ -54,7 +55,7 @@ public static class MockHttpURLConnection extends HttpURLConnection {
   public URL getURL() {
     URL u = null;
     try {
-      u = new URL("http://resolvedurl/");
+      u = new URL(HttpConfig.getSchemePrefix() + "resolvedurl/");
     } catch (Exception e) {
       System.out.println(e.getMessage());
     }

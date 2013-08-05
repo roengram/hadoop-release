@@ -166,7 +166,7 @@ class TransferFsImage implements FSConstants {
       boolean getChecksum) throws IOException {
     byte[] buf = new byte[BUFFER_SIZE];
 
-    String str = NameNode.getHttpUriScheme() + "://" + fsName + "/getimage?" + id;
+    String str = NameNode.getHttpSchemePrefix() + fsName + "/getimage?" + id;
     LOG.info("Opening connection to " + str);
     //
     // open connection to remote server

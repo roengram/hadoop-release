@@ -29,6 +29,7 @@ import java.security.GeneralSecurityException;
 
 import javax.crypto.SecretKey;
 
+import org.apache.hadoop.http.HttpConfig;
 import org.apache.hadoop.http.HttpServer;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.security.SecureShuffleUtils;
@@ -70,7 +71,7 @@ public class TestShuffleJobToken {
     server.addServlet("shuffle", "/mapOutput", TaskTracker.MapOutputServlet.class);
     server.start();
     int port = server.getPort();
-    baseUrl = new URL("http://localhost:" + port + "/");
+    baseUrl = new URL(HttpConfig.getSchemePrefix() + "localhost:" + port + "/");
   }
 
   @After

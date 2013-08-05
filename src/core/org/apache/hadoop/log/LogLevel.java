@@ -26,6 +26,7 @@ import javax.servlet.http.*;
 
 import org.apache.commons.logging.*;
 import org.apache.commons.logging.impl.*;
+import org.apache.hadoop.http.HttpConfig;
 import org.apache.hadoop.http.HttpServer;
 import org.apache.hadoop.util.ServletUtil;
 
@@ -44,11 +45,11 @@ public class LogLevel {
    */
   public static void main(String[] args) {
     if (args.length == 3 && "-getlevel".equals(args[0])) {
-      process("http://" + args[1] + "/logLevel?log=" + args[2]);
+      process(HttpConfig.getSchemePrefix() + args[1] + "/logLevel?log=" + args[2]);
       return;
     }
     else if (args.length == 4 && "-setlevel".equals(args[0])) {
-      process("http://" + args[1] + "/logLevel?log=" + args[2]
+      process(HttpConfig.getSchemePrefix() + args[1] + "/logLevel?log=" + args[2]
               + "&level=" + args[3]);
       return;
     }

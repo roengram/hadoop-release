@@ -27,6 +27,7 @@
   import="org.apache.hadoop.hdfs.server.datanode.*"
   import="org.apache.hadoop.hdfs.server.common.*"
   import="org.apache.hadoop.hdfs.protocol.*"
+  import="org.apache.hadoop.http.*"
   import="org.apache.hadoop.io.*"
   import="org.apache.hadoop.conf.*"
   import="org.apache.hadoop.net.DNS"
@@ -88,7 +89,7 @@
                                               datanodeAddr.substring(
                                                                      datanodeAddr.indexOf(':') + 1, 
                                                                      datanodeAddr.length())); 
-          String redirectLocation = "http://"+fqdn+":" +
+          String redirectLocation = HttpConfig.getSchemePrefix()+fqdn+":" +
             chosenNode.getInfoPort() + 
             "/browseBlock.jsp?blockId=" +
             firstBlock.getBlock().getBlockId() +
@@ -170,7 +171,7 @@
       }
     } 
     String namenodeHost = jspHelper.nameNodeAddr.getHostName();
-    out.print("<br><a href=\"http://" + 
+    out.print("<br><a href=\"" + HttpConfig.getSchemePrefix() + 
               InetAddress.getByName(namenodeHost).getCanonicalHostName() + ":" +
               namenodeInfoPort + "/dfshealth.jsp\">Go back to DFS home</a>");
     dfs.close();

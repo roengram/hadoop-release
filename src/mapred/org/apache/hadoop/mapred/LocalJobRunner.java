@@ -44,6 +44,7 @@ import org.apache.hadoop.filecache.TrackerDistributedCacheManager;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.security.token.delegation.DelegationTokenIdentifier;
+import org.apache.hadoop.http.HttpConfig;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.split.SplitMetaInfoReader;
 import org.apache.hadoop.mapreduce.split.JobSplit.TaskSplitMetaInfo;
@@ -163,7 +164,7 @@ public class LocalJobRunner implements JobSubmissionProtocol {
       }
 
       profile = new JobProfile(job.getUser(), id, systemJobFile.toString(), 
-                               "http://localhost:8080/", job.getJobName());
+        HttpConfig.getSchemePrefix() + "localhost:8080/", job.getJobName());
       status = new JobStatus(id, 0.0f, 0.0f, JobStatus.RUNNING);
 
       jobs.put(id, this);

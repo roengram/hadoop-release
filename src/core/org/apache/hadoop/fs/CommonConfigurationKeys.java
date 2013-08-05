@@ -55,6 +55,9 @@ public class CommonConfigurationKeys {
   public static final boolean HADOOP_SECURITY_USE_WEAK_HTTP_CRYPTO_DEFAULT =
       false;
   
+  public static final String HADOOP_SSL_ENABLED_KEY = "hadoop.ssl.enabled";
+  public static final boolean HADOOP_SSL_ENABLED_DEFAULT = false;
+  
   public static final String IPC_SERVER_RPC_READ_THREADS_KEY =
                                         "ipc.server.read.threadpool.size";
   public static final int IPC_SERVER_RPC_READ_THREADS_DEFAULT = 1;

@@ -28,6 +28,7 @@ import org.apache.hadoop.fs.ChecksumException;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.http.HttpConfig;
 
 import junit.framework.TestCase;
 
@@ -88,7 +89,7 @@ public class TestMissingBlocksAlert extends TestCase {
 
 
       // Now verify that it shows up on webui
-      URL url = new URL("http://" + conf.get("dfs.http.address") + 
+      URL url = new URL(HttpConfig.getSchemePrefix() + conf.get("dfs.http.address") + 
                         "/dfshealth.jsp");
       String dfsFrontPage = DFSTestUtil.urlGet(url);
       String warnStr = "WARNING : There are about ";

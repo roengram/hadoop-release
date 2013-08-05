@@ -474,7 +474,7 @@ public class JobHistory {
     FINISHED_MAPS, FINISHED_REDUCES, JOB_STATUS, TASKID, HOSTNAME, TASK_TYPE, 
     ERROR, TASK_ATTEMPT_ID, TASK_STATUS, COPY_PHASE, SORT_PHASE, REDUCE_PHASE, 
     SHUFFLE_FINISHED, SORT_FINISHED, COUNTERS, SPLITS, JOB_PRIORITY, HTTP_PORT, 
-    TRACKER_NAME, STATE_STRING, VERSION, MAP_COUNTERS, REDUCE_COUNTERS,
+    SHUFFLE_PORT, TRACKER_NAME, STATE_STRING, VERSION, MAP_COUNTERS, REDUCE_COUNTERS,
     VIEW_JOB, MODIFY_JOB, JOB_QUEUE, FAIL_REASON, LOCALITY, AVATAAR,
     WORKFLOW_ID, WORKFLOW_NAME, WORKFLOW_NODE_NAME, WORKFLOW_ADJACENCIES,
     WORKFLOW_TAGS
@@ -2209,17 +2209,17 @@ public class JobHistory {
      * @param startTime start time of task attempt as reported by task tracker. 
      * @param hostName host name of the task attempt. 
      * @deprecated Use 
-     *             {@link #logStarted(TaskAttemptID, long, String, int, String)}
+     *             {@link #logStarted(TaskAttemptID, long, String, int, int, String)}
      */
     @Deprecated
     public static void logStarted(TaskAttemptID taskAttemptId, long startTime, String hostName){
-      logStarted(taskAttemptId, startTime, hostName, -1, Values.MAP.name());
+      logStarted(taskAttemptId, startTime, hostName, -1, -1, Values.MAP.name());
     }
 
     @Deprecated
     public static void logStarted(TaskAttemptID taskAttemptId, long startTime,
-        String trackerName, int httpPort, String taskType) {
-      logStarted(taskAttemptId, startTime, trackerName, httpPort, taskType, 
+        String trackerName, int httpPort, int shufflePort, String taskType) {
+      logStarted(taskAttemptId, startTime, trackerName, httpPort, shufflePort, taskType, 
           Locality.OFF_SWITCH, Avataar.VIRGIN);
     }
 
@@ -2235,7 +2235,7 @@ public class JobHistory {
      * @param Avataar the avataar of the task attempt
      */
     public static void logStarted(TaskAttemptID taskAttemptId, long startTime,
-                                  String trackerName, int httpPort, 
+                                  String trackerName, int httpPort, int shufflePort, 
                                   String taskType,
                                   Locality locality, Avataar avataar) {
       JobID id = taskAttemptId.getJobID();
@@ -2245,13 +2245,14 @@ public class JobHistory {
         JobHistory.log(writer, RecordTypes.MapAttempt, 
                        new Keys[]{ Keys.TASK_TYPE, Keys.TASKID, 
                                    Keys.TASK_ATTEMPT_ID, Keys.START_TIME,
-                                   Keys.TRACKER_NAME, Keys.HTTP_PORT,
+                                   Keys.TRACKER_NAME, Keys.HTTP_PORT, Keys.SHUFFLE_PORT,
                                    Keys.LOCALITY, Keys.AVATAAR},
                        new String[]{taskType,
                                     taskAttemptId.getTaskID().toString(), 
                                     taskAttemptId.toString(), 
                                     String.valueOf(startTime), trackerName,
                                     httpPort == -1 ? "" : String.valueOf(httpPort),
+                                    shufflePort == -1 ? "" : String.valueOf(shufflePort),
                                     locality.toString(), avataar.toString()},
                        id
                        ); 
@@ -2414,15 +2415,15 @@ public class JobHistory {
     @Deprecated
     public static void logStarted(TaskAttemptID taskAttemptId, 
                                   long startTime, String hostName){
-      logStarted(taskAttemptId, startTime, hostName, -1, Values.REDUCE.name());
+      logStarted(taskAttemptId, startTime, hostName, -1, -1, Values.REDUCE.name());
     }
 
     @Deprecated
     public static void logStarted(TaskAttemptID taskAttemptId, 
         long startTime, String trackerName, 
-        int httpPort, 
+        int httpPort, int shufflePort, 
         String taskType) {
-      logStarted(taskAttemptId, startTime, trackerName, httpPort, taskType, 
+      logStarted(taskAttemptId, startTime, trackerName, httpPort, shufflePort, taskType, 
           Locality.OFF_SWITCH, Avataar.VIRGIN);
     }
     /**
@@ -2438,7 +2439,7 @@ public class JobHistory {
      */
     public static void logStarted(TaskAttemptID taskAttemptId, 
                                   long startTime, String trackerName, 
-                                  int httpPort, 
+                                  int httpPort, int shufflePort, 
                                   String taskType,
                                   Locality locality, Avataar avataar) {
       JobID id = taskAttemptId.getJobID();
@@ -2456,6 +2457,8 @@ public class JobHistory {
                 String.valueOf(startTime), trackerName,
                 httpPort == -1 ? "" : 
                 String.valueOf(httpPort),
+                shufflePort == -1 ? "" :
+                  String.valueOf(shufflePort),
                 locality.toString(), avataar.toString()}, 
             id); 
         }
@@ -2800,7 +2803,7 @@ public class JobHistory {
    * Return the TaskLogsUrl of a particular TaskAttempt
    * 
    * @param attempt
-   * @return the taskLogsUrl. null if http-port or tracker-name or
+   * @return the taskLogsUrl. null if shuffle-port or tracker-name or
    *         task-attempt-id are unavailable.
    */
   public static String getTaskLogsUrl(JobHistory.TaskAttempt attempt) {

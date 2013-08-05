@@ -26,6 +26,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.http.HttpConfig;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.IOUtils;
@@ -134,7 +135,7 @@ public class TestRawHistoryFile extends TestCase {
           null, null, conf);
       JobConf jobConf = mrCluster.createJobConf();
 
-      String url = "http://" + jobConf.get("mapred.job.tracker.http.address") +
+      String url = HttpConfig.getSchemePrefix() + jobConf.get("mapred.job.tracker.http.address") +
           "/gethistory.jsp?jobid=job_20100714163314505_9991";
       HttpClient client = new HttpClient();
       GetMethod method = new GetMethod(url);

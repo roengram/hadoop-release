@@ -13,6 +13,7 @@
  */
 package org.apache.hadoop.security.authentication.server;
 
+import org.apache.hadoop.http.HttpConfig;
 import org.apache.hadoop.security.authentication.client.AuthenticatedURL;
 import org.apache.hadoop.security.authentication.client.AuthenticationException;
 import org.apache.hadoop.security.authentication.util.Signer;
@@ -208,10 +209,12 @@ public class TestAuthenticationFilter extends TestCase {
       filter.init(config);
 
       HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
-      Mockito.when(request.getRequestURL()).thenReturn(new StringBuffer("http://foo:8080/bar"));
+      Mockito.when(request.getRequestURL()).thenReturn(
+        new StringBuffer(HttpConfig.getSchemePrefix() + "foo:8080/bar"));
       Mockito.when(request.getQueryString()).thenReturn("a=A&b=B");
 
-      assertEquals("http://foo:8080/bar?a=A&b=B", filter.getRequestURL(request));
+      assertEquals(HttpConfig.getSchemePrefix() + "foo:8080/bar?a=A&b=B", 
+        filter.getRequestURL(request));
     } finally {
       filter.destroy();
     }
@@ -325,7 +328,8 @@ public class TestAuthenticationFilter extends TestCase {
       filter.init(config);
 
       HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
-      Mockito.when(request.getRequestURL()).thenReturn(new StringBuffer("http://foo:8080/bar"));
+      Mockito.when(request.getRequestURL()).thenReturn(
+        new StringBuffer(HttpConfig.getSchemePrefix() + "foo:8080/bar"));
 
       HttpServletResponse response = Mockito.mock(HttpServletResponse.class);
 
@@ -377,7 +381,8 @@ public class TestAuthenticationFilter extends TestCase {
 
       HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
       Mockito.when(request.getParameter("authenticated")).thenReturn("true");
-      Mockito.when(request.getRequestURL()).thenReturn(new StringBuffer("http://foo:8080/bar"));
+      Mockito.when(request.getRequestURL()).thenReturn(
+        new StringBuffer(HttpConfig.getSchemePrefix() + "foo:8080/bar"));
       Mockito.when(request.getQueryString()).thenReturn("authenticated=true");
 
       if (invalidToken) {
@@ -465,7 +470,8 @@ public class TestAuthenticationFilter extends TestCase {
       filter.init(config);
 
       HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
-      Mockito.when(request.getRequestURL()).thenReturn(new StringBuffer("http://foo:8080/bar"));
+      Mockito.when(request.getRequestURL()).thenReturn(
+        new StringBuffer(HttpConfig.getSchemePrefix() + "foo:8080/bar"));
 
       AuthenticationToken token = new AuthenticationToken("u", "p", "t");
       token.setExpires(System.currentTimeMillis() + 1000);
@@ -510,7 +516,8 @@ public class TestAuthenticationFilter extends TestCase {
       filter.init(config);
 
       HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
-      Mockito.when(request.getRequestURL()).thenReturn(new StringBuffer("http://foo:8080/bar"));
+      Mockito.when(request.getRequestURL()).thenReturn(
+        new StringBuffer(HttpConfig.getSchemePrefix() + "foo:8080/bar"));
 
       AuthenticationToken token = new AuthenticationToken("u", "p", DummyAuthenticationHandler.TYPE);
       token.setExpires(System.currentTimeMillis() - 1000);
@@ -570,7 +577,8 @@ public class TestAuthenticationFilter extends TestCase {
       filter.init(config);
 
       HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
-      Mockito.when(request.getRequestURL()).thenReturn(new StringBuffer("http://foo:8080/bar"));
+      Mockito.when(request.getRequestURL()).thenReturn(
+        new StringBuffer(HttpConfig.getSchemePrefix() + "foo:8080/bar"));
 
       AuthenticationToken token = new AuthenticationToken("u", "p", "invalidtype");
       token.setExpires(System.currentTimeMillis() + 1000);

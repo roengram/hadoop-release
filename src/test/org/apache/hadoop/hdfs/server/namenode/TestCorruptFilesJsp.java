@@ -32,6 +32,7 @@ import org.apache.hadoop.hdfs.DFSTestUtil;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.TestDatanodeBlockScanner;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem.CorruptFileBlockInfo;
+import org.apache.hadoop.http.HttpConfig;
 import org.junit.Test;
 
 /** A JUnit test for corrupt_files.jsp */
@@ -69,7 +70,7 @@ public class TestCorruptFilesJsp  {
 
       String nnUrl = cluster.getNameNode().getHttpAddress().getHostName() + ":"
           + cluster.getNameNode().getHttpAddress().getPort(); 
-      URL url = new URL("http://" + nnUrl + "/corrupt_files.jsp");
+      URL url = new URL(HttpConfig.getSchemePrefix() + nnUrl + "/corrupt_files.jsp");
       String corruptFilesPage = DFSTestUtil.urlGet(url);
       assertTrue("Corrupt files page is not showing a healthy filesystem",
           corruptFilesPage.contains("No missing blocks found at the moment."));

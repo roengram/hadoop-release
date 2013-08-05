@@ -72,6 +72,7 @@ import org.apache.hadoop.fs.LocalDirAllocator;
 import org.apache.hadoop.fs.LocalFileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.http.HttpConfig;
 import org.apache.hadoop.http.HttpServer;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.ReadaheadPool;
@@ -112,6 +113,7 @@ import org.apache.hadoop.mapreduce.security.TokenCache;
 import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.metrics2.util.MBeans;
 import org.apache.hadoop.security.Credentials;
+import org.mortbay.jetty.Connector;
 
 /*******************************************************
  * TaskTracker is a process that starts and tracks MR Tasks
@@ -139,7 +141,7 @@ public class TaskTracker implements MRConstants, TaskUmbilicalProtocol,
   static final String CONF_VERSION_DEFAULT = "default";
 
   static final long WAIT_FOR_DONE = 3 * 1000;
-  private int httpPort;
+  private int httpPort, shufflePort;
 
   static enum State {NORMAL, STALE, INTERRUPTED, DENIED}
 
@@ -271,6 +273,7 @@ public class TaskTracker implements MRConstants, TaskUmbilicalProtocol,
   FileSystem systemFS = null;
   private FileSystem localFs = null;
   private final HttpServer server;
+  private final HttpServer shuffleServer;
     
   volatile boolean shuttingDown = false;
     
@@ -812,6 +815,7 @@ public class TaskTracker implements MRConstants, TaskUmbilicalProtocol,
     LOG.info("Good mapred local directories are: " + dirs);
     taskController.setConf(fConf);
     server.setAttribute("conf", fConf);
+    shuffleServer.setAttribute("conf", fConf);
 
     deleteUserDirectories(fConf);
 
@@ -1433,12 +1437,20 @@ public class TaskTracker implements MRConstants, TaskUmbilicalProtocol,
   public synchronized void shutdown() throws IOException, InterruptedException {
     shuttingDown = true;
     close();
+    if (this.shuffleServer != null && this.shuffleServer != this.server) {
+      try {
+        LOG.info("Shutting down Shuffle HttpServer");
+        this.shuffleServer.stop();
+      } catch (Exception e) {
+        LOG.warn("Exception shutting down Shuffle HttpServer in TaskTracker", e);
+      }
+    }
     if (this.server != null) {
       try {
         LOG.info("Shutting down StatusHttpServer");
         this.server.stop();
       } catch (Exception e) {
-        LOG.warn("Exception shutting down TaskTracker", e);
+        LOG.warn("Exception shutting down StatusHttpServer in TaskTracker", e);
       }
     }
   }
@@ -1508,6 +1520,7 @@ public class TaskTracker implements MRConstants, TaskUmbilicalProtocol,
    */
   TaskTracker() {
     server = null;
+    shuffleServer = null;
     workerThreads = 0;
     mapRetainSize = TaskLogsTruncater.DEFAULT_RETAIN_SIZE;
     reduceRetainSize = TaskLogsTruncater.DEFAULT_RETAIN_SIZE;
@@ -1548,8 +1561,26 @@ public class TaskTracker implements MRConstants, TaskUmbilicalProtocol,
     int httpPort = infoSocAddr.getPort();
     this.server = new HttpServer("task", httpBindAddress, httpPort,
         httpPort == 0, conf, aclsManager.getAdminsAcl());
+    
+    // create plain http server for shuffle if https is enabled.
+    // Otherwise, use the same web http server for shuffling.
+    if (HttpConfig.isSecure()) {
+      Connector listener = SecurityUtil.openBaseListener();
+      String shuffleAddr = 
+          conf.get("mapred.task.tracker.shuffle.address", "0.0.0.0:50050");
+      InetSocketAddress shuffleSocAddr = NetUtils.createSocketAddr(shuffleAddr);
+      listener.setHost(shuffleSocAddr.getHostName());
+      listener.setPort(shuffleSocAddr.getPort());
+      listener.open();
+      this.shuffleServer = new HttpServer("task", shuffleSocAddr.getHostName(), 
+        shuffleSocAddr.getPort(), shuffleSocAddr.getPort() == 0, conf, 
+        aclsManager.getAdminsAcl(), listener);
+    } else {
+      this.shuffleServer = server;
+    }
     workerThreads = conf.getInt("tasktracker.http.threads", 40);
     server.setThreads(1, workerThreads);
+    shuffleServer.setThreads(1, workerThreads);
     // let the jsp pages get to the task tracker, config, and other relevant
     // objects
     FileSystem local = FileSystem.getLocal(conf);
@@ -1573,11 +1604,15 @@ public class TaskTracker implements MRConstants, TaskUmbilicalProtocol,
     initialize();
     this.shuffleServerMetrics = ShuffleServerInstrumentation.create(this);
     server.setAttribute("task.tracker", this);
+    shuffleServer.setAttribute("task.tracker", this);
     server.setAttribute("local.file.system", local);
+    shuffleServer.setAttribute("local.file.system", local);
 
     server.setAttribute("log", LOG);
+    shuffleServer.setAttribute("log", LOG);
     server.setAttribute("localDirAllocator", localDirAllocator);
-    server.setAttribute("shuffleServerMetrics", shuffleServerMetrics);
+    shuffleServer.setAttribute("localDirAllocator", localDirAllocator);
+    shuffleServer.setAttribute("shuffleServerMetrics", shuffleServerMetrics);
 
     String exceptionStackRegex =
       conf.get("mapreduce.reduce.shuffle.catch.exception.stack.regex");
@@ -1609,13 +1644,16 @@ public class TaskTracker implements MRConstants, TaskUmbilicalProtocol,
       new ShuffleExceptionTracker(shuffleExceptionSampleSize, exceptionStackRegex,
           exceptionMsgRegex, shuffleExceptionLimit );
 
-    server.setAttribute("shuffleExceptionTracking", shuffleExceptionTracking);
+    shuffleServer.setAttribute("shuffleExceptionTracking", shuffleExceptionTracking);
 
-    server.addInternalServlet("mapOutput", "/mapOutput", MapOutputServlet.class);
+    shuffleServer.addInternalServlet("mapOutput", "/mapOutput", MapOutputServlet.class);
     server.addServlet("taskLog", "/tasklog", TaskLogServlet.class);
     server.start();
+    shuffleServer.start();
     this.httpPort = server.getPort();
+    this.shufflePort = shuffleServer.getPort();
     checkJettyPort(httpPort);
+    checkJettyPort(shufflePort);
     LOG.info("FILE_CACHE_SIZE for mapOutputServlet set to : " + FILE_CACHE_SIZE);
     mapRetainSize = conf.getLong(TaskLogsTruncater.MAP_USERLOG_RETAIN_SIZE, 
         TaskLogsTruncater.DEFAULT_RETAIN_SIZE);
@@ -1961,7 +1999,7 @@ public class TaskTracker implements MRConstants, TaskUmbilicalProtocol,
     if (status == null) {
       synchronized (this) {
         status = new TaskTrackerStatus(taskTrackerName, localHostname, 
-                                       httpPort, 
+                                       httpPort, shufflePort,
                                        cloneAndResetRunningTaskStatuses(
                                          sendCounters), 
                                        taskFailures,
@@ -4540,6 +4578,11 @@ public class TaskTracker implements MRConstants, TaskUmbilicalProtocol,
   @Override
   public int getHttpPort() {
     return httpPort;
+  }
+  
+  @Override
+  public int getShufflePort() {
+    return shufflePort;
   }
 
   @Override

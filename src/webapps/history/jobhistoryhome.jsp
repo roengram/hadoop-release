@@ -21,6 +21,7 @@
   import="java.util.regex.Pattern"
   import="java.util.regex.Matcher"
   import="java.util.concurrent.atomic.AtomicBoolean"
+  import="org.apache.hadoop.http.*"
   import="org.apache.hadoop.net.*"
   import="org.apache.hadoop.util.*"
   import="org.apache.hadoop.mapred.*"
@@ -44,7 +45,7 @@
       getLocalHost().getCanonicalHostName());
     trackerUrl = "";
   } else {
-    trackerUrl = "http://" + trackerAddress;
+    trackerUrl = HttpConfig.getSchemePrefix() + trackerAddress;
     trackerName = StringUtils.simpleHostname(infoSocAddr.getHostName());
   }
 

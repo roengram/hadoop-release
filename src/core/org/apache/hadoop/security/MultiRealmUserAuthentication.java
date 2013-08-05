@@ -14,7 +14,7 @@ import org.apache.hadoop.conf.Configuration;
 public class MultiRealmUserAuthentication {
   private static final Log LOG = LogFactory.getLog(MultiRealmUserAuthentication.class);
   //configuration property name for the user realm
-  public static String  KERBEROS_USER_REALM ="hadoop.security.authentication.user.realm";
+  public static String  KERBEROS_USER_REALM ="hadoop.security.authentication.userrealm";
 
   // class variable used to store the Subject
   private  static UserGroupInformation  ugi ;

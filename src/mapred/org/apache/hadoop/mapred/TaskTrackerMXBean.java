@@ -52,6 +52,11 @@ public interface TaskTrackerMXBean {
    * @return the HTTP port of the tasktracker
    */
   int getHttpPort();
+  
+  /**
+   * @return the shuffle port of the tasktracker
+   */
+  int getShufflePort();
 
   /**
    * @return the health status of the tasktracker

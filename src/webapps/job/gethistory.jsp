@@ -19,6 +19,7 @@
 %>
 <%@ page
     contentType="application/octet-stream; charset=UTF-8"
+    import="org.apache.hadoop.http.*"
     import="org.apache.hadoop.mapred.*"
     import="org.apache.hadoop.mapred.JSPUtil.JobWithViewAccessCheck"
 %>
@@ -55,7 +56,7 @@
       return;
     }
 
-    String historyUrl = "http://" + JobHistoryServer.getAddress(tracker.conf) +
+    String historyUrl = HttpConfig.getSchemePrefix() + JobHistoryServer.getAddress(tracker.conf) +
       "/historyfile?logFile=" +
       JobHistory.JobInfo.encodeJobHistoryFilePath(historyFile);
     response.sendRedirect(response.encodeRedirectURL(historyUrl));

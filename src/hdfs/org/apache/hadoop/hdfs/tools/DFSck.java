@@ -116,7 +116,7 @@ public class DFSck extends Configured implements Tool {
           }
 
           final StringBuffer url = new StringBuffer(
-            NameNode.getHttpUriScheme() + "://");
+            NameNode.getHttpSchemePrefix());
           url.append(NameNode.getInfoServer(getConf())).append("/fsck?ugi=")
               .append(ugi.getShortUserName()).append("&path=");
 

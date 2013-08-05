@@ -34,6 +34,7 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.apache.hadoop.http.HttpConfig;
 import org.apache.hadoop.security.authentication.server.AuthenticationFilter;
 import org.mortbay.jetty.Server;
 import org.mortbay.jetty.servlet.Context;
@@ -113,7 +114,7 @@ public abstract class AuthenticatorTestCase {
   }
 
   protected String getBaseURL() {
-    return "http://" + host + ":" + port + "/foo/bar";
+    return HttpConfig.getSchemePrefix() + host + ":" + port + "/foo/bar";
   }
 
   private String POST = "test";

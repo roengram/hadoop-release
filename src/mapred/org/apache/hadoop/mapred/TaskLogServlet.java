@@ -37,6 +37,7 @@ import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.authorize.AccessControlList;
 import org.apache.hadoop.http.HtmlQuoting;
+import org.apache.hadoop.http.HttpConfig;
 import org.apache.hadoop.util.StringUtils;
 
 /**
@@ -63,7 +64,7 @@ public class TaskLogServlet extends HttpServlet {
    */
   public static String getTaskLogUrl(String taskTrackerHostName,
       String httpPort, String taskAttemptID) {
-    return ("http://" + taskTrackerHostName + ":" + httpPort
+    return (HttpConfig.getSchemePrefix() + taskTrackerHostName + ":" + httpPort
         + "/tasklog?attemptid=" + taskAttemptID);
   }
 

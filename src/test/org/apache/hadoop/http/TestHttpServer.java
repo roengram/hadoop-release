@@ -140,7 +140,7 @@ public class TestHttpServer {
         JerseyResource.class.getPackage().getName(), "/jersey/*");
     server.start();
     int port = server.getPort();
-    baseUrl = new URL("http://localhost:" + port + "/");
+    baseUrl = new URL(HttpConfig.getSchemePrefix() + "localhost:" + port + "/");
   }
   
   @After public void cleanup() throws Exception {
@@ -288,7 +288,7 @@ public class TestHttpServer {
     myServer.setAttribute(HttpServer.CONF_CONTEXT_ATTRIBUTE, conf);
     myServer.start();
     int port = myServer.getPort();
-    String serverURL = "http://localhost:" + port + "/";
+    String serverURL = HttpConfig.getSchemePrefix() + "localhost:" + port + "/";
     for (String servlet : new String[] { "logs", "stacks", "logLevel" }) {
       for (String user : new String[] { "userA", "userB" }) {
         assertEquals(HttpURLConnection.HTTP_OK, getHttpStatusCode(serverURL
@@ -330,7 +330,7 @@ public class TestHttpServer {
     myServer.setAttribute(HttpServer.CONF_CONTEXT_ATTRIBUTE, conf);
     myServer.start();
     int port = myServer.getPort();
-    String serverURL = "http://localhost:" + port + "/";
+    String serverURL = HttpConfig.getSchemePrefix() + "localhost:" + port + "/";
     for (String servlet : new String[] { "logs", "stacks", "logLevel" }) {
       for (String user : new String[] { "userA", "userB", "userC", "userD" }) {
         assertEquals(HttpURLConnection.HTTP_OK, getHttpStatusCode(serverURL

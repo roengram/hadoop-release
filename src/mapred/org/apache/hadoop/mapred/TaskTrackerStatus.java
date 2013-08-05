@@ -47,6 +47,7 @@ public class TaskTrackerStatus implements Writable {
   String trackerName;
   String host;
   int httpPort;
+  int shufflePort;
   int taskFailures;
   int dirFailures;
   List<TaskStatus> taskReports;
@@ -360,9 +361,19 @@ public class TaskTrackerStatus implements Writable {
                            int httpPort, List<TaskStatus> taskReports, 
                            int taskFailures, int dirFailures,
                            int maxMapTasks, int maxReduceTasks) {
+    this(trackerName, host, httpPort, httpPort, taskReports,
+         taskFailures, dirFailures, maxMapTasks, maxReduceTasks);
+  }
+  
+  public TaskTrackerStatus(String trackerName, String host, 
+                           int httpPort, int shufflePort, 
+                           List<TaskStatus> taskReports, 
+                           int taskFailures, int dirFailures,
+                           int maxMapTasks, int maxReduceTasks) {
     this.trackerName = trackerName;
     this.host = host;
     this.httpPort = httpPort;
+    this.shufflePort = shufflePort;
 
     this.taskReports = new ArrayList<TaskStatus>(taskReports);
     this.taskFailures = taskFailures;
@@ -390,6 +401,14 @@ public class TaskTrackerStatus implements Writable {
    */
   public int getHttpPort() {
     return httpPort;
+  }
+  
+  /**
+   * Get the port that this task tracker is serving shuffle requests on.
+   * @return the http port
+   */
+  public int getShufflePort() {
+    return shufflePort;
   }
     
   /**
@@ -662,6 +681,7 @@ public class TaskTrackerStatus implements Writable {
     Text.writeString(out, trackerName);
     Text.writeString(out, host);
     out.writeInt(httpPort);
+    out.writeInt(shufflePort);
     out.writeInt(taskFailures);
     out.writeInt(dirFailures);
     out.writeInt(maxMapTasks);
@@ -679,6 +699,7 @@ public class TaskTrackerStatus implements Writable {
     this.trackerName = Text.readString(in);
     this.host = Text.readString(in);
     this.httpPort = in.readInt();
+    this.shufflePort = in.readInt();
     this.taskFailures = in.readInt();
     this.dirFailures = in.readInt();
     this.maxMapTasks = in.readInt();

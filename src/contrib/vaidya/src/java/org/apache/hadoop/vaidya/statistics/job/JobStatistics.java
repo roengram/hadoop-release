@@ -207,6 +207,7 @@ public class JobStatistics implements JobStatisticsInterface {
         case SPLITS: mapT.setValue(MapTaskKeys.SPLITS, value); break;
         case TRACKER_NAME: mapT.setValue(MapTaskKeys.TRACKER_NAME, value); break;
         case STATE_STRING: mapT.setValue(MapTaskKeys.STATE_STRING, value); break;
+        case SHUFFLE_PORT: mapT.setValue(MapTaskKeys.SHUFFLE_PORT, value); break;
         case HTTP_PORT: mapT.setValue(MapTaskKeys.HTTP_PORT, value); break;
         case ERROR: mapT.setValue(MapTaskKeys.ERROR, value); break;
         case COUNTERS:
@@ -259,6 +260,7 @@ public class JobStatistics implements JobStatisticsInterface {
           case TRACKER_NAME: reduceT.setValue(ReduceTaskKeys.TRACKER_NAME, value); break;
           case STATE_STRING: reduceT.setValue(ReduceTaskKeys.STATE_STRING, value); break;
           case HTTP_PORT: reduceT.setValue(ReduceTaskKeys.HTTP_PORT, value); break;
+          case SHUFFLE_PORT: reduceT.setValue(ReduceTaskKeys.SHUFFLE_PORT, value); break;
           case COUNTERS:
             value.concat(",");
             parseAndAddReduceTaskCounters(reduceT, value);

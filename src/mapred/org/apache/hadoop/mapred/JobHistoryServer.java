@@ -23,6 +23,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.http.HttpConfig;
 import org.apache.hadoop.http.HttpServer;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityUtil;
@@ -238,7 +239,7 @@ public class JobHistoryServer {
   }
 
   static String getHistoryUrlPrefix(JobConf conf) {
-    return (isEmbedded(conf) ? "" : "http://" + getAddress(conf));
+    return (isEmbedded(conf) ? "" : HttpConfig.getSchemePrefix() + getAddress(conf));
   }
 
   private static String getBindAddress(JobConf conf) {

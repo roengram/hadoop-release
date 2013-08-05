@@ -27,6 +27,8 @@ import java.net.URL;
 
 import org.junit.Test;
 
+import org.apache.hadoop.http.HttpConfig;
+
 public class TestCapacitySchedulerServlet extends
     ClusterWithCapacityScheduler {
 
@@ -56,7 +58,7 @@ public class TestCapacitySchedulerServlet extends
     JobTracker jt = getJobTracker();
     int port = jt.getInfoPort();
     String host = jt.getJobTrackerMachine();
-    URL url = new URL("http://" + host + ":" + port + "/scheduler");
+    URL url = new URL(HttpConfig.getSchemePrefix() + host + ":" + port + "/scheduler");
     String queueData = readOutput(url);
     assertTrue(queueData.contains("Q1"));
     assertTrue(queueData.contains("Q2"));

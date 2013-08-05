@@ -119,7 +119,7 @@ public class TestGlobalFilter extends junit.framework.TestCase {
         dataURL, streamFile, rootURL, allURL, outURL, logURL};
 
     //access the urls
-    final String prefix = "http://localhost:" + http.getPort();
+    final String prefix = HttpConfig.getSchemePrefix() + "localhost:" + http.getPort();
     try {
       for(int i = 0; i < urls.length; i++) {
         access(prefix + urls[i]);

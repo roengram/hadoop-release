@@ -37,6 +37,7 @@ import org.apache.hadoop.examples.SleepJob;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.http.HttpConfig;
 import org.apache.hadoop.http.TestHttpServer.DummyFilterInitializer;
 import org.apache.hadoop.mapred.JobHistory.Keys;
 import org.apache.hadoop.mapred.JobHistory.TaskAttempt;
@@ -353,7 +354,7 @@ public class TestWebUIAuthorization extends ClusterMapReduceTestCase {
       historyServer.start();
       jobHistoryUrl = jhUrlPrefix;
     } else {
-      jobHistoryUrl = "http://" + JobHistoryServer.getAddress(jobTracker.conf) +
+      jobHistoryUrl = HttpConfig.getSchemePrefix() + JobHistoryServer.getAddress(jobTracker.conf) +
         jhUrlPrefix;
     }
 
@@ -729,7 +730,7 @@ public class TestWebUIAuthorization extends ClusterMapReduceTestCase {
     RunningJob job = startSleepJobAsUser(jobSubmitter, conf, cluster);
     org.apache.hadoop.mapreduce.JobID jobid = job.getID();
 
-    String jtURL = "http://localhost:" + infoPort;
+    String jtURL = HttpConfig.getSchemePrefix() + "localhost:" + infoPort;
 
     String jobTrackerJSP =  jtURL + "/jobtracker.jsp?a=b";
     try {
@@ -797,13 +798,13 @@ public class TestWebUIAuthorization extends ClusterMapReduceTestCase {
 
   private void validateCommonServlets(MiniMRCluster cluster) throws IOException {
     int infoPort = cluster.getJobTrackerRunner().getJobTrackerInfoPort();
-    String jtURL = "http://localhost:" + infoPort;
+    String jtURL = HttpConfig.getSchemePrefix() + "localhost:" + infoPort;
     for (String servlet : new String[] { "logs", "stacks", "logLevel" }) {
       String url = jtURL + "/" + servlet;
       checkAccessToCommonServlet(url);
     }
     // validate access to common servlets for TaskTracker.
-    String ttURL = "http://localhost:"
+    String ttURL = HttpConfig.getSchemePrefix() + "localhost:"
         + cluster.getTaskTrackerRunner(0).getTaskTracker().getHttpPort();
     for (String servlet : new String[] { "logs", "stacks", "logLevel" }) {
       String url = ttURL + "/" + servlet;

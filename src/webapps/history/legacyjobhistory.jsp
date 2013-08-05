@@ -18,6 +18,7 @@
   import="java.io.*"
   import="java.net.*"
   import="java.util.*"
+  import="org.apache.hadoop.http.*"
   import="org.apache.hadoop.mapred.*"
   import="org.apache.hadoop.util.*"
   import="org.apache.hadoop.net.*"
@@ -40,7 +41,7 @@
     trackerName = StringUtils.getHostname();
     trackerUrl = "";
   } else {
-    trackerUrl = "http://" + trackerAddress;
+    trackerUrl = HttpConfig.getSchemePrefix() + trackerAddress;
     trackerName = StringUtils.simpleHostname(infoSocAddr.getHostName());
   }
 %>

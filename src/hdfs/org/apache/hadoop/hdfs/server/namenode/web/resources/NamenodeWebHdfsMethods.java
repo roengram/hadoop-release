@@ -86,6 +86,7 @@ import org.apache.hadoop.hdfs.web.resources.ReplicationParam;
 import org.apache.hadoop.hdfs.web.resources.TokenArgumentParam;
 import org.apache.hadoop.hdfs.web.resources.UriFsPathParam;
 import org.apache.hadoop.hdfs.web.resources.UserParam;
+import org.apache.hadoop.http.HttpConfig;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -211,8 +212,8 @@ public class NamenodeWebHdfsMethods {
         + Param.toSortedString("&", parameters);
     final String uripath = WebHdfsFileSystem.PATH_PREFIX + path;
 
-    final URI uri = new URI("http", null, dn.getHostName(), dn.getInfoPort(),
-        uripath, query, null);
+    final URI uri = new URI(NameNode.getHttpUriScheme(), null, 
+      dn.getHostName(), dn.getInfoPort(), uripath, query, null);
     if (LOG.isTraceEnabled()) {
       LOG.trace("redirectURI=" + uri);
     }
