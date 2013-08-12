@@ -386,7 +386,7 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
         "dfs.info.bindAddress", "dfs.info.port", "dfs.http.address");
     final InetSocketAddress infoSocAddr = NetUtils.createSocketAddr(infoAddr);
     
-    if (HttpConfig.isSecure() || SecurityUtil.useKsslAuth()) {
+    if (SecurityUtil.useKsslAuth()) {
       String httpsUser = SecurityUtil.getServerPrincipal(conf
           .get(DFSConfigKeys.DFS_NAMENODE_KRB_HTTPS_USER_NAME_KEY), infoSocAddr
           .getHostName());
