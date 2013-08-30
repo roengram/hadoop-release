@@ -254,9 +254,18 @@ abstract class TaskRunner extends Thread {
         sb.append("\"");
         setupCmds.add(sb.toString());
       }
-      setupCmds.add("export CLASSPATH=\"" +
-		    StringUtils.join(SYSTEM_PATH_SEPARATOR, classPaths) +
-		    "\"");
+      // define classpath and hadoop classpath
+      String cp = StringUtils.join(SYSTEM_PATH_SEPARATOR, classPaths);
+      String hcp = System.getenv("HADOOP_CLASSPATH");
+      // if the HADOOP_CLASSPATH isn't defined, just use our classpath
+      // otherwise, prepend it.
+      if (hcp == null) {
+        hcp = cp;
+      } else {
+        hcp = hcp + SYSTEM_PATH_SEPARATOR + cp;
+      }
+      setupCmds.add("export CLASSPATH=\"" + cp + "\"");
+      setupCmds.add("export HADOOP_CLASSPATH=\"" + hcp + "\"");
       setupCmds.add(setup);
       launchJvmAndWait(setupCmds, vargs, stdout, stderr, logSize, workDir);
       tracker.getTaskTrackerInstrumentation().reportTaskEnd(t.getTaskID());
