@@ -254,8 +254,10 @@ abstract class TaskRunner extends Thread {
         sb.append("\"");
         setupCmds.add(sb.toString());
       }
+      setupCmds.add("export CLASSPATH=\"" +
+		    StringUtils.join(SYSTEM_PATH_SEPARATOR, classPaths) +
+		    "\"");
       setupCmds.add(setup);
-      
       launchJvmAndWait(setupCmds, vargs, stdout, stderr, logSize, workDir);
       tracker.getTaskTrackerInstrumentation().reportTaskEnd(t.getTaskID());
       if (exitCodeSet) {
@@ -450,11 +452,6 @@ abstract class TaskRunner extends Thread {
 
     Path childTmpDir = createChildTmpDir(workDir, conf, false);
     vargs.add("-Djava.io.tmpdir=" + childTmpDir);
-
-    // Add classpath.
-    vargs.add("-classpath");
-    String classPath = StringUtils.join(SYSTEM_PATH_SEPARATOR, classPaths);
-    vargs.add(classPath);
 
     // Setup the log4j prop
     setupLog4jProperties(vargs, taskid, logSize);
