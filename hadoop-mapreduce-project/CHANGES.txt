@@ -11,6 +11,18 @@ Release 2.2.0 - UNRELEASED
   OPTIMIZATIONS
 
   BUG FIXES
+Release 2.1.2 - UNRELEASED
+
+  INCOMPATIBLE CHANGES
+
+  NEW FEATURES
+
+  IMPROVEMENTS
+
+  OPTIMIZATIONS
+
+  BUG FIXES
+
     MAPREDUCE-5504. mapred queue -info inconsistent with types (Kousuke Saruta
     via tgraves)
 
@@ -21,6 +33,9 @@ Release 2.2.0 - UNRELEASED
     mapreduce.ssl.enabled to enable https and disabling it by default as MR AM
     needs to set up its own certificates etc and not depend on clusters'.
     (Omkar Vinit Joshi via vinodkv)
+
+    MAPREDUCE-5505. Clients should be notified job finished only after job
+    successfully unregistered (Zhijie Shen via bikas)
 
 Release 2.1.1-beta - 2013-09-23
 
