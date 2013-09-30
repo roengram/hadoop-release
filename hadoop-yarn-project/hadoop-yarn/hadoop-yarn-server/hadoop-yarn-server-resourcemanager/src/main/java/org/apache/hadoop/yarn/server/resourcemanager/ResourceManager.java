@@ -78,6 +78,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.security.AMRMTokenSecretMan
 import org.apache.hadoop.yarn.server.resourcemanager.security.ClientToAMTokenSecretManagerInRM;
 import org.apache.hadoop.yarn.server.resourcemanager.security.DelegationTokenRenewer;
 import org.apache.hadoop.yarn.server.resourcemanager.security.NMTokenSecretManagerInRM;
+import org.apache.hadoop.yarn.server.resourcemanager.security.QueueACLsManager;
 import org.apache.hadoop.yarn.server.resourcemanager.security.RMContainerTokenSecretManager;
 import org.apache.hadoop.yarn.server.resourcemanager.security.RMDelegationTokenSecretManager;
 import org.apache.hadoop.yarn.server.resourcemanager.webapp.RMWebApp;
@@ -130,6 +131,7 @@ public class ResourceManager extends CompositeService implements Recoverable {
   private EventHandler<SchedulerEvent> schedulerDispatcher;
   protected RMAppManager rmAppManager;
   protected ApplicationACLsManager applicationACLsManager;
+  protected QueueACLsManager queueACLsManager;
   protected RMDelegationTokenSecretManager rmDTSecretManager;
   private DelegationTokenRenewer delegationTokenRenewer;
   private WebApp webApp;
@@ -256,6 +258,8 @@ public class ResourceManager extends CompositeService implements Recoverable {
 
     this.applicationACLsManager = new ApplicationACLsManager(conf);
 
+    queueACLsManager = createQueueACLsManager(scheduler, conf);
+
     this.rmAppManager = createRMAppManager();
     // Register event handler for RMAppManagerEvents
     this.rmDispatcher.register(RMAppManagerEventType.class,
@@ -283,6 +287,11 @@ public class ResourceManager extends CompositeService implements Recoverable {
     super.serviceInit(conf);
   }
   
+  protected QueueACLsManager createQueueACLsManager(ResourceScheduler scheduler,
+      Configuration conf) {
+    return new QueueACLsManager(scheduler, conf);
+  }
+
   @VisibleForTesting
   protected void setRMStateStore(RMStateStore rmStore) {
     rmStore.setRMDispatcher(rmDispatcher);
@@ -738,7 +747,8 @@ public class ResourceManager extends CompositeService implements Recoverable {
 
   protected ClientRMService createClientRMService() {
     return new ClientRMService(this.rmContext, scheduler, this.rmAppManager,
-        this.applicationACLsManager, this.rmDTSecretManager);
+        this.applicationACLsManager, this.queueACLsManager,
+        this.rmDTSecretManager);
   }
 
   protected ApplicationMasterService createApplicationMasterService() {
@@ -816,6 +826,11 @@ public class ResourceManager extends CompositeService implements Recoverable {
   @Private
   public ApplicationACLsManager getApplicationACLsManager() {
     return this.applicationACLsManager;
+  }
+
+  @Private
+  public QueueACLsManager getQueueACLsManager() {
+    return this.queueACLsManager;
   }
 
   @Private
