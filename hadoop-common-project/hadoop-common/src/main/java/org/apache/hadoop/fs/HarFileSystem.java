@@ -298,7 +298,7 @@ public class HarFileSystem extends FileSystem {
 
   @Override
   protected URI getCanonicalUri() {
-    return fs.canonicalizeUri(getUri());
+    return fs.getCanonicalUri();
   }
 
   /**
