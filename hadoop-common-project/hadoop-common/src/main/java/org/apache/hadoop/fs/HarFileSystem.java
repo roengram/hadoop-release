@@ -273,7 +273,17 @@ public class HarFileSystem extends FileSystem {
   public Path getWorkingDirectory() {
     return new Path(uri.toString());
   }
-  
+
+  @Override
+  public Path getInitialWorkingDirectory() {
+    return getWorkingDirectory();
+  }
+
+  @Override
+  public FsStatus getStatus(Path p) throws IOException {
+    return fs.getStatus(p);
+  }
+
   /**
    * Create a har specific auth 
    * har-underlyingfs:port
@@ -301,6 +311,11 @@ public class HarFileSystem extends FileSystem {
     return fs.getCanonicalUri();
   }
 
+  @Override
+  protected URI canonicalizeUri(URI uri) {
+    return fs.canonicalizeUri(uri);
+  }
+
   /**
    * Returns the uri of this filesystem.
    * The uri is of the form 
@@ -311,6 +326,16 @@ public class HarFileSystem extends FileSystem {
     return this.uri;
   }
   
+  @Override
+  protected void checkPath(Path path) {
+    fs.checkPath(path);
+  }
+
+  @Override
+  public Path resolvePath(Path p) throws IOException {
+    return fs.resolvePath(p);
+  }
+
   /**
    * this method returns the path 
    * inside the har filesystem.
@@ -677,13 +702,21 @@ public class HarFileSystem extends FileSystem {
   }
  
   @Override
-  public FSDataOutputStream create(Path f,
-      FsPermission permission,
-      boolean overwrite,
-      int bufferSize,
-      short replication,
-      long blockSize,
+  public FileSystem[] getChildFileSystems() {
+    return new FileSystem[]{fs};
+  }
+
+  @Override
+  public FSDataOutputStream create(Path f, FsPermission permission,
+      boolean overwrite, int bufferSize, short replication, long blockSize,
       Progressable progress) throws IOException {
+    throw new IOException("Har: create not allowed.");
+  }
+
+  @Override
+  public FSDataOutputStream createNonRecursive(Path f, boolean overwrite,
+      int bufferSize, short replication, long blockSize, Progressable progress)
+      throws IOException {
     throw new IOException("Har: create not allowed.");
   }
 
@@ -694,6 +727,7 @@ public class HarFileSystem extends FileSystem {
 
   @Override
   public void close() throws IOException {
+    super.close();
     if (fs != null) {
       try {
         fs.close();
@@ -756,6 +790,12 @@ public class HarFileSystem extends FileSystem {
     return statuses.toArray(new FileStatus[statuses.size()]);
   }
   
+  @Override
+  public RemoteIterator<LocatedFileStatus> listLocatedStatus(Path f)
+      throws FileNotFoundException, IOException {
+    return fs.listLocatedStatus(f);
+  }
+
   /**
    * return the top level archive path.
    */
@@ -781,8 +821,8 @@ public class HarFileSystem extends FileSystem {
    * not implemented.
    */
   @Override
-  public void copyFromLocalFile(boolean delSrc, Path src, Path dst) throws 
-        IOException {
+  public void copyFromLocalFile(boolean delSrc, boolean overwrite,
+      Path src, Path dst) throws IOException {
     throw new IOException("Har: copyfromlocalfile not allowed");
   }
   
@@ -795,6 +835,12 @@ public class HarFileSystem extends FileSystem {
     FileUtil.copy(this, src, getLocal(getConf()), dst, false, getConf());
   }
   
+  @Override
+  public void copyFromLocalFile(boolean delSrc, boolean overwrite,
+      Path[] srcs, Path dst) throws IOException {
+    throw new IOException("Har: copyfromlocalfile not allowed");
+  }
+
   /**
    * not implemented.
    */
@@ -820,6 +866,11 @@ public class HarFileSystem extends FileSystem {
   public void setOwner(Path p, String username, String groupname)
     throws IOException {
     throw new IOException("Har: setowner not allowed");
+  }
+
+  @Override
+  public void setTimes(Path p, long mtime, long atime) throws IOException {
+    throw new IOException("Har: setTimes not allowed");
   }
 
   /**
