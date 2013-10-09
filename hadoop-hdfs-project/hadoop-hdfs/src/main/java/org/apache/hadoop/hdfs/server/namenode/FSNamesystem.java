@@ -439,6 +439,11 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
   private HAContext haContext;
 
   private final boolean haEnabled;
+  
+  /**
+   * Whether the namenode is in the middle of starting the active service
+   */
+  private volatile boolean startingActiveService = false;
     
   private INodeId inodeId;
   
@@ -884,6 +889,7 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
    * @throws IOException
    */
   void startActiveServices() throws IOException {
+    startingActiveService = true;
     LOG.info("Starting services required for active state");
     writeLock();
     try {
@@ -938,7 +944,18 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
       nnrmthread.start();
     } finally {
       writeUnlock();
+      startingActiveService = false;
     }
+  }
+  
+  /**
+   * @return Whether the namenode is transitioning to active state and is in the
+   *         middle of the {@link #startActiveServices()}
+   */
+  public boolean inTransitionToActive() {
+    return haEnabled && haContext != null
+        && haContext.getState().getServiceState() == HAServiceState.ACTIVE
+        && startingActiveService;
   }
 
   private boolean shouldUseDelegationTokens() {
@@ -6286,9 +6303,10 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
    * @param identifier Token identifier.
    * @param password Password in the token.
    * @throws InvalidToken
+   * @throws RetriableException
    */
   public synchronized void verifyToken(DelegationTokenIdentifier identifier,
-      byte[] password) throws InvalidToken {
+      byte[] password) throws InvalidToken, RetriableException {
     getDelegationTokenSecretManager().verifyToken(identifier, password);
   }
   

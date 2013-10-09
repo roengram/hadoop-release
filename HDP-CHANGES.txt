@@ -18,3 +18,6 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
 
     HADOOP-10029. Specifying har file to MR job fails in secure cluster.
     (suresh)
+
+    HDFS-5322. HDFS delegation token not found in cache errors seen on 
+    secure HA clusters. (Jing Zhao)
