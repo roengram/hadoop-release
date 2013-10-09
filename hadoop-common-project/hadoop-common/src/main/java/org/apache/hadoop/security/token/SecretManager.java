@@ -29,7 +29,6 @@ import javax.crypto.spec.SecretKeySpec;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
-import org.apache.hadoop.ipc.RetriableException;
 import org.apache.hadoop.ipc.StandbyException;
 
 
@@ -66,11 +65,8 @@ public abstract class SecretManager<T extends TokenIdentifier> {
    * @param identifier the identifier to validate
    * @return the password to use
    * @throws InvalidToken the token was invalid
-   * @throws RetriableException the token was invalid, and the server thinks 
-   *         this may be a temporary issue and suggests the client to retry
    */
-  public abstract byte[] retrievePassword(T identifier) throws InvalidToken,
-      RetriableException;
+  public abstract byte[] retrievePassword(T identifier) throws InvalidToken;
   
   /**
    * Create an empty token identifier.

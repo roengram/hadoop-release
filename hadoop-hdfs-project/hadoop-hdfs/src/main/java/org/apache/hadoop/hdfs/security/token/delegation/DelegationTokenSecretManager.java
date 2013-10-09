@@ -37,7 +37,6 @@ import org.apache.hadoop.hdfs.server.namenode.startupprogress.StartupProgress.Co
 import org.apache.hadoop.hdfs.server.namenode.startupprogress.Step;
 import org.apache.hadoop.hdfs.server.namenode.startupprogress.StepType;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.ipc.RetriableException;
 import org.apache.hadoop.ipc.StandbyException;
 import org.apache.hadoop.security.Credentials;
 import org.apache.hadoop.security.SecurityUtil;
@@ -45,7 +44,6 @@ import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.delegation.AbstractDelegationTokenSecretManager;
 import org.apache.hadoop.security.token.delegation.DelegationKey;
-import org.apache.hadoop.util.Time;
 
 /**
  * A HDFS specific delegation token secret manager.
@@ -96,37 +94,8 @@ public class DelegationTokenSecretManager
   }
   
   @Override
-  protected DelegationTokenInformation checkToken(
-      DelegationTokenIdentifier identifier) throws RetriableException,
-      InvalidToken {
-    assert Thread.holdsLock(this);
-    DelegationTokenInformation info = currentTokens.get(identifier);
-    if (info == null) {
-      InvalidToken it = new InvalidToken("token (" + identifier
-          + ") can't be found in cache");
-      if (namesystem.inTransitionToActive()) {
-        // if the namesystem is currently in the middle of transition to 
-        // active state, let client retry since the corresponding editlog may 
-        // have not been applied yet
-        throw new RetriableException(it);
-      } else {
-        throw it;
-      }
-    } else if (info.getRenewDate() < Time.now()) {
-      InvalidToken it = new InvalidToken("token (" + identifier
-          + ") has expired");
-      if (namesystem.inTransitionToActive()) {
-        throw new RetriableException(it);
-      } else {
-        throw it;
-      }
-    }
-    return info;
-  }
-  
-  @Override
-  public byte[] retrievePassword(DelegationTokenIdentifier identifier)
-      throws InvalidToken, RetriableException {
+  public byte[] retrievePassword(
+      DelegationTokenIdentifier identifier) throws InvalidToken {
     try {
       // this check introduces inconsistency in the authentication to a
       // HA standby NN.  non-token auths are allowed into the namespace which

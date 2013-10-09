@@ -21,7 +21,6 @@ package org.apache.hadoop.security.token.delegation;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.ipc.RetriableException;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
@@ -291,29 +290,19 @@ extends AbstractDelegationTokenIdentifier>
     return password;
   }
 
-  /**
-   * Find the DelegationTokenInformation for the given token id, and verify that
-   * if the token is expired. Note that this method should be called with 
-   * acquiring the secret manager's monitor.
-   */
-  protected DelegationTokenInformation checkToken(TokenIdent identifier)
-      throws RetriableException, InvalidToken {
-    assert Thread.holdsLock(this);
-    DelegationTokenInformation info = currentTokens.get(identifier);
-    if (info == null) {
-      throw new InvalidToken("token (" + identifier
-          + ") can't be found in cache");
-    }
-    if (info.getRenewDate() < Time.now()) {
-      throw new InvalidToken("token (" + identifier + ") has expired");
-    }
-    return info;
-  }
-  
   @Override
   public synchronized byte[] retrievePassword(TokenIdent identifier)
-      throws RetriableException, InvalidToken {
-    return checkToken(identifier).getPassword();
+      throws InvalidToken {
+    DelegationTokenInformation info = currentTokens.get(identifier);
+    if (info == null) {
+      throw new InvalidToken("token (" + identifier.toString()
+          + ") can't be found in cache");
+    }
+    long now = Time.now();
+    if (info.getRenewDate() < now) {
+      throw new InvalidToken("token (" + identifier.toString() + ") is expired");
+    }
+    return info.getPassword();
   }
 
   protected String getTrackingIdIfEnabled(TokenIdent ident) {
@@ -336,13 +325,9 @@ extends AbstractDelegationTokenIdentifier>
    * @param identifier Token identifier.
    * @param password Password in the token.
    * @throws InvalidToken
-   * @throws RetriableException the 
-   * {@link #retrievePassword(AbstractDelegationTokenIdentifier)} call may fail
-   * because the server temporarily cannot find the corresponding token in its
-   * cache, in which case an {@link RetriableException} will be thrown. 
    */
   public synchronized void verifyToken(TokenIdent identifier, byte[] password)
-      throws InvalidToken, RetriableException {
+      throws InvalidToken {
     byte[] storedPassword = retrievePassword(identifier);
     if (!Arrays.equals(password, storedPassword)) {
       throw new InvalidToken("token (" + identifier

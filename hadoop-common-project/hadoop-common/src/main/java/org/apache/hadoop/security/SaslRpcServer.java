@@ -45,7 +45,6 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.ipc.RetriableException;
 import org.apache.hadoop.ipc.Server;
 import org.apache.hadoop.ipc.Server.Connection;
 import org.apache.hadoop.security.token.SecretManager;
@@ -268,14 +267,13 @@ public class SaslRpcServer {
       this.connection = connection;
     }
 
-    private char[] getPassword(TokenIdentifier tokenid) throws InvalidToken,
-        RetriableException {
+    private char[] getPassword(TokenIdentifier tokenid) throws InvalidToken {
       return encodePassword(secretManager.retrievePassword(tokenid));
     }
 
     @Override
     public void handle(Callback[] callbacks) throws InvalidToken,
-        UnsupportedCallbackException, RetriableException {
+        UnsupportedCallbackException {
       NameCallback nc = null;
       PasswordCallback pc = null;
       AuthorizeCallback ac = null;
