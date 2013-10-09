@@ -82,17 +82,7 @@ Release 1.2.1 - 2013.07.15
     MAPREDUCE-5217. Fix DistCP to work when launched by Oozie on a secure
     cluster. (Venkat Ranganathan via sseth)
 
-Release 1.2.1 - Unreleased 
-    
     HDFS-5028. LeaseRenewer throws ConcurrentModificationException when timeout.  Contributed by zhaoyunjiong
-
-  INCOMPATIBLE CHANGES
-
-  NEW FEATURES
-
-  IMPROVEMENTS
-
-  BUG FIXES
 
     MAPREDUCE-5206. Ensure that a job doesn't get added to RetiredJobs
     multiple times in JobTracker. (acmurthy)
