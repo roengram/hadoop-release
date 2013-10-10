@@ -15,6 +15,3 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
     check. (suresh)
 
     BUG-9565. Specifying har file to MR job fails in secure cluster. (suresh)
-
-    HADOOP-10029. Specifying har file to MR job fails in secure cluster.
-    (suresh)

@@ -730,13 +730,6 @@ public class HarFileSystem extends FileSystem {
   }
 
   @Override
-  public FSDataOutputStream createNonRecursive(Path f, boolean overwrite,
-      int bufferSize, short replication, long blockSize, Progressable progress)
-      throws IOException {
-    throw new IOException("Har: create not allowed.");
-  }
-
-  @Override
   public FSDataOutputStream append(Path f, int bufferSize, Progressable progress) throws IOException {
     throw new IOException("Har: append not allowed.");
   }
@@ -842,12 +835,6 @@ public class HarFileSystem extends FileSystem {
     throw new IOException("Har: copyfromlocalfile not allowed");
   }
 
-  @Override
-  public void copyFromLocalFile(boolean delSrc, boolean overwrite,
-      Path[] srcs, Path dst) throws IOException {
-    throw new IOException("Har: copyfromlocalfile not allowed");
-  }
-
   /**
    * copies the file in the har filesystem to a local file.
    */
@@ -857,12 +844,6 @@ public class HarFileSystem extends FileSystem {
     FileUtil.copy(this, src, getLocal(getConf()), dst, false, getConf());
   }
   
-  @Override
-  public void copyFromLocalFile(boolean delSrc, boolean overwrite,
-      Path[] srcs, Path dst) throws IOException {
-    throw new IOException("Har: copyfromlocalfile not allowed");
-  }
-
   /**
    * not implemented.
    */
