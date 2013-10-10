@@ -306,6 +306,10 @@ public class HarFileSystem extends FileSystem {
     return auth;
   }
 
+  /**
+   * Used for delegation token related functionality. Must delegate to
+   * underlying file system.
+   */
   @Override
   protected URI getCanonicalUri() {
     return fs.getCanonicalUri();
@@ -700,7 +704,11 @@ public class HarFileSystem extends FileSystem {
         hstatus.getPartName()),
         hstatus.getStartIndex(), hstatus.getLength(), bufferSize);
   }
- 
+
+  /**
+   * Used for delegation token related functionality. Must delegate to
+   * underlying file system.
+   */
   @Override
   public FileSystem[] getChildFileSystems() {
     return new FileSystem[]{fs};
@@ -710,6 +718,14 @@ public class HarFileSystem extends FileSystem {
   public FSDataOutputStream create(Path f, FsPermission permission,
       boolean overwrite, int bufferSize, short replication, long blockSize,
       Progressable progress) throws IOException {
+    throw new IOException("Har: create not allowed.");
+  }
+
+  @SuppressWarnings("deprecation")
+  @Override
+  public FSDataOutputStream createNonRecursive(Path f, boolean overwrite,
+      int bufferSize, short replication, long blockSize, Progressable progress)
+      throws IOException {
     throw new IOException("Har: create not allowed.");
   }
 
@@ -825,7 +841,13 @@ public class HarFileSystem extends FileSystem {
       Path src, Path dst) throws IOException {
     throw new IOException("Har: copyfromlocalfile not allowed");
   }
-  
+
+  @Override
+  public void copyFromLocalFile(boolean delSrc, boolean overwrite,
+      Path[] srcs, Path dst) throws IOException {
+    throw new IOException("Har: copyfromlocalfile not allowed");
+  }
+
   /**
    * copies the file in the har filesystem to a local file.
    */
@@ -1197,5 +1219,44 @@ public class HarFileSystem extends FileSystem {
     protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
         return size() > MAX_ENTRIES;
     }
+  }
+
+  @SuppressWarnings("deprecation")
+  @Override
+  public FsServerDefaults getServerDefaults() throws IOException {
+    return fs.getServerDefaults();
+  }
+
+  @Override
+  public FsServerDefaults getServerDefaults(Path f) throws IOException {
+    return fs.getServerDefaults(f);
+  }
+
+  @Override
+  public long getUsed() throws IOException{
+    return fs.getUsed();
+  }
+
+  @SuppressWarnings("deprecation")
+  @Override
+  public long getDefaultBlockSize() {
+    return fs.getDefaultBlockSize();
+  }
+
+  @SuppressWarnings("deprecation")
+  @Override
+  public long getDefaultBlockSize(Path f) {
+    return fs.getDefaultBlockSize(f);
+  }
+
+  @SuppressWarnings("deprecation")
+  @Override
+  public short getDefaultReplication() {
+    return fs.getDefaultReplication();
+  }
+
+  @Override
+  public short getDefaultReplication(Path f) {
+    return fs.getDefaultReplication(f);
   }
 }
