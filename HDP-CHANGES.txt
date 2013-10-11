@@ -15,3 +15,6 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
     check. (suresh)
 
     BUG-9565. Specifying har file to MR job fails in secure cluster. (suresh)
+
+    HDFS-5322. HDFS delegation token not found in cache errors seen on secure
+    HA clusters. (Jing Zhao via suresh)
