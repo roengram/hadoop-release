@@ -799,12 +799,6 @@ public class HarFileSystem extends FileSystem {
     return statuses.toArray(new FileStatus[statuses.size()]);
   }
   
-  @Override
-  public RemoteIterator<LocatedFileStatus> listLocatedStatus(Path f)
-      throws FileNotFoundException, IOException {
-    return fs.listLocatedStatus(f);
-  }
-
   /**
    * return the top level archive path.
    */
@@ -832,6 +826,12 @@ public class HarFileSystem extends FileSystem {
   @Override
   public void copyFromLocalFile(boolean delSrc, boolean overwrite,
       Path src, Path dst) throws IOException {
+    throw new IOException("Har: copyfromlocalfile not allowed");
+  }
+
+  @Override
+  public void copyFromLocalFile(boolean delSrc, boolean overwrite,
+      Path[] srcs, Path dst) throws IOException {
     throw new IOException("Har: copyfromlocalfile not allowed");
   }
 
