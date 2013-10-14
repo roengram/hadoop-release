@@ -22,6 +22,9 @@ Release 1.3.0 - unreleased
     (Haohui Mai via jing9)
 
 
+    HDFS-4794. Browsing filesystem via webui throws kerberos exception when NN 
+    service RPC is enabled in a secure cluster. (Benoy Antony via jing9)
+
 Release 1.2.2 - unreleased
 
   INCOMPATIBLE CHANGES
