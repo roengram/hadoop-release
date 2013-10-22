@@ -21,6 +21,9 @@ comanche-branch-1 release branched from condor-branch-1 (SHA1 bb0bbd77479125307c
     BUG-7668. Fix backwards-incompatible change for ClientProtocol#fsync. 
     (Jing Zhao)
 
+    BUG-10178. Fix negative value for JobInProgress.finishedMapTasks.
+    (acmurthy) 
+
   Snapshot related changes
 
     Changes with Apache jira in trunk/branch-2

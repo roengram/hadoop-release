@@ -3073,7 +3073,7 @@ public class JobInProgress {
         // (since they might have been removed from the cache of other 
         // racks/switches, if the input split blocks were present there too)
         failMap(tip);
-        finishedMapTasks -= 1;
+        finishedMapTasks = Math.max(0, finishedMapTasks-1);
       }
     }
         
