@@ -3073,7 +3073,7 @@ public class JobInProgress {
         // (since they might have been removed from the cache of other 
         // racks/switches, if the input split blocks were present there too)
         failMap(tip);
-        finishedMapTasks -= 1;
+        finishedMapTasks = Math.max(0, finishedMapTasks-1);
       }
     }
         
@@ -3329,10 +3329,17 @@ public class JobInProgress {
         String jobTempDir = conf.get("mapreduce.job.dir");
         if (jobTempDir != null && conf.getKeepTaskFilesPattern() == null &&
             !conf.getKeepFailedTaskFiles()) {
-          Path jobTempDirPath = new Path(jobTempDir);
-          tempDirFs = jobTempDirPath.getFileSystem(conf);
+          final Path jobTempDirPath = new Path(jobTempDir);
+          try {
+            tempDirFs = userUGI.doAs(new PrivilegedExceptionAction<FileSystem>() {
+              public FileSystem run() throws IOException {
+                return jobTempDirPath.getFileSystem(conf);
+              }});
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+          }
           CleanupQueue.getInstance().addToQueue(
-              new PathDeletionContext(jobTempDirPath, conf, userUGI, jobId));
+              new PathDeletionContext(jobTempDirPath, conf, userUGI, jobId, tempDirFs));
         }
 
       } catch (IOException e) {
