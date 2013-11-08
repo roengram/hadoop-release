@@ -16,3 +16,9 @@ bigwheel-m16-2.2.0 is branched from hortonworks  bigwheel-GA-2.2.0 SHA1  8656b1c
 
     HADOOP-10110. hadoop-auth has a build break due to missing dependency.
     (Chuan Liu)
+
+    HDFS-5257. addBlock() retry should return LocatedBlock with locations else 
+    client will get AIOBE. (Vinay via jing9)
+
+    HDFS-5371. Let client retry the same NN when 
+    "dfs.client.test.drop.namenode.response.number" is enabled. (jing9)
