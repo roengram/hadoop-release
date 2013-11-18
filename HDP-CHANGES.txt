@@ -14,3 +14,5 @@ bigwheel-m16-2.2.0 is branched from hortonworks  bigwheel-GA-2.2.0 SHA1  8656b1c
     BUG-8178. Datanodes fail to register with namenode due to minimum version
     check. (suresh)
 
+    HADOOP-10110. hadoop-auth has a build break due to missing dependency.
+    (Chuan Liu)
