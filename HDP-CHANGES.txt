@@ -1,4 +1,4 @@
-Changes only in Hortonworks github and not in apache and hence not covered by CHANGES.txt.
+bigwheel-m16-2.2.0 is branched from hortonworks  bigwheel-GA-2.2.0 SHA1  8656b1cfad13b03b29e98cad042626205e7a1c86 @  git@github.com:hortonworks/hadoop.git 
 
   INCOMPATIBLE CHANGES
 
