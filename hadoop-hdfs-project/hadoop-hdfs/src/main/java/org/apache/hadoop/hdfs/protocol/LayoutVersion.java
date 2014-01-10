@@ -117,7 +117,10 @@ public class LayoutVersion {
     PROTOBUF_FORMAT(-52, "Use protobuf to serialize FSImage"),
     EXTENDED_ACL(-53, "Extended ACL"),
     RESERVED_REL2_4_0(-54, -51, "Reserved for release 2.4.0", true,
-        PROTOBUF_FORMAT, EXTENDED_ACL);
+        PROTOBUF_FORMAT, EXTENDED_ACL),
+
+    ROLLING_UPGRADE_MARKER(-55, "Upgrade marker for rolling upgrade");
+
 
     final int lv;
     final int ancestorLV;
