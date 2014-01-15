@@ -174,6 +174,7 @@ import org.apache.hadoop.hdfs.protocol.CachePoolEntry;
 import org.apache.hadoop.hdfs.protocol.CachePoolInfo;
 import org.apache.hadoop.hdfs.protocol.QuotaExceededException;
 import org.apache.hadoop.hdfs.protocol.RecoveryInProgressException;
+import org.apache.hadoop.hdfs.protocol.RollingUpgradeInfo;
 import org.apache.hadoop.hdfs.protocol.SnapshotDiffReport;
 import org.apache.hadoop.hdfs.protocol.SnapshotDiffReport.DiffReportEntry;
 import org.apache.hadoop.hdfs.protocol.SnapshottableDirectoryStatus;
@@ -7099,13 +7100,15 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
     }
   }
 
-  void addUpgradeMarker() throws IOException {
+  RollingUpgradeInfo addUpgradeMarker() throws IOException {
+    final long startTime;
     checkSuperuserPrivilege();
     checkOperation(OperationCategory.WRITE);
     writeLock();
     try {
       checkOperation(OperationCategory.WRITE);
 
+      startTime = now();
       getEditLog().logUpgradeMarker();
     } finally {
       writeUnlock();
@@ -7115,6 +7118,7 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
     if (auditLog.isInfoEnabled() && isExternalInvocation()) {
       logAuditEvent(true, "upgrade", null, null, null);
     }
+    return new RollingUpgradeInfo(startTime, 0L);
   }
 
   long addCacheDirective(CacheDirectiveInfo directive, EnumSet<CacheFlag> flags)
