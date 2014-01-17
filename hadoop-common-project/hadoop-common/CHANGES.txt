@@ -26,6 +26,8 @@ Release 2.2.1 - UNRELEASED
     HADOOP-10040. hadoop.cmd in UNIX format and would not run by default on
     Windows. (cnauroth)
 
+    HADOOP-10112. har file listing doesn't work with wild card. (brandonli)
+
 Release 2.2.0 - 2013-10-13
 
   INCOMPATIBLE CHANGES

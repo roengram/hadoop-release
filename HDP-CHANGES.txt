@@ -22,3 +22,5 @@ bigwheel-m16-2.2.0 is branched from hortonworks  bigwheel-GA-2.2.0 SHA1  8656b1c
 
     HDFS-5371. Let client retry the same NN when 
     "dfs.client.test.drop.namenode.response.number" is enabled. (jing9)
+  
+    HADOOP-10112. har file listing doesn't work with wild card. (brandonli)
