@@ -1119,6 +1119,10 @@ public class NameNode implements NameNodeStatusMXBean {
             return null;
           }
         }
+      } else if (StartupOption.ROLLINGUPGRADE.getName().equalsIgnoreCase(cmd)) {
+        startOpt = StartupOption.ROLLINGUPGRADE;
+        ++i;
+        startOpt.setRollingUpgradeStartupOption(args[i]);
       } else if (StartupOption.ROLLBACK.getName().equalsIgnoreCase(cmd)) {
         startOpt = StartupOption.ROLLBACK;
       } else if (StartupOption.FINALIZE.getName().equalsIgnoreCase(cmd)) {
