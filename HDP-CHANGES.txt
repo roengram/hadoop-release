@@ -1,0 +1,13 @@
+Changes only in Hortonworks github and not in apache and hence not covered by CHANGES.txt.
+
+  INCOMPATIBLE CHANGES
+
+  NEW FEATURES
+
+  IMPROVEMENTS
+
+  BUG FIXES
+
+    HDFS-5089. When a LayoutVersion support SNAPSHOT, it must support
+    FSIMAGE_NAME_OPTIMIZATION.  (szetszwo)
+
