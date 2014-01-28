@@ -16,35 +16,16 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.yarn.exceptions;
+package org.apache.hadoop.yarn.api;
 
-import org.apache.hadoop.classification.InterfaceAudience.Public;
+import org.apache.hadoop.classification.InterfaceAudience.Private;
 import org.apache.hadoop.classification.InterfaceStability.Unstable;
-import org.apache.hadoop.yarn.api.ApplicationClientProtocol;
-import org.apache.hadoop.yarn.api.protocolrecords.GetApplicationReportRequest;
+import org.apache.hadoop.ipc.ProtocolInfo;
+import org.apache.hadoop.yarn.proto.ApplicationHistoryProtocol.ApplicationHistoryProtocolService;
 
-/**
- * This exception is thrown on
- * {@link ApplicationClientProtocol#getApplicationReport
- * (GetApplicationReportRequest)} API
- * when the Application doesn't exist in RM and AHS
- */
-@Public
+@Private
 @Unstable
-public class ApplicationNotFoundException extends YarnException{
-
-  private static final long serialVersionUID = 8694408L;
-
-  public ApplicationNotFoundException(Throwable cause) {
-    super(cause);
-  }
-
-  public ApplicationNotFoundException(String message) {
-    super(message);
-  }
-
-  public ApplicationNotFoundException(String message,
-      Throwable cause) {
-    super(message, cause);
-  }
+@ProtocolInfo(protocolName = "org.apache.hadoop.yarn.api.ApplicationHistoryProtocolPB", protocolVersion = 1)
+public interface ApplicationHistoryProtocolPB extends
+    ApplicationHistoryProtocolService.BlockingInterface {
 }

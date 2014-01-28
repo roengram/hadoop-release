@@ -499,6 +499,21 @@ Branch YARN-321: Generic ApplicationHistoryService
   YARN-1266. Implemented PB service and client wrappers for
   ApplicationHistoryProtocol. (Mayank Bansal via vinodkv)
 
+  YARN-955. Implemented ApplicationHistoryProtocol handler. (Mayank Bansal via
+  vinodkv)
+
+  YARN-1242. Changed yarn scripts to be able to start ApplicationHistoryServer
+  as an individual process. (Mayank Bansal via vinodkv)
+
+  YARN-954. Implemented web UI for the ApplicationHistoryServer and wired it into
+  the HistoryStorage. (Zhijie Shen via vinodkv)
+
+  YARN-967. Added the client and CLI interfaces for obtaining ApplicationHistory
+  data. (Mayank Bansal via vinodkv)
+
+  YARN-1023. Added Webservices REST APIs support for Application History. (Zhijie
+  Shen via vinodkv)
+
 Release 2.2.0 - 2013-10-13
 
   INCOMPATIBLE CHANGES

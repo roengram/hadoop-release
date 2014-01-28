@@ -15,14 +15,30 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.hadoop.yarn.server.webapp.dao;
 
-package org.apache.hadoop.yarn.server.applicationhistoryservice;
+import java.util.ArrayList;
 
-import org.apache.hadoop.classification.InterfaceAudience;
-import org.apache.hadoop.classification.InterfaceStability;
-import org.apache.hadoop.yarn.server.api.ApplicationContext;
+import javax.xml.bind.annotation.XmlAccessType;
+import javax.xml.bind.annotation.XmlAccessorType;
+import javax.xml.bind.annotation.XmlRootElement;
 
-@InterfaceAudience.Public
-@InterfaceStability.Unstable
-public interface ApplicationHistoryManager extends ApplicationContext {
+@XmlRootElement(name = "apps")
+@XmlAccessorType(XmlAccessType.FIELD)
+public class AppsInfo {
+
+  protected ArrayList<AppInfo> app = new ArrayList<AppInfo>();
+
+  public AppsInfo() {
+    // JAXB needs this
+  }
+
+  public void add(AppInfo appinfo) {
+    app.add(appinfo);
+  }
+
+  public ArrayList<AppInfo> getApps() {
+    return app;
+  }
+
 }

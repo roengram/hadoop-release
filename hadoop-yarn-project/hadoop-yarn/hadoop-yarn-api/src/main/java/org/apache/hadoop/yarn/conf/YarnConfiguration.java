@@ -962,7 +962,43 @@ public class YarnConfiguration extends Configuration {
 
   /** AHS store class */
   public static final String AHS_STORE = AHS_PREFIX + "store.class";
+
+  /** host:port address for Application History Server API. */
+  public static final String AHS_ADDRESS = AHS_PREFIX + "address";
+  public static final int DEFAULT_AHS_PORT = 10200;
+  public static final String DEFAULT_AHS_ADDRESS = "0.0.0.0:"
+      + DEFAULT_AHS_PORT;
+
+  /** The number of threads to handle client API requests. */
+  public static final String AHS_CLIENT_THREAD_COUNT = AHS_PREFIX
+      + "client.thread-count";
+  public static final int DEFAULT_AHS_CLIENT_THREAD_COUNT = 10;
   
+
+  /** The address of the AHS web application.*/
+  public static final String AHS_WEBAPP_ADDRESS = AHS_PREFIX
+      + "webapp.address";
+
+  public static final int DEFAULT_AHS_WEBAPP_PORT = 8188;
+  public static final String DEFAULT_AHS_WEBAPP_ADDRESS = "0.0.0.0:"
+      + DEFAULT_AHS_WEBAPP_PORT;
+
+  /** The https address of the AHS web application.*/
+  public static final String AHS_WEBAPP_HTTPS_ADDRESS = AHS_PREFIX
+      + "webapp.https.address";
+
+  public static final int DEFAULT_AHS_WEBAPP_HTTPS_PORT = 8190;
+  public static final String DEFAULT_AHS_WEBAPP_HTTPS_ADDRESS = "0.0.0.0:"
+      + DEFAULT_AHS_WEBAPP_HTTPS_PORT;
+
+  /**The kerberos principal to be used for spnego filter for AHS.*/
+  public static final String AHS_WEBAPP_SPNEGO_USER_NAME_KEY =
+      AHS_PREFIX + "webapp.spnego-principal";
+
+  /**The kerberos keytab to be used for spnego filter for AHS.*/
+  public static final String AHS_WEBAPP_SPNEGO_KEYTAB_FILE_KEY =
+      AHS_PREFIX + "webapp.spnego-keytab-file";
+
   ////////////////////////////////
   // Other Configs
   ////////////////////////////////
