@@ -63,55 +63,60 @@ import org.apache.hadoop.yarn.server.resourcemanager.rmcontainer.RMContainer;
 @Unstable
 public class RMApplicationHistoryWriter extends CompositeService {
 
-  public static final Log LOG =
-      LogFactory.getLog(RMApplicationHistoryWriter.class);
+  public static final Log LOG = LogFactory
+    .getLog(RMApplicationHistoryWriter.class);
 
   private Dispatcher dispatcher;
   private ApplicationHistoryWriter writer;
+  private boolean historyServiceEnabled;
 
   public RMApplicationHistoryWriter() {
     super(RMApplicationHistoryWriter.class.getName());
   }
 
   @Override
-  protected synchronized void serviceInit(
-      Configuration conf) throws Exception {
+  protected synchronized void serviceInit(Configuration conf) throws Exception {
+
+    historyServiceEnabled =
+        conf.getBoolean(YarnConfiguration.YARN_HISTORY_SERVICE_ENABLED,
+          YarnConfiguration.DEFAULT_YARN_HISTORY_SERVICE_ENABLED);
+
     writer = createApplicationHistoryStore(conf);
     addIfService(writer);
 
     dispatcher = createDispatcher(conf);
-    dispatcher.register(
-        WritingHistoryEventType.class, new ForwardingEventHandler());
+    dispatcher.register(WritingHistoryEventType.class,
+      new ForwardingEventHandler());
     addIfService(dispatcher);
     super.serviceInit(conf);
   }
 
   protected Dispatcher createDispatcher(Configuration conf) {
-    MultiThreadedDispatcher dispatcher = new MultiThreadedDispatcher(conf.getInt(
-        YarnConfiguration.RM_HISTORY_WRITER_MULTI_THREADED_DISPATCHER_POOL_SIZE,
-        YarnConfiguration.DEFAULT_RM_HISTORY_WRITER_MULTI_THREADED_DISPATCHER_POOL_SIZE));
+    MultiThreadedDispatcher dispatcher =
+        new MultiThreadedDispatcher(
+          conf
+            .getInt(
+              YarnConfiguration.RM_HISTORY_WRITER_MULTI_THREADED_DISPATCHER_POOL_SIZE,
+              YarnConfiguration.DEFAULT_RM_HISTORY_WRITER_MULTI_THREADED_DISPATCHER_POOL_SIZE));
     dispatcher.setDrainEventsOnStop();
     return dispatcher;
   }
 
   protected ApplicationHistoryStore createApplicationHistoryStore(
       Configuration conf) {
-    boolean ahsEnabled = conf.getBoolean(
-        YarnConfiguration.RM_HISTORY_WRITER_ENABLED,
-        YarnConfiguration.DEFAULT_RM_HISTORY_WRITER_ENABLED);
     // If the history writer is not enabled, a dummy store will be used to
     // write nothing
-    if (ahsEnabled) {
+    if (historyServiceEnabled) {
       try {
         Class<? extends ApplicationHistoryStore> storeClass =
             conf.getClass(YarnConfiguration.RM_HISTORY_WRITER_CLASS,
-                NullApplicationHistoryStore.class,
-                ApplicationHistoryStore.class);
+              NullApplicationHistoryStore.class, ApplicationHistoryStore.class);
         return storeClass.newInstance();
       } catch (Exception e) {
-        String msg = "Could not instantiate ApplicationHistoryWriter: " +
-            conf.get(YarnConfiguration.RM_HISTORY_WRITER_CLASS,
-                NullApplicationHistoryStore.class.getName());
+        String msg =
+            "Could not instantiate ApplicationHistoryWriter: "
+                + conf.get(YarnConfiguration.RM_HISTORY_WRITER_CLASS,
+                  NullApplicationHistoryStore.class.getName());
         LOG.error(msg, e);
         throw new YarnRuntimeException(msg, e);
       }
@@ -152,7 +157,7 @@ public class RMApplicationHistoryWriter extends CompositeService {
             (WritingApplicationAttemptStartEvent) event;
         try {
           writer.applicationAttemptStarted(waasEvent
-              .getApplicationAttemptStartData());
+            .getApplicationAttemptStartData());
           LOG.info("Stored the start data of application attempt "
               + waasEvent.getApplicationAttemptId());
         } catch (IOException e) {
@@ -165,12 +170,13 @@ public class RMApplicationHistoryWriter extends CompositeService {
             (WritingApplicationAttemptFinishEvent) event;
         try {
           writer.applicationAttemptFinished(waafEvent
-              .getApplicationAttemptFinishData());
+            .getApplicationAttemptFinishData());
           LOG.info("Stored the finish data of application attempt "
               + waafEvent.getApplicationAttemptId());
         } catch (IOException e) {
-          LOG.error("Error when storing the finish data of application attempt "
-              + waafEvent.getApplicationAttemptId());
+          LOG
+            .error("Error when storing the finish data of application attempt "
+                + waafEvent.getApplicationAttemptId());
         }
         break;
       case CONTAINER_START:
@@ -206,69 +212,74 @@ public class RMApplicationHistoryWriter extends CompositeService {
   @SuppressWarnings("unchecked")
   public void applicationStarted(RMApp app) {
     dispatcher.getEventHandler().handle(
-        new WritingApplicationStartEvent(app.getApplicationId(),
-            ApplicationStartData.newInstance(app.getApplicationId(),
-                app.getName(), app.getApplicationType(), app.getQueue(),
-                app.getUser(), app.getSubmitTime(), app.getStartTime())));
+      new WritingApplicationStartEvent(app.getApplicationId(),
+        ApplicationStartData.newInstance(app.getApplicationId(), app.getName(),
+          app.getApplicationType(), app.getQueue(), app.getUser(),
+          app.getSubmitTime(), app.getStartTime())));
   }
 
   @SuppressWarnings("unchecked")
   public void applicationFinished(RMApp app) {
     dispatcher.getEventHandler().handle(
-        new WritingApplicationFinishEvent(app.getApplicationId(),
-            ApplicationFinishData.newInstance(app.getApplicationId(),
-                app.getFinishTime(),
-                app.getDiagnostics().toString(),
-                app.getFinalApplicationStatus(),
-                app.createApplicationState())));
+      new WritingApplicationFinishEvent(app.getApplicationId(),
+        ApplicationFinishData.newInstance(app.getApplicationId(),
+          app.getFinishTime(), app.getDiagnostics().toString(),
+          app.getFinalApplicationStatus(), app.createApplicationState())));
   }
 
   @SuppressWarnings("unchecked")
   public void applicationAttemptStarted(RMAppAttempt appAttempt) {
-    dispatcher.getEventHandler().handle(
+    if (historyServiceEnabled) {
+      dispatcher.getEventHandler().handle(
         new WritingApplicationAttemptStartEvent(appAttempt.getAppAttemptId(),
-            ApplicationAttemptStartData.newInstance(
-                appAttempt.getAppAttemptId(), appAttempt.getHost(),
-                appAttempt.getRpcPort(), appAttempt.getMasterContainer()
-                    .getId())));
+          ApplicationAttemptStartData.newInstance(appAttempt.getAppAttemptId(),
+            appAttempt.getHost(), appAttempt.getRpcPort(), appAttempt
+              .getMasterContainer().getId())));
+    }
   }
 
   @SuppressWarnings("unchecked")
   public void applicationAttemptFinished(RMAppAttempt appAttempt) {
-    dispatcher.getEventHandler().handle(
+    if (historyServiceEnabled) {
+      dispatcher.getEventHandler().handle(
         new WritingApplicationAttemptFinishEvent(appAttempt.getAppAttemptId(),
-            ApplicationAttemptFinishData.newInstance(appAttempt
-                .getAppAttemptId(), appAttempt.getDiagnostics().toString(),
-                appAttempt.getTrackingUrl(), appAttempt
-                    .getFinalApplicationStatus(), appAttempt
-                    .createApplicationAttemptState())));
+          ApplicationAttemptFinishData.newInstance(
+            appAttempt.getAppAttemptId(), appAttempt.getDiagnostics()
+              .toString(), appAttempt.getTrackingUrl(), appAttempt
+              .getFinalApplicationStatus(), appAttempt
+              .createApplicationAttemptState())));
+    }
   }
 
   @SuppressWarnings("unchecked")
   public void containerStarted(RMContainer container) {
-    dispatcher.getEventHandler().handle(
+    if (historyServiceEnabled) {
+      dispatcher.getEventHandler().handle(
         new WritingContainerStartEvent(container.getContainerId(),
-            ContainerStartData.newInstance(container.getContainerId(),
-                container.getAllocatedResource(), container.getAllocatedNode(),
-                container.getAllocatedPriority(), container.getStartTime())));
+          ContainerStartData.newInstance(container.getContainerId(),
+            container.getAllocatedResource(), container.getAllocatedNode(),
+            container.getAllocatedPriority(), container.getStartTime())));
+    }
   }
 
   @SuppressWarnings("unchecked")
   public void containerFinished(RMContainer container) {
-    dispatcher.getEventHandler().handle(
+    if (historyServiceEnabled) {
+      dispatcher.getEventHandler().handle(
         new WritingContainerFinishEvent(container.getContainerId(),
-            ContainerFinishData.newInstance(container.getContainerId(),
-                container.getFinishTime(), container.getDiagnosticsInfo(),
-                container.getLogURL(), container.getContainerExitStatus(),
-                container.getContainerState())));
+          ContainerFinishData.newInstance(container.getContainerId(),
+            container.getFinishTime(), container.getDiagnosticsInfo(),
+            container.getLogURL(), container.getContainerExitStatus(),
+            container.getContainerState())));
+    }
   }
 
   /**
    * EventHandler implementation which forward events to HistoryWriter Making
    * use of it, HistoryWriter can avoid to have a public handle method
    */
-  private final class ForwardingEventHandler
-      implements EventHandler<WritingApplicationHistoryEvent> {
+  private final class ForwardingEventHandler implements
+      EventHandler<WritingApplicationHistoryEvent> {
 
     @Override
     public void handle(WritingApplicationHistoryEvent event) {
@@ -278,8 +289,8 @@ public class RMApplicationHistoryWriter extends CompositeService {
   }
 
   @SuppressWarnings({ "rawtypes", "unchecked" })
-  protected static class MultiThreadedDispatcher
-      extends CompositeService implements Dispatcher {
+  protected static class MultiThreadedDispatcher extends CompositeService
+      implements Dispatcher {
 
     private List<AsyncDispatcher> dispatchers =
         new ArrayList<AsyncDispatcher>();
