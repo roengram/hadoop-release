@@ -90,7 +90,8 @@ public class TestAHSWebServices extends JerseyTest {
   private ApplicationHistoryManager mockApplicationHistoryManager()
       throws Exception {
     ApplicationHistoryStore store = new MemoryApplicationHistoryStore();
-    TestAHSWebApp testAHSWebApp = new TestAHSWebApp(store);
+    TestAHSWebApp testAHSWebApp = new TestAHSWebApp();
+    testAHSWebApp.setApplicationHistoryStore(store);
     ApplicationHistoryManager ahManager =
         testAHSWebApp.mockApplicationHistoryManager(5, 5, 5);
     return ahManager;
@@ -286,7 +287,7 @@ public class TestAHSWebServices extends JerseyTest {
         container.getString("assignedNodeId"));
     assertEquals(Priority.newInstance(containerId.getId()).toString(),
         container.getString("priority"));
-    assertEquals("http://localhost:0/", container.getString("logUrl"));
+    assertEquals("http://localhost:0/log", container.getString("logUrl"));
     assertEquals(ContainerState.COMPLETE.toString(),
         container.getString("containerState"));
   }
