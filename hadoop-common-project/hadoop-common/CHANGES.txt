@@ -8,6 +8,9 @@ Release 2.2.1 - UNRELEASED
 
   IMPROVEMENTS
 
+    HADOOP-10295. Allow distcp to automatically identify the checksum type of 
+    source files and use it for the target. (jing9 and Laurent Goujon)
+
   OPTIMIZATIONS
 
   BUG FIXES
