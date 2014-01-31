@@ -26,6 +26,10 @@ if "%HADOOP_BIN_PATH:~`%" == "\" (
   set HADOOP_BIN_PATH=%HADOOP_BIN_PATH:~0,-1%
 )
 
+  if not defined HADOOP_ROOT_LOGGER (
+    set HADOOP_ROOT_LOGGER=INFO,DRFA
+  )
+)
 set DEFAULT_LIBEXEC_DIR=%HADOOP_BIN_PATH%\..\libexec
 if not defined HADOOP_LIBEXEC_DIR (
   set HADOOP_LIBEXEC_DIR=%DEFAULT_LIBEXEC_DIR%
@@ -34,6 +38,12 @@ if not defined HADOOP_LIBEXEC_DIR (
 call %DEFAULT_LIBEXEC_DIR%\mapred-config.cmd %*
 if "%1" == "--config" (
   shift
+  shift
+)
+
+if "%1" == "--service" (
+  set service_entry=true
+  set HADOOP_ROOT_LOGGER=INFO,DRFA
   shift
 )
 
@@ -92,7 +102,11 @@ if "%1" == "--config" (
 
   call :%mapred-command% %mapred-command-arguments%
   set java_arguments=%JAVA_HEAP_MAX% %HADOOP_OPTS% -classpath %CLASSPATH% %CLASS% %mapred-command-arguments%
-  call %JAVA% %java_arguments%
+  if defined service_entry (
+    call :makeServiceXml %java_arguments%
+  ) else (
+    call %JAVA% %java_arguments%
+  )
 
 goto :eof
 
@@ -111,6 +125,11 @@ goto :eof
   set HADOOP_OPTS=%HADOOP_OPTS% %HADOOP_CLIENT_OPTS%
   goto :eof
 
+:pipes
+  set CLASS=org.apache.hadoop.mapred.pipes.Submitter
+  set HADOOP_OPTS=%HADOOP_OPTS% %HADOOP_CLIENT_OPTS%
+  goto :eof
+
 :sampler
   set CLASS=org.apache.hadoop.mapred.lib.InputSampler
   set HADOOP_OPTS=%HADOOP_OPTS% %HADOOP_CLIENT_OPTS%
@@ -118,6 +137,9 @@ goto :eof
 
 :historyserver
   set CLASS=org.apache.hadoop.mapreduce.v2.hs.JobHistoryServer
+  if not defined HADOOP_JHS_LOGGER (
+    set HADOOP_JHS_LOGGER=INFO,console
+  )
   set HADOOP_OPTS=%HADOOP_OPTS% -Dmapred.jobsummary.logger=%HADOOP_JHS_LOGGER% %HADOOP_JOB_HISTORYSERVER_OPTS%
   if defined HADOOP_JOB_HISTORYSERVER_HEAPSIZE (
     set JAVA_HEAP_MAX=-Xmx%HADOOP_JOB_HISTORYSERVER_HEAPSIZE%m
@@ -134,9 +156,6 @@ goto :eof
   set CLASS=org.apache.hadop.tools.HadoopArchives
   set CLASSPATH=%CLASSPATH%;%TOO_PATH%
   set HADOOP_OPTS=%HADOOP_OPTS% %HADOOP_CLIENT_OPTS%
-
-:pipes
-  goto not_supported
 
 :mradmin
   goto not_supported
@@ -158,6 +177,9 @@ goto :eof
     shift
     shift
   )
+  if "%1" == "--service" (
+    shift
+  )
   shift
   set _mapredarguments=
   :MakeCmdArgsLoop 
@@ -174,6 +196,17 @@ goto :eof
   set mapred-command-arguments=%_mapredarguments%
   goto :eof
 
+:makeServiceXml
+  set arguments=%*
+  @echo ^<service^>
+  @echo   ^<id^>%mapred-command%^</id^>
+  @echo   ^<name^>%mapred-command%^</name^>
+  @echo   ^<description^>This service runs Hadoop %mapred-command%^</description^>
+  @echo   ^<executable^>%JAVA%^</executable^>
+  @echo   ^<arguments^>%arguments%^</arguments^>
+  @echo ^</service^>
+  goto :eof
+
 :not_supported
   @echo Sorry, the %COMMAND% command is no longer supported.
   @echo You may find similar functionality with the "yarn" shell command.
@@ -182,6 +215,7 @@ goto :eof
 :print_usage
   @echo Usage: mapred [--config confdir] COMMAND
   @echo        where COMMAND is one of:
+  @echo   pipes                run a Pipes job
   @echo   job                  manipulate MapReduce jobs
   @echo   queue                get information regarding JobQueues
   @echo   classpath            prints the class path needed for running

@@ -46,6 +46,7 @@
     <hadoop.assemblies.version>${project.version}</hadoop.assemblies.version>
 
     <commons-daemon.version>1.0.13</commons-daemon.version>
+    <zookeeper.version>3.4.5</zookeeper.version>
 
     <test.build.dir>${project.build.directory}/test-dir</test.build.dir>
     <test.build.data>${test.build.dir}</test.build.data>
@@ -691,7 +692,7 @@
       <dependency>
         <groupId>org.apache.zookeeper</groupId>
         <artifactId>zookeeper</artifactId>
-        <version>3.4.5</version>
+        <version>${zookeeper.version}</version>
         <exclusions>
           <exclusion>
             <!-- otherwise seems to drag in junit 3.8.1 via jline -->
@@ -715,7 +716,7 @@
       <dependency>
         <groupId>org.apache.zookeeper</groupId>
         <artifactId>zookeeper</artifactId>
-        <version>3.4.5</version>
+        <version>${zookeeper.version}</version>
         <type>test-jar</type>
         <scope>test</scope>
         <exclusions>
