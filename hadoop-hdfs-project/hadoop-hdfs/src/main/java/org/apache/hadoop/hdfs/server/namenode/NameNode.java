@@ -1168,7 +1168,7 @@ public class NameNode implements NameNodeStatusMXBean {
   }
 
   private static void setStartupOption(Configuration conf, StartupOption opt) {
-    conf.set(DFS_NAMENODE_STARTUP_KEY, opt.toString());
+    conf.set(DFS_NAMENODE_STARTUP_KEY, opt.name());
   }
 
   static StartupOption getStartupOption(Configuration conf) {
@@ -1198,7 +1198,7 @@ public class NameNode implements NameNodeStatusMXBean {
     FSNamesystem fsn = null;
     try {
       fsn = FSNamesystem.loadFromDisk(conf);
-      fsn.saveNamespace();
+      fsn.getFSImage().saveNamespace(fsn);
       MetaRecoveryContext.LOG.info("RECOVERY COMPLETE");
     } catch (IOException e) {
       MetaRecoveryContext.LOG.info("RECOVERY FAILED: caught exception", e);
@@ -1214,6 +1214,7 @@ public class NameNode implements NameNodeStatusMXBean {
 
   public static NameNode createNameNode(String argv[], Configuration conf)
       throws IOException {
+    LOG.info("createNameNode " + Arrays.asList(argv));
     if (conf == null)
       conf = new HdfsConfiguration();
     StartupOption startOpt = parseArguments(argv);
