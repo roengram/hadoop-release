@@ -54,6 +54,9 @@
           <includes>
             <include>**</include>
           </includes>
+	  <excludes>
+            <exclude>**/share/hadoop/httpfs/**</exclude>
+          </excludes>
         </fileSet>
     </fileSets>
 </assembly>
