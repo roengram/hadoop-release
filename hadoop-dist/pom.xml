@@ -192,7 +192,7 @@
           <plugin>
             <groupId>com.google.code.maven-replacer-plugin</groupId>
             <artifactId>replacer</artifactId>
-            <version>1.5.2</version>
+            <version>1.5.1</version>
             <executions>
               <execution>
                 <phase>prepare-package</phase>
@@ -206,8 +206,12 @@
                 <include>target/win/scripts/*.ps1</include>
                 <include>target/win/scripts/*.psm1</include>
               </includes>
-              <token>@version@</token>
-              <value>${project.version}</value>
+	      <replacements>
+                <replacement>
+                  <token>@version@</token>
+                  <value>${project.version}</value>
+                </replacement>
+              </replacements>
             </configuration>
           </plugin>
         </plugins>
