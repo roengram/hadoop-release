@@ -243,8 +243,7 @@ public class TestRollingUpgrade {
       Assert.assertEquals(info1.getStartTime(), finalize.getStartTime());
 
       LOG.info("RESTART cluster 2 with regular startup option");
-      cluster2.getNameNodeInfos()[0].setStartOpt(StartupOption.REGULAR);
-      cluster2.restartNameNode();
+      cluster2.restartNameNode(StartupOption.REGULAR.name());
       Assert.assertTrue(dfs2.exists(foo));
       Assert.assertTrue(dfs2.exists(bar));
       Assert.assertTrue(dfs2.exists(baz));

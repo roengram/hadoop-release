@@ -207,6 +207,7 @@ import org.apache.hadoop.hdfs.server.namenode.FsImageProto.SecretManagerSection.
 import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
 import org.apache.hadoop.hdfs.server.namenode.JournalSet.JournalAndStream;
 import org.apache.hadoop.hdfs.server.namenode.LeaseManager.Lease;
+import org.apache.hadoop.hdfs.server.namenode.NNStorage.NameNodeFile;
 import org.apache.hadoop.hdfs.server.namenode.NameNode.OperationCategory;
 import org.apache.hadoop.hdfs.server.namenode.ha.EditLogTailer;
 import org.apache.hadoop.hdfs.server.namenode.ha.HAContext;
@@ -7128,11 +7129,11 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
       checkNameNodeSafeMode("Failed to " + action);
       checkRollingUpgrade(action);
 
-      getFSImage().saveNamespace(this);
+      getFSImage().saveNamespace(this, NameNodeFile.IMAGE_ROLLBACK, null);
       LOG.info("Successfully saved namespace for preparing rolling upgrade.");
 
       setRollingUpgradeInfo(now());
-      getEditLog().logUpgradeMarker(rollingUpgradeInfo.getStartTime());
+      getEditLog().logStartRollingUpgrade(rollingUpgradeInfo.getStartTime());
     } finally {
       writeUnlock();
     }
@@ -7149,7 +7150,7 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
   }
 
   /** Is rolling upgrade in progress? */
-  boolean isRollingUpgrade() {
+  public boolean isRollingUpgrade() {
     return rollingUpgradeInfo != null;
   }
 
@@ -7178,11 +7179,13 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
 
       returnInfo = new RollingUpgradeInfo(blockPoolId,
           rollingUpgradeInfo.getStartTime(), now());
-      getFSImage().saveNamespace(this);
+      getFSImage().purgeCheckpoints(NameNodeFile.IMAGE_ROLLBACK);
       rollingUpgradeInfo = null;
+      getEditLog().logFinalizeRollingUpgrade(returnInfo.getFinalizeTime());
     } finally {
       writeUnlock();
     }
+    getEditLog().logSync();
 
     if (auditLog.isInfoEnabled() && isExternalInvocation()) {
       logAuditEvent(true, "finalizeRollingUpgrade", null, null, null);
