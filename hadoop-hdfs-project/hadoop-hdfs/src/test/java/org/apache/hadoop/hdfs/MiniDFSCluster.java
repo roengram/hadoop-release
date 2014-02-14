@@ -399,6 +399,10 @@ public class MiniDFSCluster {
       this.secureResources = secureResources;
       this.ipcPort = ipcPort;
     }
+
+    public void setDnArgs(String ... args) {
+      dnArgs = args;
+    }
   }
 
   private Configuration conf;

@@ -412,5 +412,17 @@ public interface FsDatasetSpi<V extends FsVolumeSpi> extends FSDatasetMBean {
    */
   public HdfsBlocksMetadata getHdfsBlocksMetadata(String bpid,
       long[] blockIds) throws IOException;
+
+  /**
+   * Enable 'trash' for the given dataset. When trash is enabled, files are
+   * moved to a separate trash directory instead of being deleted immediately.
+   * This can be useful for example during rolling upgrades.
+   */
+  public void enableDeleteToTrash(String bpid);
+
+  /**
+   * Disable 'trash' for the given dataset and purge existing files in 'trash'.
+   */
+  public void disableAndPurgeTrashStorage(String bpid);
 }
 

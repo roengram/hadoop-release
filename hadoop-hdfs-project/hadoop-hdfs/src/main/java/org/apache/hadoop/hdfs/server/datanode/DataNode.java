@@ -102,6 +102,7 @@ import org.apache.hadoop.hdfs.security.token.block.ExportedBlockKeys;
 import org.apache.hadoop.hdfs.security.token.block.InvalidBlockTokenException;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.ReplicaState;
+import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.RollingUpgradeStartupOption;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.StartupOption;
 import org.apache.hadoop.hdfs.server.common.JspHelper;
 import org.apache.hadoop.hdfs.server.common.StorageInfo;
@@ -211,7 +212,14 @@ public class DataNode extends Configured
   static final Log ClientTraceLog =
     LogFactory.getLog(DataNode.class.getName() + ".clienttrace");
   
-  private static final String USAGE = "Usage: java DataNode [-rollback | -regular]";
+  private static final String USAGE =
+      "Usage: java DataNode [-regular | -rollback | -rollingupgrade rollback]\n" +
+      "    -regular                 : Normal DataNode startup (default).\n" +
+      "    -rollback                : Rollback a standard upgrade.\n" +
+      "    -rollingupgrade rollback : Rollback a rolling upgrade operation.\n" +
+      "  Refer to HDFS documentation for the difference between standard\n" +
+      "  and rolling upgrades.";
+
   static final int CURRENT_BLOCK_FORMAT_VERSION = 1;
 
   /**
@@ -1759,6 +1767,7 @@ public class DataNode extends Configured
     }
     
     if (!parseArguments(args, conf)) {
+      LOG.error("Bad command line arguments");
       printUsage(System.err);
       return null;
     }
@@ -1793,6 +1802,7 @@ public class DataNode extends Configured
   /** Instantiate & Start a single datanode daemon and wait for it to finish.
    *  If this thread is specifically interrupted, it will stop waiting.
    */
+  @VisibleForTesting
   public static DataNode createDataNode(String args[],
                                  Configuration conf) throws IOException {
     return createDataNode(args, conf, null);
@@ -1801,6 +1811,7 @@ public class DataNode extends Configured
   /** Instantiate & Start a single datanode daemon and wait for it to finish.
    *  If this thread is specifically interrupted, it will stop waiting.
    */
+  @VisibleForTesting
   @InterfaceAudience.Private
   public static DataNode createDataNode(String args[], Configuration conf,
       SecureResources resources) throws IOException {
@@ -1911,25 +1922,40 @@ public class DataNode extends Configured
    *
    * @return false if passed argements are incorrect
    */
-  private static boolean parseArguments(String args[], 
-                                        Configuration conf) {
-    int argsLen = (args == null) ? 0 : args.length;
+  @VisibleForTesting
+  static boolean parseArguments(String args[], Configuration conf) {
     StartupOption startOpt = StartupOption.REGULAR;
-    for(int i=0; i < argsLen; i++) {
-      String cmd = args[i];
+    int i = 0;
+
+    if (args != null && args.length != 0) {
+      String cmd = args[i++];
       if ("-r".equalsIgnoreCase(cmd) || "--rack".equalsIgnoreCase(cmd)) {
         LOG.error("-r, --rack arguments are not supported anymore. RackID " +
             "resolution is handled by the NameNode.");
-        terminate(1);
-      } else if ("-rollback".equalsIgnoreCase(cmd)) {
-        startOpt = StartupOption.ROLLBACK;
-      } else if ("-regular".equalsIgnoreCase(cmd)) {
-        startOpt = StartupOption.REGULAR;
-      } else
         return false;
+      } else if (StartupOption.ROLLBACK.getName().equalsIgnoreCase(cmd)) {
+        startOpt = StartupOption.ROLLBACK;
+      } else if (StartupOption.REGULAR.getName().equalsIgnoreCase(cmd)) {
+        startOpt = StartupOption.REGULAR;
+      } else if (StartupOption.ROLLINGUPGRADE.getName().equalsIgnoreCase(cmd)) {
+        startOpt = StartupOption.ROLLINGUPGRADE;
+
+        if ((i < args.length ) &&
+            (args[i].equalsIgnoreCase(RollingUpgradeStartupOption.ROLLBACK.toString()))) {
+          startOpt.setRollingUpgradeStartupOption(args[i++]);
+        } else {
+          LOG.error("Missing or unrecognized option to " + StartupOption.ROLLINGUPGRADE);
+          return false;
+        }
+
+        LOG.info("Rolling upgrade rollback requested via startup option");
+      } else {
+        return false;
+      }
     }
+
     setStartupOption(conf, startOpt);
-    return true;
+    return (args == null || i == args.length);    // Fail if more than one cmd specified!
   }
 
   private static void setStartupOption(Configuration conf, StartupOption opt) {
@@ -1937,8 +1963,9 @@ public class DataNode extends Configured
   }
 
   static StartupOption getStartupOption(Configuration conf) {
-    return StartupOption.valueOf(conf.get(DFS_DATANODE_STARTUP_KEY,
-                                          StartupOption.REGULAR.toString()));
+    String value = conf.get(DFS_DATANODE_STARTUP_KEY,
+                            StartupOption.REGULAR.toString());
+    return StartupOption.getEnum(value);
   }
 
   /**
@@ -1969,11 +1996,15 @@ public class DataNode extends Configured
 
 
   public static void secureMain(String args[], SecureResources resources) {
+    int errorCode = 0;
     try {
       StringUtils.startupShutdownMessage(DataNode.class, args, LOG);
       DataNode datanode = createDataNode(args, null, resources);
-      if (datanode != null)
+      if (datanode != null) {
         datanode.join();
+      } else {
+        errorCode = 1;
+      }
     } catch (Throwable e) {
       LOG.fatal("Exception in secureMain", e);
       terminate(1, e);
@@ -1983,7 +2014,7 @@ public class DataNode extends Configured
       // condition was not met. Also, In secure mode, control will go to Jsvc
       // and Datanode process hangs if it does not exit.
       LOG.warn("Exiting Datanode");
-      terminate(0);
+      terminate(errorCode);
     }
   }
   
