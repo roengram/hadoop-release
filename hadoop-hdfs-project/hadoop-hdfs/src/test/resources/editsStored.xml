@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <EDITS>
-  <EDITS_VERSION>-52</EDITS_VERSION>
+  <EDITS_VERSION>-53</EDITS_VERSION>
   <RECORD>
     <OPCODE>OP_START_LOG_SEGMENT</OPCODE>
     <DATA>
@@ -930,6 +930,13 @@
       <POOLNAME>pool1</POOLNAME>
       <RPC_CLIENTID>ff209a09-9745-4242-837f-21c6b95a1b70</RPC_CLIENTID>
       <RPC_CALLID>78</RPC_CALLID>
+    </DATA>
+  </RECORD>
+  <RECORD>
+    <OPCODE>OP_SET_ACL</OPCODE>
+    <DATA>
+      <TXID>73</TXID>
+      <SRC>/file_set_acl</SRC>
     </DATA>
   </RECORD>
   <RECORD>
