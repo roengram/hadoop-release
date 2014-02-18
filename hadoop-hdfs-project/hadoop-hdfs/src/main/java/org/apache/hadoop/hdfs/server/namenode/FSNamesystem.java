@@ -203,7 +203,6 @@ import org.apache.hadoop.hdfs.server.common.Storage.StorageDirType;
 import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
 import org.apache.hadoop.hdfs.server.common.Util;
 import org.apache.hadoop.hdfs.server.namenode.FsImageProto.SecretManagerSection;
-import org.apache.hadoop.hdfs.server.namenode.FsImageProto.SecretManagerSection.PersistToken;
 import org.apache.hadoop.hdfs.server.namenode.INode.BlocksMapUpdateInfo;
 import org.apache.hadoop.hdfs.server.namenode.JournalSet.JournalAndStream;
 import org.apache.hadoop.hdfs.server.namenode.LeaseManager.Lease;
@@ -4494,7 +4493,6 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
     readLock();
     try {
       checkOperation(OperationCategory.UNCHECKED);
-      checkRollingUpgrade("save namespace");
 
       if (!isInSafeMode()) {
         throw new IOException("Safe mode should be turned ON "
@@ -7128,6 +7126,7 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
       final String action = "start rolling upgrade";
       checkNameNodeSafeMode("Failed to " + action);
       checkRollingUpgrade(action);
+      getFSImage().checkUpgrade(this);
 
       getFSImage().saveNamespace(this, NameNodeFile.IMAGE_ROLLBACK, null);
       LOG.info("Successfully saved namespace for preparing rolling upgrade.");
@@ -7149,12 +7148,16 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
     rollingUpgradeInfo = new RollingUpgradeInfo(blockPoolId, startTime);
   }
 
+  RollingUpgradeInfo getRollingUpgradeInfo() {
+    return rollingUpgradeInfo;
+  }
+
   /** Is rolling upgrade in progress? */
   public boolean isRollingUpgrade() {
     return rollingUpgradeInfo != null;
   }
 
-  private void checkRollingUpgrade(String action) throws RollingUpgradeException {
+  void checkRollingUpgrade(String action) throws RollingUpgradeException {
     if (isRollingUpgrade()) {
       throw new RollingUpgradeException("Failed to " + action
           + " since a rolling upgrade is already in progress."
@@ -7179,13 +7182,13 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
 
       returnInfo = new RollingUpgradeInfo(blockPoolId,
           rollingUpgradeInfo.getStartTime(), now());
-      getFSImage().purgeCheckpoints(NameNodeFile.IMAGE_ROLLBACK);
       rollingUpgradeInfo = null;
       getEditLog().logFinalizeRollingUpgrade(returnInfo.getFinalizeTime());
+      getFSImage().saveNamespace(this);
+      getFSImage().purgeCheckpoints(NameNodeFile.IMAGE_ROLLBACK);
     } finally {
       writeUnlock();
     }
-    getEditLog().logSync();
 
     if (auditLog.isInfoEnabled() && isExternalInvocation()) {
       logAuditEvent(true, "finalizeRollingUpgrade", null, null, null);

@@ -280,6 +280,9 @@ public final class FSImageFormatProtobuf {
       fsn.setGenerationStampV1Limit(s.getGenstampV1Limit());
       fsn.setLastAllocatedBlockId(s.getLastAllocatedBlockId());
       imgTxId = s.getTransactionId();
+      if (s.hasRollingUpgradeStartTime()) {
+        fsn.setRollingUpgradeInfo(s.getRollingUpgradeStartTime());
+      }
     }
 
     private void loadStringTableSection(InputStream in) throws IOException {
@@ -520,6 +523,9 @@ public final class FSImageFormatProtobuf {
       // from the actual saver thread, there's a potential of a
       // fairness-related deadlock. See the comments on HDFS-2223.
       b.setNamespaceId(fsn.unprotectedGetNamespaceInfo().getNamespaceID());
+      if (fsn.isRollingUpgrade()) {
+        b.setRollingUpgradeStartTime(fsn.getRollingUpgradeInfo().getStartTime());
+      }
       NameSystemSection s = b.build();
       s.writeDelimitedTo(out);
 
