@@ -42,7 +42,6 @@ import org.apache.hadoop.hdfs.HAUtil;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants;
 import org.apache.hadoop.hdfs.protocol.LayoutVersion;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.NamenodeRole;
-import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.RollingUpgradeStartupOption;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.StartupOption;
 import org.apache.hadoop.hdfs.server.common.InconsistentFSStateException;
 import org.apache.hadoop.hdfs.server.common.Storage;
@@ -529,7 +528,7 @@ public class FSImage implements Closeable {
     // return back the real image
     realImage.getStorage().setStorageInfo(ckptImage.getStorage());
     realImage.getEditLog().setNextTxId(ckptImage.getEditLog().getLastWrittenTxId()+1);
-    realImage.initEditLog();
+    realImage.initEditLog(StartupOption.IMPORT);
 
     target.dir.fsImage = realImage;
     realImage.getStorage().setBlockPoolID(ckptImage.getBlockPoolID());
@@ -593,9 +592,8 @@ public class FSImage implements Closeable {
   private boolean loadFSImage(FSNamesystem target, StartupOption startOpt,
       MetaRecoveryContext recovery)
       throws IOException {
-    final boolean rollingRollback = startOpt == StartupOption.ROLLINGUPGRADE
-        && startOpt.getRollingUpgradeStartupOption() == 
-           RollingUpgradeStartupOption.ROLLBACK;
+    final boolean rollingRollback = StartupOption
+        .isRollingUpgradeRollback(startOpt);
     final NameNodeFile nnf = rollingRollback ? NameNodeFile.IMAGE_ROLLBACK
         : NameNodeFile.IMAGE;
     final FSImageStorageInspector inspector = storage.readAndInspectDirs(nnf);
@@ -612,7 +610,7 @@ public class FSImage implements Closeable {
 
     Iterable<EditLogInputStream> editStreams = null;
 
-    initEditLog();
+    initEditLog(startOpt);
 
     if (NameNodeLayoutVersion.supports(
         LayoutVersion.Feature.TXID_BASED_LAYOUT, getLayoutVersion())) {
@@ -691,9 +689,17 @@ public class FSImage implements Closeable {
     // discard discard unnecessary editlog segments starting from the given id
     this.editLog.discardSegments(discardSegmentTxId);
     // rename the special checkpoint
-    renameCheckpoint(ckptId, NameNodeFile.IMAGE_ROLLBACK, NameNodeFile.IMAGE);
+    renameCheckpoint(ckptId, NameNodeFile.IMAGE_ROLLBACK, NameNodeFile.IMAGE,
+        true);
     // purge all the checkpoints after the marker
     archivalManager.purgeCheckpoinsAfter(NameNodeFile.IMAGE, ckptId);
+    String nameserviceId = DFSUtil.getNamenodeNameServiceId(conf);
+    if (HAUtil.isHAEnabled(conf, nameserviceId)) {
+      // close the editlog since it is currently open for write
+      this.editLog.close();
+      // reopen the editlog for read
+      this.editLog.initSharedJournalsForRead();
+    }
   }
 
   void loadFSImageFile(FSNamesystem target, MetaRecoveryContext recovery,
@@ -725,11 +731,15 @@ public class FSImage implements Closeable {
     }
   }
 
-  public void initEditLog() {
+  public void initEditLog(StartupOption startOpt) {
     Preconditions.checkState(getNamespaceID() != 0,
         "Must know namespace ID before initting edit log");
     String nameserviceId = DFSUtil.getNamenodeNameServiceId(conf);
-    if (!HAUtil.isHAEnabled(conf, nameserviceId)) {
+    if (!HAUtil.isHAEnabled(conf, nameserviceId) || 
+        (HAUtil.isHAEnabled(conf, nameserviceId) && 
+            (StartupOption.isRollingUpgradeRollback(startOpt)))) {
+      // If this NN is not HA or this NN is HA, but we're doing a rollback of
+      // rolling upgrade so init the edit log for write.
       editLog.initJournalsForWrite();
       editLog.recoverUnclosedStreams();
     } else {
@@ -787,9 +797,8 @@ public class FSImage implements Closeable {
           // have been successfully applied before the error.
           lastAppliedTxId = loader.getLastAppliedTxId();
         }
-        boolean rollingRollback = startOpt == StartupOption.ROLLINGUPGRADE && 
-            startOpt.getRollingUpgradeStartupOption() == 
-            RollingUpgradeStartupOption.ROLLBACK;
+        boolean rollingRollback = StartupOption
+            .isRollingUpgradeRollback(startOpt);
         // If we are in recovery mode, we may have skipped over some txids.
         if (editIn.getLastTxId() != HdfsConstants.INVALID_TXID
             && !rollingRollback) {
@@ -1057,7 +1066,7 @@ public class FSImage implements Closeable {
         assert false : "should have thrown above!";
       }
   
-      renameCheckpoint(txid, NameNodeFile.IMAGE_NEW, nnf);
+      renameCheckpoint(txid, NameNodeFile.IMAGE_NEW, nnf, false);
   
       // Since we now have a new checkpoint, we can clean up some
       // old edit logs and checkpoints.
@@ -1098,12 +1107,12 @@ public class FSImage implements Closeable {
    * Renames new image
    */
   private void renameCheckpoint(long txid, NameNodeFile fromNnf,
-      NameNodeFile toNnf) throws IOException {
+      NameNodeFile toNnf, boolean renameMD5) throws IOException {
     ArrayList<StorageDirectory> al = null;
 
     for (StorageDirectory sd : storage.dirIterable(NameNodeDirType.IMAGE)) {
       try {
-        renameImageFileInDir(sd, fromNnf, toNnf, txid);
+        renameImageFileInDir(sd, fromNnf, toNnf, txid, renameMD5);
       } catch (IOException ioe) {
         LOG.warn("Unable to rename checkpoint in " + sd, ioe);
         if (al == null) {
@@ -1132,8 +1141,8 @@ public class FSImage implements Closeable {
     storage.reportErrorsOnDirectories(al);
   }
 
-  private void renameImageFileInDir(StorageDirectory sd,
-      NameNodeFile fromNnf, NameNodeFile toNnf, long txid) throws IOException {
+  private void renameImageFileInDir(StorageDirectory sd, NameNodeFile fromNnf,
+      NameNodeFile toNnf, long txid, boolean renameMD5) throws IOException {
     final File fromFile = NNStorage.getStorageFile(sd, fromNnf, txid);
     final File toFile = NNStorage.getStorageFile(sd, toNnf, txid);
     // renameTo fails on Windows if the destination file 
@@ -1147,7 +1156,10 @@ public class FSImage implements Closeable {
         throw new IOException("renaming  " + fromFile.getAbsolutePath() + " to "  + 
             toFile.getAbsolutePath() + " FAILED");
       }
-    }    
+    }
+    if (renameMD5) {
+      MD5FileUtils.renameMD5File(fromFile, toFile);
+    }
   }
 
   CheckpointSignature rollEditLog() throws IOException {
@@ -1246,7 +1258,7 @@ public class FSImage implements Closeable {
     CheckpointFaultInjector.getInstance().afterMD5Rename();
     
     // Rename image from tmp file
-    renameCheckpoint(txid, NameNodeFile.IMAGE_NEW, NameNodeFile.IMAGE);
+    renameCheckpoint(txid, NameNodeFile.IMAGE_NEW, NameNodeFile.IMAGE, false);
     // So long as this is the newest image available,
     // advertise it as such to other checkpointers
     // from now on
