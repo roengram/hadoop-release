@@ -267,7 +267,7 @@ public class TestRollingUpgrade {
       }
 
       // Restart should succeed!
-//      cluster.restartNameNode();
+      cluster.restartNameNode();
 
       cluster.restartNameNode("-rollingUpgrade", "rollback");
       {
