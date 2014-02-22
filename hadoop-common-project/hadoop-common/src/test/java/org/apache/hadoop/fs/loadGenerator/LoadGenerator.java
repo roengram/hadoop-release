@@ -26,6 +26,7 @@ import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Random;
 
@@ -39,9 +40,12 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.Options.CreateOpts;
+import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.util.Time;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
+
+import com.google.common.base.Preconditions;
 
 /** The load generator is a tool for testing NameNode behavior under
  * different client loads.
@@ -137,11 +141,15 @@ public class LoadGenerator extends Configured implements Tool {
     "-startTime <startTimeInMillis>\n" +
     "-scriptFile <filename>";
   final private String hostname;
-  
+  private final byte[] WRITE_CONTENTS = new byte[4096];
+
+  private static final int ERR_TEST_FAILED = 2;
+
   /** Constructor */
   public LoadGenerator() throws IOException, UnknownHostException {
     InetAddress addr = InetAddress.getLocalHost();
     hostname = addr.getHostName();
+    Arrays.fill(WRITE_CONTENTS, (byte) 'a');
   }
 
   private final static int OPEN = 0;
@@ -178,7 +186,8 @@ public class LoadGenerator extends Configured implements Tool {
     private long [] executionTime = new long[TOTAL_OP_TYPES];
     private long [] totalNumOfOps = new long[TOTAL_OP_TYPES];
     private byte[] buffer = new byte[1024];
-    
+    private boolean failed;
+
     private DFSClientThread(int id) {
       this.id = id;
     }
@@ -196,6 +205,7 @@ public class LoadGenerator extends Configured implements Tool {
       } catch (Exception ioe) {
         System.err.println(ioe.getLocalizedMessage());
         ioe.printStackTrace();
+        failed = true;
       }
     }
     
@@ -272,6 +282,35 @@ public class LoadGenerator extends Configured implements Tool {
       executionTime[LIST] += (Time.now()-startTime);
       totalNumOfOps[LIST]++;
     }
+
+    /** Create a file with a length of <code>fileSize</code>.
+     * The file is filled with 'a'.
+     */
+    private void genFile(Path file, long fileSize) throws IOException {
+      long startTime = Time.now();
+      FSDataOutputStream out = null;
+      try {
+        out = fc.create(file,
+            EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE),
+            CreateOpts.createParent(), CreateOpts.bufferSize(4096),
+            CreateOpts.repFac((short) 3));
+        executionTime[CREATE] += (Time.now() - startTime);
+        totalNumOfOps[CREATE]++;
+
+        long i = fileSize;
+        while (i > 0) {
+          long s = Math.min(fileSize, WRITE_CONTENTS.length);
+          out.write(WRITE_CONTENTS, 0, (int) s);
+          i -= s;
+        }
+
+        startTime = Time.now();
+        executionTime[WRITE_CLOSE] += (Time.now() - startTime);
+        totalNumOfOps[WRITE_CLOSE]++;
+      } finally {
+        IOUtils.cleanup(LOG, out);
+      }
+    }
   }
   
   /** Main function:
@@ -319,13 +358,21 @@ public class LoadGenerator extends Configured implements Tool {
     if(LOG.isDebugEnabled()) {
       LOG.debug("Done with testing.  Waiting for threads to finish.");
     }
+
+    boolean failed = false;
     for (DFSClientThread thread : threads) {
       thread.join();
       for (int i=0; i<TOTAL_OP_TYPES; i++) {
         executionTime[i] += thread.executionTime[i];
         totalNumOfOps[i] += thread.totalNumOfOps[i];
       }
+      failed = failed || thread.failed;
     }
+
+    if (failed) {
+      exitCode = -ERR_TEST_FAILED;
+    }
+
     long totalOps = 0;
     for (int i=0; i<TOTAL_OP_TYPES; i++) {
       totalOps += totalNumOfOps[i];
@@ -443,7 +490,35 @@ public class LoadGenerator extends Configured implements Tool {
     
     return initFileDirTables();
   }
-  
+
+  private static void parseScriptLine(String line, ArrayList<Long> duration,
+      ArrayList<Double> readProb, ArrayList<Double> writeProb) {
+    String[] a = line.split("\\s");
+
+    if (a.length != 3) {
+      throw new IllegalArgumentException("Incorrect number of parameters: "
+          + line);
+    }
+
+    try {
+      long d = Long.parseLong(a[0]);
+      double r = Double.parseDouble(a[1]);
+      double w = Double.parseDouble(a[2]);
+
+      Preconditions.checkArgument(d >= 0, "Invalid duration: " + d);
+      Preconditions.checkArgument(0 <= r && r <= 1.0,
+          "The read probability must be [0, 1]: " + r);
+      Preconditions.checkArgument(0 <= w && w <= 1.0,
+          "The read probability must be [0, 1]: " + w);
+
+      readProb.add(r);
+      duration.add(d);
+      writeProb.add(w);
+    } catch (NumberFormatException nfe) {
+      throw new IllegalArgumentException("Cannot parse: " + line);
+    }
+  }
+
   /**
    * Read a script file of the form: lines of text with duration in seconds,
    * read probability and write probability, separated by white space.
@@ -462,49 +537,21 @@ public class LoadGenerator extends Configured implements Tool {
     
     String line;
     // Read script, parse values, build array of duration, read and write probs
-    while((line = br.readLine()) != null) {
-      lineNum++;
-      if(line.startsWith("#") || line.isEmpty()) // skip comments and blanks
-        continue;
-      
-      String[] a = line.split("\\s");
-      if(a.length != 3) {
-        System.err.println("Line " + lineNum + 
-                           ": Incorrect number of parameters: " + line);
-      }
-      
-      try {
-        long d = Long.parseLong(a[0]);
-        if(d < 0) { 
-           System.err.println("Line " + lineNum + ": Invalid duration: " + d);
-           return -1;
-        }
 
-        double r = Double.parseDouble(a[1]);
-        if(r < 0.0 || r > 1.0 ) {
-           System.err.println("Line " + lineNum + 
-                      ": The read probability must be [0, 1]: " + r);
-           return -1;
-        }
-        
-        double w = Double.parseDouble(a[2]);
-        if(w < 0.0 || w > 1.0) {
-          System.err.println("Line " + lineNum + 
-                       ": The read probability must be [0, 1]: " + r);
-          return -1;
-        }
-        
-        readProb.add(r);
-        duration.add(d);
-        writeProb.add(w);
-      } catch( NumberFormatException nfe) {
-        System.err.println(lineNum + ": Can't parse: " + line);
-        return -1;
+    try {
+      while ((line = br.readLine()) != null) {
+        lineNum++;
+        if (line.startsWith("#") || line.isEmpty()) // skip comments and blanks
+          continue;
+
+        parseScriptLine(line, duration, readProb, writeProb);
       }
+    } catch (IllegalArgumentException e) {
+      System.err.println("Line: " + lineNum + ", " + e.getMessage());
+      return -1;
+    } finally {
+      IOUtils.cleanup(LOG, br);
     }
-    
-    br.close();
-    fr.close();
     
     // Copy vectors to arrays of values, to avoid autoboxing overhead later
     durations = new long[duration.size()];
@@ -580,27 +627,6 @@ public class LoadGenerator extends Configured implements Tool {
       } catch (InterruptedException ex) {
       }
     }
-  }
-
-  /** Create a file with a length of <code>fileSize</code>.
-   * The file is filled with 'a'.
-   */
-  private void genFile(Path file, long fileSize) throws IOException {
-    long startTime = Time.now();
-    FSDataOutputStream out = fc.create(file,
-        EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE),
-        CreateOpts.createParent(), CreateOpts.bufferSize(4096),
-        CreateOpts.repFac((short) 3));
-    executionTime[CREATE] += (Time.now()-startTime);
-    totalNumOfOps[CREATE]++;
-
-    for (long i=0; i<fileSize; i++) {
-      out.writeByte('a');
-    }
-    startTime = Time.now();
-    out.close();
-    executionTime[WRITE_CLOSE] += (Time.now()-startTime);
-    totalNumOfOps[WRITE_CLOSE]++;
   }
   
   /** Main program
