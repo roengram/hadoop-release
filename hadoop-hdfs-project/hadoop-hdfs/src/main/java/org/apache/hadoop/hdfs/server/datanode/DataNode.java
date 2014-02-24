@@ -176,6 +176,8 @@ public class DataNode extends Configured
   }
   
   volatile boolean shouldRun = true;
+  volatile boolean shutdownForUpgrade = false;
+  private boolean shutdownInProgress = false;
   private BlockPoolManager blockPoolManager;
   volatile FsDatasetSpi<? extends FsVolumeSpi> data = null;
   private String clusterId = null;
@@ -1194,9 +1196,31 @@ public class DataNode extends Configured
     // offerServices may be modified.
     BPOfferService[] bposArray = this.blockPoolManager == null ? null
         : this.blockPoolManager.getAllNamenodeThreads();
-    this.shouldRun = false;
+    // If shutdown is not for restart, set shouldRun to false early. 
+    if (!shutdownForUpgrade) {
+      shouldRun = false;
+    }
+
+    // When shutting down for restart, DataXceiverServer is interrupted
+    // in order to avoid any further acceptance of requests, but the peers
+    // for block writes are not closed until the clients are notified.
+    if (dataXceiverServer != null) {
+      ((DataXceiverServer) this.dataXceiverServer.getRunnable()).kill();
+      this.dataXceiverServer.interrupt();
+    }
+
+    // Record the time of initial notification
+    long timeNotified = Time.now();
+
+    if (localDataXceiverServer != null) {
+      ((DataXceiverServer) this.localDataXceiverServer.getRunnable()).kill();
+      this.localDataXceiverServer.interrupt();
+    }
+
+    // Terminate directory scanner and block scanner
     shutdownPeriodicScanners();
-    
+
+    // Stop the web server
     if (infoServer != null) {
       try {
         infoServer.stop();
@@ -1204,26 +1228,24 @@ public class DataNode extends Configured
         LOG.warn("Exception shutting down DataNode", e);
       }
     }
-    if (ipcServer != null) {
-      ipcServer.stop();
-    }
     if (pauseMonitor != null) {
       pauseMonitor.stop();
     }
+
+    // shouldRun is set to false here to prevent certain threads from exiting
+    // before the restart prep is done.
+    this.shouldRun = false;
     
-    if (dataXceiverServer != null) {
-      ((DataXceiverServer) this.dataXceiverServer.getRunnable()).kill();
-      this.dataXceiverServer.interrupt();
-    }
-    if (localDataXceiverServer != null) {
-      ((DataXceiverServer) this.localDataXceiverServer.getRunnable()).kill();
-      this.localDataXceiverServer.interrupt();
-    }
     // wait for all data receiver threads to exit
     if (this.threadGroup != null) {
       int sleepMs = 2;
       while (true) {
-        this.threadGroup.interrupt();
+        // When shutting down for restart, wait 2.5 seconds before forcing
+        // termination of receiver threads.
+        if (!this.shutdownForUpgrade || 
+            (this.shutdownForUpgrade && (Time.now() - timeNotified > 2500))) {
+          this.threadGroup.interrupt();
+        }
         LOG.info("Waiting for threadgroup to exit, active threads is " +
                  this.threadGroup.activeCount());
         if (this.threadGroup.activeCount() == 0) {
@@ -1253,7 +1275,13 @@ public class DataNode extends Configured
       } catch (InterruptedException ie) {
       }
     }
-    
+   
+   // IPC server needs to be shutdown late in the process, otherwise
+   // shutdown command response won't get sent.
+   if (ipcServer != null) {
+      ipcServer.stop();
+    }
+
     if(blockPoolManager != null) {
       try {
         this.blockPoolManager.shutDownAll(bposArray);
@@ -1280,6 +1308,11 @@ public class DataNode extends Configured
       dataNodeInfoBeanName = null;
     }
     if (shortCircuitRegistry != null) shortCircuitRegistry.shutdown();
+    LOG.info("Shutdown complete.");
+    synchronized(this) {
+      // Notify the main thread.
+      notifyAll();
+    }
   }
   
   
@@ -1780,7 +1813,11 @@ public class DataNode extends Configured
             && blockPoolManager.getAllNamenodeThreads().length == 0) {
           shouldRun = false;
         }
-        Thread.sleep(2000);
+        // Terminate if shutdown is complete or 2 seconds after all BPs
+        // are shutdown.
+        synchronized(this) {
+          wait(2000);
+        }
       } catch (InterruptedException ex) {
         LOG.warn("Received exception in Datanode#join: " + ex);
       }
@@ -2417,17 +2454,27 @@ public class DataNode extends Configured
   }
 
   @Override // ClientDatanodeProtocol
-  public void shutdownDatanode(boolean forUpgrade) throws IOException {
+  public synchronized void shutdownDatanode(boolean forUpgrade) throws IOException {
     LOG.info("shutdownDatanode command received (upgrade=" + forUpgrade +
         "). Shutting down Datanode...");
 
-    // Delay start the shutdown process so that the rpc response can be
+    // Shutdown can be called only once.
+    if (shutdownInProgress) {
+      throw new IOException("Shutdown already in progress.");
+    }
+    shutdownInProgress = true;
+    shutdownForUpgrade = forUpgrade;
+
+    // Asynchronously start the shutdown process so that the rpc response can be
     // sent back.
     Thread shutdownThread = new Thread() {
       @Override public void run() {
-        try {
-          Thread.sleep(1000);
-        } catch (InterruptedException ie) { }
+        if (!shutdownForUpgrade) {
+          // Delay the shutdown a bit if not doing for restart.
+          try {
+            Thread.sleep(1000);
+          } catch (InterruptedException ie) { }
+        }
         shutdown();
       }
     };
@@ -2466,6 +2513,10 @@ public class DataNode extends Configured
   public boolean isBPServiceAlive(String bpid) {
     BPOfferService bp = blockPoolManager.get(bpid);
     return bp != null ? bp.isAlive() : false;
+  }
+
+  boolean isRestarting() {
+    return shutdownForUpgrade;
   }
 
   /**
