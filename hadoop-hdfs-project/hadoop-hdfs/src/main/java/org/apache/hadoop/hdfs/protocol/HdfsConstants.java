@@ -87,7 +87,7 @@ public class HdfsConstants {
   }
 
   public static enum RollingUpgradeAction {
-    QUERY, START, FINALIZE;
+    QUERY, PREPARE, FINALIZE;
     
     private static final Map<String, RollingUpgradeAction> MAP
         = new HashMap<String, RollingUpgradeAction>();

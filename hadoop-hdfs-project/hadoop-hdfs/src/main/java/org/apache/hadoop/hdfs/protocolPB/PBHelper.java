@@ -1463,7 +1463,7 @@ public class PBHelper {
     switch (a) {
     case QUERY:
       return RollingUpgradeActionProto.QUERY;
-    case START:
+    case PREPARE:
       return RollingUpgradeActionProto.START;
     case FINALIZE:
       return RollingUpgradeActionProto.FINALIZE;
@@ -1477,7 +1477,7 @@ public class PBHelper {
     case QUERY:
       return RollingUpgradeAction.QUERY;
     case START:
-      return RollingUpgradeAction.START;
+      return RollingUpgradeAction.PREPARE;
     case FINALIZE:
       return RollingUpgradeAction.FINALIZE;
     default:
@@ -1499,6 +1499,7 @@ public class PBHelper {
   public static RollingUpgradeInfoProto convert(RollingUpgradeInfo info) {
     return RollingUpgradeInfoProto.newBuilder()
         .setStatus(convertRollingUpgradeStatus(info))
+        .setCreatedRollbackImages(info.createdRollbackImages())
         .setStartTime(info.getStartTime())
         .setFinalizeTime(info.getFinalizeTime())
         .build();
@@ -1507,6 +1508,7 @@ public class PBHelper {
   public static RollingUpgradeInfo convert(RollingUpgradeInfoProto proto) {
     RollingUpgradeStatusProto status = proto.getStatus();
     return new RollingUpgradeInfo(status.getBlockPoolId(),
+        proto.getCreatedRollbackImages(),
         proto.getStartTime(), proto.getFinalizeTime());
   }
 
