@@ -110,3 +110,5 @@ HDFS-4685 (Unreleased)
 
     HADOOP-10344. Fix TestAclCommands after merging HADOOP-10338 patch.
     (cnauroth)
+
+    HADOOP-10354. TestWebHDFS fails after merge of HDFS-4685 to trunk. (cnauroth)
