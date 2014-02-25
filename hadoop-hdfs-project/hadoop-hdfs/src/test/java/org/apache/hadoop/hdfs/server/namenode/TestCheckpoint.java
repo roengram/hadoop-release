@@ -1456,7 +1456,7 @@ public class TestCheckpoint {
       
       for (StorageDirectory sd :
         image.getStorage().dirIterable(NameNodeDirType.IMAGE)) {
-        File imageFile = NNStorage.getImageFile(sd,
+        File imageFile = NNStorage.getImageFile(sd, NameNodeFile.IMAGE,
             expectedTxIdToDownload + 5);
         assertTrue("Image size increased",
             imageFile.length() > fsimageLength);
@@ -1983,7 +1983,8 @@ public class TestCheckpoint {
         .when(dstImage).toColonSeparatedString();
 
       try {
-        TransferFsImage.downloadImageToStorage(fsName, 0, dstImage, false);
+        TransferFsImage.downloadImageToStorage(fsName, NameNodeFile.IMAGE, 0,
+            dstImage, false);
         fail("Storage info was not verified");
       } catch (IOException ioe) {
         String msg = StringUtils.stringifyException(ioe);
@@ -1999,7 +2000,8 @@ public class TestCheckpoint {
       }
 
       try {
-        TransferFsImage.uploadImageFromStorage(fsName, new URL("http://localhost:1234"), dstImage, 0);
+        TransferFsImage.uploadImageFromStorage(fsName, new URL(
+            "http://localhost:1234"), dstImage, NameNodeFile.IMAGE, 0);
         fail("Storage info was not verified");
       } catch (IOException ioe) {
         String msg = StringUtils.stringifyException(ioe);
