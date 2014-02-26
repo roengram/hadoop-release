@@ -362,7 +362,8 @@ public class TestRollingUpgrade {
       dfs.mkdirs(foo);
 
       // start rolling upgrade
-      RollingUpgradeInfo info = dfs.rollingUpgrade(RollingUpgradeAction.PREPARE);
+      RollingUpgradeInfo info = dfs
+          .rollingUpgrade(RollingUpgradeAction.PREPARE);
       Assert.assertTrue(info.isStarted());
       dfs.mkdirs(bar);
       dfs.close();
@@ -406,7 +407,8 @@ public class TestRollingUpgrade {
       FSImage fsimage = dfsCluster.getNamesystem(0).getFSImage();
 
       // start rolling upgrade
-      RollingUpgradeInfo info = dfs.rollingUpgrade(RollingUpgradeAction.PREPARE);
+      RollingUpgradeInfo info = dfs
+          .rollingUpgrade(RollingUpgradeAction.PREPARE);
       Assert.assertTrue(info.isStarted());
       dfs.mkdirs(bar);
 
@@ -421,6 +423,42 @@ public class TestRollingUpgrade {
 
       // Once finalized, there should be no more fsimage for rollbacks.
       Assert.assertFalse(fsimage.hasRollbackFSImage());
+    } finally {
+      if (cluster != null) {
+        cluster.shutdown();
+      }
+    }
+  }
+
+  @Test (timeout = 300000)
+  public void testQuery() throws Exception {
+    final Configuration conf = new Configuration();
+    MiniQJMHACluster cluster = null;
+    try {
+      cluster = new MiniQJMHACluster.Builder(conf).build();
+      MiniDFSCluster dfsCluster = cluster.getDfsCluster();
+      dfsCluster.waitActive();
+
+      dfsCluster.transitionToActive(0);
+      DistributedFileSystem dfs = dfsCluster.getFileSystem(0);
+
+      dfsCluster.shutdownNameNode(1);
+
+      // start rolling upgrade
+      RollingUpgradeInfo info = dfs
+          .rollingUpgrade(RollingUpgradeAction.PREPARE);
+      Assert.assertTrue(info.isStarted());
+
+      info = dfs.rollingUpgrade(RollingUpgradeAction.QUERY);
+      Assert.assertFalse(info.createdRollbackImages());
+
+      dfsCluster.restartNameNode(1);
+
+      queryForPreparation(dfs);
+
+      // The NN should have a copy of the fsimage in case of rollbacks.
+      Assert.assertTrue(dfsCluster.getNamesystem(0).getFSImage()
+          .hasRollbackFSImage());
     } finally {
       if (cluster != null) {
         cluster.shutdown();
