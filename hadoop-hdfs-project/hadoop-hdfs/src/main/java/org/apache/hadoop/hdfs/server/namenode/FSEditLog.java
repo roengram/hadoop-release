@@ -1036,9 +1036,8 @@ public class FSEditLog implements LogsPurgeable {
     logEdit(op);
   }
 
-  void logUpgradeMarker(long startTime) {
+  void logUpgradeMarker() {
     UpgradeMarkerOp op = UpgradeMarkerOp.getInstance(cache.get());
-    op.setStartTime(startTime);
     logEdit(op);
   }
 

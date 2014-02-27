@@ -861,13 +861,10 @@ class NameNodeRpcServer implements NamenodeProtocols {
   public RollingUpgradeInfo rollingUpgrade(RollingUpgradeAction action) throws IOException {
     LOG.info("rollingUpgrade " + action);
     switch(action) {
-    case QUERY:
-      return namesystem.queryRollingUpgrade();
     case START:
-      return namesystem.startRollingUpgrade();
-    case FINALIZE:
-      return namesystem.finalizeRollingUpgrade();
+      return namesystem.addUpgradeMarker();
     default:
+      // TODO: support other actions.
       throw new UnsupportedActionException(action + " is not yet supported.");
     }
   }
