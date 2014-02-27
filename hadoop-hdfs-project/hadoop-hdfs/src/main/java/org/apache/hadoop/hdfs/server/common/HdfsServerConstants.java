@@ -24,8 +24,6 @@ import java.io.IOException;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.hdfs.server.namenode.MetaRecoveryContext;
 
-import com.google.common.base.Preconditions;
-
 /************************************
  * Some handy internal HDFS constants
  *
@@ -45,23 +43,6 @@ public final class HdfsServerConstants {
     JOURNAL_NODE;
   }
 
-  /** Startup options for rolling upgrade. */
-  public static enum RollingUpgradeStartupOption{
-    ROLLBACK, DOWNGRADE;
-    
-    private static final RollingUpgradeStartupOption[] VALUES = values();
-
-    static RollingUpgradeStartupOption fromString(String s) {
-      for(RollingUpgradeStartupOption opt : VALUES) {
-        if (opt.name().equalsIgnoreCase(s)) {
-          return opt;
-        }
-      }
-      throw new IllegalArgumentException("Failed to convert \"" + s
-          + "\" to " + RollingUpgradeStartupOption.class.getSimpleName());
-    }
-  }
-
   /** Startup options */
   static public enum StartupOption{
     FORMAT  ("-format"),
@@ -73,7 +54,6 @@ public final class HdfsServerConstants {
     UPGRADE ("-upgrade"),
     ROLLBACK("-rollback"),
     FINALIZE("-finalize"),
-    ROLLINGUPGRADE("-rollingUpgrade"),
     IMPORT  ("-importCheckpoint"),
     BOOTSTRAPSTANDBY("-bootstrapStandby"),
     INITIALIZESHAREDEDITS("-initializeSharedEdits"),
@@ -87,9 +67,6 @@ public final class HdfsServerConstants {
     // Used only with format and upgrade options
     private String clusterId = null;
     
-    // Used only by rolling upgrade
-    private RollingUpgradeStartupOption rollingUpgradeStartupOption;
-
     // Used only with format option
     private boolean isForceFormat = false;
     private boolean isInteractiveFormat = true;
@@ -116,16 +93,6 @@ public final class HdfsServerConstants {
 
     public String getClusterId() {
       return clusterId;
-    }
-    
-    public void setRollingUpgradeStartupOption(String opt) {
-      Preconditions.checkState(this == ROLLINGUPGRADE);
-      rollingUpgradeStartupOption = RollingUpgradeStartupOption.fromString(opt);
-    }
-    
-    public RollingUpgradeStartupOption getRollingUpgradeStartupOption() {
-      Preconditions.checkState(this == ROLLINGUPGRADE);
-      return rollingUpgradeStartupOption;
     }
 
     public MetaRecoveryContext createRecoveryContext() {

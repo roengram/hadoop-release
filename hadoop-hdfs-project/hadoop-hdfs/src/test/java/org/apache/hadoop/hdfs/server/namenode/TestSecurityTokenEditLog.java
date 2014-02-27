@@ -158,7 +158,7 @@ public class TestSecurityTokenEditLog {
         
         FSEditLogLoader loader = new FSEditLogLoader(namesystem, 0);        
         long numEdits = loader.loadFSEdits(
-            new EditLogFileInputStream(editFile), 1);
+            new EditLogFileInputStream(editFile), 1, null);
         assertEquals("Verification for " + editFile, expectedTransactions, numEdits);
       }
     } finally {

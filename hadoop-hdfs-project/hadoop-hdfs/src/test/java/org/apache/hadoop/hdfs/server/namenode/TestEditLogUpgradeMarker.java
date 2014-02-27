@@ -19,14 +19,11 @@ package org.apache.hadoop.hdfs.server.namenode;
 
 import java.io.IOException;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
-import org.apache.hadoop.hdfs.protocol.RollingUpgradeException;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -35,8 +32,6 @@ import org.junit.Test;
  * This class tests the edit log upgrade marker.
  */
 public class TestEditLogUpgradeMarker {
-  private static final Log LOG = LogFactory.getLog(TestEditLogUpgradeMarker.class);
-
   /**
    * Test edit log upgrade marker.
    */
@@ -66,14 +61,7 @@ public class TestEditLogUpgradeMarker {
         Assert.assertTrue(dfs.exists(bar));
       }
       
-      try {
-        cluster.restartNameNode();
-        Assert.fail();
-      } catch(RollingUpgradeException e) {
-        LOG.info("The exception is expected: ", e);
-      }
-
-      cluster.restartNameNode("-rollingUpgrade", "rollback");
+      cluster.restartNameNode();
       {
         final DistributedFileSystem dfs = cluster.getFileSystem();
         Assert.assertTrue(dfs.exists(foo));
