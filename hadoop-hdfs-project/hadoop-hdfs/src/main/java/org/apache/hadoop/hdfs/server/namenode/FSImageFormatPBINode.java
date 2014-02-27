@@ -61,6 +61,7 @@ public final class FSImageFormatPBINode {
   private final static long USER_GROUP_STRID_MASK = (1 << 24) - 1;
   private final static int USER_STRID_OFFSET = 40;
   private final static int GROUP_STRID_OFFSET = 16;
+  private static final Log LOG = LogFactory.getLog(FSImageFormatPBINode.class);
 
   private static final int ACL_ENTRY_NAME_MASK = (1 << 24) - 1;
   private static final int ACL_ENTRY_NAME_OFFSET = 6;
@@ -74,8 +75,6 @@ public final class FSImageFormatPBINode {
       .values();
   private static final AclEntryType[] ACL_ENTRY_TYPE_VALUES = AclEntryType
       .values();
-
-  private static final Log LOG = LogFactory.getLog(FSImageFormatPBINode.class);
 
   public final static class Loader {
     public static PermissionStatus loadPermission(long id,
@@ -480,10 +479,11 @@ public final class FSImageFormatPBINode {
       SaverContext state = parent.getSaverContext();
       INodeSection.INodeSymlink.Builder b = INodeSection.INodeSymlink
           .newBuilder()
-          .setPermission(buildPermissionStatus(n, parent.getSaverContext().getStringMap()))
+          .setPermission(buildPermissionStatus(n, state.getStringMap()))
           .setTarget(ByteString.copyFrom(n.getSymlink()))
           .setModificationTime(n.getModificationTime())
           .setAccessTime(n.getAccessTime());
+
       INodeSection.INode r = buildINodeCommon(n)
           .setType(INodeSection.INode.Type.SYMLINK).setSymlink(b).build();
       r.writeDelimitedTo(out);

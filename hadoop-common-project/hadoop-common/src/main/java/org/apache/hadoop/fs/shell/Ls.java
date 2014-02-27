@@ -117,7 +117,7 @@ class Ls extends FsCommand {
     FileStatus stat = item.stat;
     String line = String.format(lineFormat,
         (stat.isDirectory() ? "d" : "-"),
-        stat.getPermission() + (hasAcl(item) ? "+" : ""),
+        stat.getPermission() + (hasAcl(item) ? "+" : " "),
         (stat.isFile() ? stat.getReplication() : "-"),
         stat.getOwner(),
         stat.getGroup(),
@@ -143,7 +143,7 @@ class Ls extends FsCommand {
     }
 
     StringBuilder fmt = new StringBuilder();
-    fmt.append("%s%-" + maxPerm + "s "); // permission string
+    fmt.append("%s%s"); // permission string
     fmt.append("%"  + maxRepl  + "s ");
     // Do not use '%-0s' as a formatting conversion, since it will throw a
     // a MissingFormatWidthException if it is used in String.format().

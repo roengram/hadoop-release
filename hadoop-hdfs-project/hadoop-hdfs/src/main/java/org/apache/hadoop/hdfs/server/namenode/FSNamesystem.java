@@ -7477,10 +7477,14 @@ public class FSNamesystem implements Namesystem, FSClusterStats,
 
   AclStatus getAclStatus(String src) throws IOException {
     aclConfigFlag.checkForApiCall();
+    FSPermissionChecker pc = getPermissionChecker();
     checkOperation(OperationCategory.READ);
     readLock();
     try {
       checkOperation(OperationCategory.READ);
+      if (isPermissionEnabled) {
+        checkPermission(pc, src, false, null, null, null, null);
+      }
       return dir.getAclStatus(src);
     } finally {
       readUnlock();
