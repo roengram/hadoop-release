@@ -229,10 +229,15 @@ public class NameNodeAdapter {
   }
   
   /**
-   * @return Replication queue initialization status
+   * @return true if safemode is not running, or if safemode has already
+   * initialized the replication queues
    */
   public static boolean safeModeInitializedReplQueues(NameNode nn) {
-    return nn.getNamesystem().isPopulatingReplQueues();
+    SafeModeInfo smi = nn.getNamesystem().getSafeModeInfoForTests();
+    if (smi == null) {
+      return true;
+    }
+    return smi.initializedReplQueues;
   }
   
   public static File getInProgressEditsFile(StorageDirectory sd, long startTxId) {
