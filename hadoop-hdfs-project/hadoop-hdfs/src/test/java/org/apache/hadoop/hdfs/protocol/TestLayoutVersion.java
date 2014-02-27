@@ -20,13 +20,9 @@ package org.apache.hadoop.hdfs.protocol;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import java.util.SortedSet;
+import java.util.EnumSet;
 
 import org.apache.hadoop.hdfs.protocol.LayoutVersion.Feature;
-import org.apache.hadoop.hdfs.protocol.LayoutVersion.FeatureInfo;
-import org.apache.hadoop.hdfs.protocol.LayoutVersion.LayoutFeature;
-import org.apache.hadoop.hdfs.server.datanode.DataNodeLayoutVersion;
-import org.apache.hadoop.hdfs.server.namenode.NameNodeLayoutVersion;
 import org.junit.Test;
 
 /**
@@ -40,7 +36,7 @@ public class TestLayoutVersion {
    */
   @Test
   public void testFeaturesFromAncestorSupported() {
-    for (LayoutFeature f : Feature.values()) {
+    for (Feature f : Feature.values()) {
       validateFeatureList(f);
     }
   }
@@ -50,8 +46,8 @@ public class TestLayoutVersion {
    */
   @Test
   public void testRelease203() {
-    assertTrue(NameNodeLayoutVersion.supports(LayoutVersion.Feature.DELEGATION_TOKEN, 
-        Feature.RESERVED_REL20_203.getInfo().getLayoutVersion()));
+    assertTrue(LayoutVersion.supports(Feature.DELEGATION_TOKEN, 
+        Feature.RESERVED_REL20_203.lv));
   }
   
   /**
@@ -59,8 +55,8 @@ public class TestLayoutVersion {
    */
   @Test
   public void testRelease204() {
-    assertTrue(NameNodeLayoutVersion.supports(LayoutVersion.Feature.DELEGATION_TOKEN, 
-        Feature.RESERVED_REL20_204.getInfo().getLayoutVersion()));
+    assertTrue(LayoutVersion.supports(Feature.DELEGATION_TOKEN, 
+        Feature.RESERVED_REL20_204.lv));
   }
   
   /**
@@ -68,42 +64,23 @@ public class TestLayoutVersion {
    */
   @Test
   public void testRelease1_2_0() {
-    assertTrue(NameNodeLayoutVersion.supports(LayoutVersion.Feature.CONCAT, 
-        Feature.RESERVED_REL1_2_0.getInfo().getLayoutVersion()));
-  }
-  
-  /**
-   * Test to make sure NameNode.Feature support previous features
-   */
-  @Test
-  public void testNameNodeFeature() {
-    assertTrue(NameNodeLayoutVersion.supports(LayoutVersion.Feature.CACHING,
-        NameNodeLayoutVersion.Feature.ROLLING_UPGRADE_MARKER.getInfo().getLayoutVersion()));
-  }
-  
-  /**
-   * Test to make sure DataNode.Feature support previous features
-   */
-  @Test
-  public void testDataNodeFeature() {
-    assertTrue(DataNodeLayoutVersion.supports(LayoutVersion.Feature.CACHING,
-        DataNodeLayoutVersion.Feature.FIRST_LAYOUT.getInfo().getLayoutVersion()));
+    assertTrue(LayoutVersion.supports(Feature.CONCAT, 
+        Feature.RESERVED_REL1_2_0.lv));
   }
   
   /**
    * Given feature {@code f}, ensures the layout version of that feature
    * supports all the features supported by it's ancestor.
    */
-  private void validateFeatureList(LayoutFeature f) {
-    final FeatureInfo info = f.getInfo();
-    int lv = info.getLayoutVersion();
-    int ancestorLV = info.getAncestorLayoutVersion();
-    SortedSet<LayoutFeature> ancestorSet = NameNodeLayoutVersion.getFeatures(ancestorLV);
+  private void validateFeatureList(Feature f) {
+    int lv = f.lv;
+    int ancestorLV = f.ancestorLV;
+    EnumSet<Feature> ancestorSet = LayoutVersion.map.get(ancestorLV);
     assertNotNull(ancestorSet);
-    for (LayoutFeature  feature : ancestorSet) {
+    for (Feature  feature : ancestorSet) {
       assertTrue("LV " + lv + " does nto support " + feature
-          + " supported by the ancestor LV " + info.getAncestorLayoutVersion(),
-          NameNodeLayoutVersion.supports(feature, lv));
+          + " supported by the ancestor LV " + f.ancestorLV,
+          LayoutVersion.supports(feature, lv));
     }
   }
   
@@ -114,9 +91,9 @@ public class TestLayoutVersion {
   @Test
   public void testSNAPSHOT() {
     for(Feature f : Feature.values()) {
-      final int version = f.getInfo().getLayoutVersion();
-      if (NameNodeLayoutVersion.supports(Feature.SNAPSHOT, version)) {
-        assertTrue(NameNodeLayoutVersion.supports(Feature.FSIMAGE_NAME_OPTIMIZATION,
+      final int version = f.getLayoutVersion();
+      if (LayoutVersion.supports(Feature.SNAPSHOT, version)) {
+        assertTrue(LayoutVersion.supports(Feature.FSIMAGE_NAME_OPTIMIZATION,
             version));
       }
     }

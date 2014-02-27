@@ -36,6 +36,7 @@ import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants;
 import org.apache.hadoop.hdfs.protocol.LayoutFlags;
 import org.apache.hadoop.hdfs.protocol.LayoutVersion;
+import org.apache.hadoop.hdfs.protocol.LayoutVersion.Feature;
 import org.apache.hadoop.hdfs.server.common.Storage;
 import org.apache.hadoop.hdfs.server.namenode.TransferFsImage.HttpGetFailedException;
 import org.apache.hadoop.hdfs.web.URLConnectionFactory;
@@ -149,8 +150,7 @@ public class EditLogFileInputStream extends EditLogInputStream {
       } catch (EOFException eofe) {
         throw new LogHeaderCorruptException("No header found in log");
       }
-      if (NameNodeLayoutVersion.supports(
-          LayoutVersion.Feature.ADD_LAYOUT_FLAGS, logVersion)) {
+      if (LayoutVersion.supports(Feature.ADD_LAYOUT_FLAGS, logVersion)) {
         try {
           LayoutFlags.read(dataIn);
         } catch (EOFException eofe) {
@@ -329,12 +329,12 @@ public class EditLogFileInputStream extends EditLogInputStream {
       throw new LogHeaderCorruptException(
           "Reached EOF when reading log header");
     }
-    if (logVersion < HdfsConstants.NAMENODE_LAYOUT_VERSION || // future version
+    if (logVersion < HdfsConstants.LAYOUT_VERSION || // future version
         logVersion > Storage.LAST_UPGRADABLE_LAYOUT_VERSION) { // unsupported
       throw new LogHeaderCorruptException(
           "Unexpected version of the file system log file: "
           + logVersion + ". Current version = "
-          + HdfsConstants.NAMENODE_LAYOUT_VERSION + ".");
+          + HdfsConstants.LAYOUT_VERSION + ".");
     }
     return logVersion;
   }

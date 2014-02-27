@@ -17,23 +17,11 @@
  */
 package org.apache.hadoop.hdfs.server.common;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.Properties;
-import java.util.SortedSet;
-
 import org.apache.hadoop.classification.InterfaceAudience;
-import org.apache.hadoop.hdfs.protocol.HdfsConstants;
 import org.apache.hadoop.hdfs.protocol.LayoutVersion;
 import org.apache.hadoop.hdfs.protocol.LayoutVersion.Feature;
-import org.apache.hadoop.hdfs.protocol.LayoutVersion.LayoutFeature;
-import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.NodeType;
-import org.apache.hadoop.hdfs.server.common.Storage.StorageDirectory;
-import org.apache.hadoop.hdfs.server.datanode.DataNodeLayoutVersion;
-import org.apache.hadoop.hdfs.server.namenode.NameNodeLayoutVersion;
 
 import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
 
 /**
  * Common class for storage information.
@@ -46,26 +34,20 @@ public class StorageInfo {
   public int   namespaceID;     // id of the file system
   public String clusterID;      // id of the cluster
   public long  cTime;           // creation time of the file system state
-
-  protected final NodeType storageType; // Type of the node using this storage 
-
-  protected static final String STORAGE_FILE_VERSION    = "VERSION";
-  
-  public StorageInfo(NodeType type) {
-    this(0, 0, "", 0L, type);
+ 
+  public StorageInfo () {
+    this(0, 0, "", 0L);
   }
 
-  public StorageInfo(int layoutV, int nsID, String cid, long cT, NodeType type) {
+  public StorageInfo(int layoutV, int nsID, String cid, long cT) {
     layoutVersion = layoutV;
     clusterID = cid;
     namespaceID = nsID;
     cTime = cT;
-    storageType = type;
   }
   
   public StorageInfo(StorageInfo from) {
-    this(from.layoutVersion, from.namespaceID, from.clusterID, from.cTime,
-        from.storageType);
+    setStorageInfo(from);
   }
 
   /**
@@ -92,17 +74,14 @@ public class StorageInfo {
   public long   getCTime()        { return cTime; }
   
   public void   setStorageInfo(StorageInfo from) {
-    Preconditions.checkArgument(from.storageType == storageType);
     layoutVersion = from.layoutVersion;
     clusterID = from.clusterID;
     namespaceID = from.namespaceID;
     cTime = from.cTime;
   }
 
-  public boolean versionSupportsFederation(
-      Map<Integer, SortedSet<LayoutFeature>> map) {
-    return LayoutVersion.supports(map, LayoutVersion.Feature.FEDERATION,
-        layoutVersion);
+  public boolean versionSupportsFederation() {
+    return LayoutVersion.supports(Feature.FEDERATION, layoutVersion);
   }
   
   @Override
@@ -116,94 +95,5 @@ public class StorageInfo {
   public String toColonSeparatedString() {
     return Joiner.on(":").join(
         layoutVersion, namespaceID, cTime, clusterID);
-  }
-
-  /**
-   * Get common storage fields.
-   * Should be overloaded if additional fields need to be get.
-   * 
-   * @param props
-   * @throws IOException
-   */
-  protected void setFieldsFromProperties(
-      Properties props, StorageDirectory sd) throws IOException {
-    setLayoutVersion(props, sd);
-    setNamespaceID(props, sd);
-    setcTime(props, sd);
-    setClusterId(props, layoutVersion, sd);
-    checkStorageType(props, sd);
-  }
-
-  /** Validate and set storage type from {@link Properties}*/
-  protected void checkStorageType(Properties props, StorageDirectory sd)
-      throws InconsistentFSStateException {
-    NodeType type = NodeType.valueOf(getProperty(props, sd, "storageType"));
-    if (!storageType.equals(type)) {
-      throw new InconsistentFSStateException(sd.root,
-          "node type is incompatible with others.");
-    }
-  }
-  
-  /** Validate and set ctime from {@link Properties}*/
-  protected void setcTime(Properties props, StorageDirectory sd)
-      throws InconsistentFSStateException {
-    cTime = Long.parseLong(getProperty(props, sd, "cTime"));
-  }
-
-  /** Validate and set clusterId from {@link Properties}*/
-  protected void setClusterId(Properties props, int layoutVersion,
-      StorageDirectory sd) throws InconsistentFSStateException {
-    // Set cluster ID in version that supports federation
-    if (LayoutVersion.supports(getServiceLayoutFeatureMap(),
-        Feature.FEDERATION, layoutVersion)) {
-      String cid = getProperty(props, sd, "clusterID");
-      if (!(clusterID.equals("") || cid.equals("") || clusterID.equals(cid))) {
-        throw new InconsistentFSStateException(sd.getRoot(),
-            "cluster Id is incompatible with others.");
-      }
-      clusterID = cid;
-    }
-  }
-  
-  /** Validate and set layout version from {@link Properties}*/
-  protected void setLayoutVersion(Properties props, StorageDirectory sd)
-      throws IncorrectVersionException, InconsistentFSStateException {
-    int lv = Integer.parseInt(getProperty(props, sd, "layoutVersion"));
-    if (lv < getServiceLayoutVersion()) { // future version
-      throw new IncorrectVersionException(getServiceLayoutVersion(), lv,
-          "storage directory " + sd.root.getAbsolutePath());
-    }
-    layoutVersion = lv;
-  }
-  
-  /** Validate and set namespaceID version from {@link Properties}*/
-  protected void setNamespaceID(Properties props, StorageDirectory sd)
-      throws InconsistentFSStateException {
-    int nsId = Integer.parseInt(getProperty(props, sd, "namespaceID"));
-    if (namespaceID != 0 && nsId != 0 && namespaceID != nsId) {
-      throw new InconsistentFSStateException(sd.root,
-          "namespaceID is incompatible with others.");
-    }
-    namespaceID = nsId;
-  }
-
-  public int getServiceLayoutVersion() {
-    return storageType == NodeType.DATA_NODE ? HdfsConstants.DATANODE_LAYOUT_VERSION
-        : HdfsConstants.NAMENODE_LAYOUT_VERSION;
-  }
-
-  public Map<Integer, SortedSet<LayoutFeature>> getServiceLayoutFeatureMap() {
-    return storageType == NodeType.DATA_NODE? DataNodeLayoutVersion.FEATURES
-        : NameNodeLayoutVersion.FEATURES;
-  }
-
-  static String getProperty(Properties props, StorageDirectory sd,
-      String name) throws InconsistentFSStateException {
-    String property = props.getProperty(name);
-    if (property == null) {
-      throw new InconsistentFSStateException(sd.root, "file "
-          + STORAGE_FILE_VERSION + " has " + name + " missing.");
-    }
-    return property;
   }
 }

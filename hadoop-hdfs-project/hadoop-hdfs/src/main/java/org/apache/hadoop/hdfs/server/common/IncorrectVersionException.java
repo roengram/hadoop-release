@@ -45,9 +45,8 @@ public class IncorrectVersionException extends IOException {
         minimumVersion + "'");
   }
   
-  public IncorrectVersionException(int currentLayoutVersion,
-      int versionReported, String ofWhat) {
-    this(versionReported, ofWhat, currentLayoutVersion);
+  public IncorrectVersionException(int versionReported, String ofWhat) {
+    this(versionReported, ofWhat, HdfsConstants.LAYOUT_VERSION);
   }
   
   public IncorrectVersionException(int versionReported,

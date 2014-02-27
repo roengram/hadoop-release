@@ -71,7 +71,7 @@ public final class FSImageUtil {
           + summary.getOndiskVersion());
     }
 
-    if (!NameNodeLayoutVersion.supports(Feature.PROTOBUF_FORMAT,
+    if (!LayoutVersion.supports(Feature.PROTOBUF_FORMAT,
         summary.getLayoutVersion())) {
       throw new IOException("Unsupported layout version "
           + summary.getLayoutVersion());
