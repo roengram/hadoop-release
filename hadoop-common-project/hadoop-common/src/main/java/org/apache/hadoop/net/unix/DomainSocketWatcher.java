@@ -235,6 +235,7 @@ public final class DomainSocketWatcher implements Closeable {
     Preconditions.checkArgument(interruptCheckPeriodMs > 0);
     this.interruptCheckPeriodMs = interruptCheckPeriodMs;
     notificationSockets = DomainSocket.socketpair();
+    watcherThread.setDaemon(true);
     watcherThread.start();
   }
 
