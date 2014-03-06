@@ -264,6 +264,16 @@ public final class DomainSocketWatcher implements Closeable {
     Uninterruptibles.joinUninterruptibly(watcherThread);
   }
 
+  @VisibleForTesting
+  public boolean isClosed() {
+    lock.lock();
+    try {
+      return closed;
+    } finally {
+      lock.unlock();
+    }
+  }
+
   /**
    * Add a socket.
    *
@@ -275,7 +285,11 @@ public final class DomainSocketWatcher implements Closeable {
   public void add(DomainSocket sock, Handler handler) {
     lock.lock();
     try {
-      checkNotClosed();
+      if (closed) {
+        handler.handle(sock);
+        IOUtils.cleanup(LOG, sock);
+        return;
+      }
       Entry entry = new Entry(sock, handler);
       try {
         sock.refCount.reference();
@@ -296,7 +310,6 @@ public final class DomainSocketWatcher implements Closeable {
         if (!toAdd.contains(entry)) {
           break;
         }
-        checkNotClosed();
       }
     } finally {
       lock.unlock();
@@ -311,7 +324,7 @@ public final class DomainSocketWatcher implements Closeable {
   public void remove(DomainSocket sock) {
     lock.lock();
     try {
-      checkNotClosed();
+      if (closed) return;
       toRemove.put(sock.fd, sock);
       kick();
       while (true) {
@@ -323,7 +336,6 @@ public final class DomainSocketWatcher implements Closeable {
         if (!toRemove.containsKey(sock.fd)) {
           break;
         }
-        checkNotClosed();
       }
     } finally {
       lock.unlock();
@@ -340,17 +352,6 @@ public final class DomainSocketWatcher implements Closeable {
       if (!closed) {
         LOG.error(this + ": error writing to notificationSockets[0]", e);
       }
-    }
-  }
-
-  /**
-   * Check that the DomainSocketWatcher is not closed.
-   * Must be called while holding the lock.
-   */
-  private void checkNotClosed() {
-    Preconditions.checkState(lock.isHeldByCurrentThread());
-    if (closed) {
-      throw new RuntimeException("DomainSocketWatcher is closed.");
     }
   }
 
