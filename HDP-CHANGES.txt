@@ -24,3 +24,6 @@ bigwheel-m16-2.2.0 is branched from hortonworks  bigwheel-GA-2.2.0 SHA1  8656b1c
     "dfs.client.test.drop.namenode.response.number" is enabled. (jing9)
   
     HADOOP-10112. har file listing doesn't work with wild card. (brandonli)
+
+    CVE-2013-6446. Add ACL check to JHS web-services.
+
