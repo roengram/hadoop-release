@@ -138,6 +138,6 @@
   </property>
   <property>
     <name>hadoop.rpc.protection</name>
-    <value>none</value>
+    <value>authentication</value>
   </property>
 </configuration>
