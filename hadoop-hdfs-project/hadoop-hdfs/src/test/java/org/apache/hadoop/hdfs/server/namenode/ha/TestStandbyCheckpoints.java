@@ -323,6 +323,7 @@ public class TestStandbyCheckpoints {
     DelayAnswer answerer = new DelayAnswer(LOG);
     Mockito.doAnswer(answerer).when(spyImage1)
         .saveNamespace(Mockito.any(FSNamesystem.class),
+            Mockito.any(NameNodeFile.class),
             Mockito.any(Canceler.class));
     
     // Perform some edits and wait for a checkpoint to start on the SBN.
