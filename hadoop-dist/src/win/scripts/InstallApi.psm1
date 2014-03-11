@@ -340,6 +340,9 @@ function InstallCore(
     $xcopy_cmd = "xcopy /EIYF `"$HDP_INSTALL_PATH\..\template\conf\*.properties`" `"$hadoopInstallToDir\etc\hadoop`""
     Invoke-CmdChk $xcopy_cmd
 
+    $xcopy_cmd = "xcopy /EIYF `"$HDP_INSTALL_PATH\..\template\conf\dfs.*`" `"$hadoopInstallToDir\etc\hadoop`""
+    Invoke-CmdChk $xcopy_cmd
+
     ###
     ### Grant Hadoop user access to $hadoopInstallToDir
     ###

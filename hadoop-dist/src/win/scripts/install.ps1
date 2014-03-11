@@ -245,8 +245,8 @@ function Main( $scriptDir )
         "dfs.namenode.name.dir" = Get-AppendedPath $ENV:HDFS_DATA_DIR "nn";
         "dfs.datanode.data.dir" = Get-AppendedPath $ENV:HDFS_DATA_DIR "dn";
         "dfs.replication" = "$replicationfactor";
-        "dfs.hosts" = "${hadoopInstallDir}/etc/hadoop/dfs.include";
-        "dfs.hosts.exclude" = "${hadoopInstallDir}/etc/hadoop/dfs.exclude";
+        "dfs.hosts" = "${hadoopInstallDir}\etc\hadoop\dfs.include";
+        "dfs.hosts.exclude" = "${hadoopInstallDir}\etc\hadoop\dfs.exclude";
         "dfs.support.append" = "true"}
       if ($ENV:HA -ieq "yes") {
           $hdfsConfigs["dfs.nameservices"] = "${ENV:HA_CLUSTER_NAME}"
