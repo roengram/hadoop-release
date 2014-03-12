@@ -305,6 +305,10 @@ function InstallCore(
     [Environment]::SetEnvironmentVariable("HADOOP_YARN_HOME", "$hadoopInstallToDir", [EnvironmentVariableTarget]::Machine)
     $ENV:HADOOP_MAPRED_HOME = "$hadoopInstallToDir"
 
+    Write-Log "Setting the HDFS_AUDIT_LOGGER environment variable at machine scope to `"INFO,RFAAUDIT`""
+    [Environment]::SetEnvironmentVariable("HDFS_AUDIT_LOGGER", "INFO,RFAAUDIT", [EnvironmentVariableTarget]::Machine)
+    $ENV:HDFS_AUDIT_LOGGER = "INFO,RFAAUDIT"
+
 
     ### HDP 2.0 TODO This is a temporary workaround for MAPREDUCE-5451
     Write-Log "Add HADOOP_COMMOM_HOME\bin to PATH"
@@ -429,6 +433,8 @@ function UninstallCore(
     [Environment]::SetEnvironmentVariable("HADOOP_MAPRED_HOME", $null, [EnvironmentVariableTarget]::Machine)
     Write-Log "Removing the HADOOP_YARN_HOME environment variables"
     [Environment]::SetEnvironmentVariable("HADOOP_YARN_HOME", $null, [EnvironmentVariableTarget]::Machine)
+    Write-Log "Removing the HDFS_AUDIT_LOGGER environment variables"
+    [Environment]::SetEnvironmentVariable("HDFS_AUDIT_LOGGER", $null, [EnvironmentVariableTarget]::Machine)
 }
 
 ### Creates and configures the service.
