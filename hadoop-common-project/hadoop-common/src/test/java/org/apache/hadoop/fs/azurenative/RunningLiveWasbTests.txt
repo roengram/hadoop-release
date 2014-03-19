@@ -1,0 +1,12 @@
+In order to run WASB unit tests against a live Azure Storage account, you need to provide test account details in a config file called azure-test.xml.
+This file must contain a value for "fs.azure.test.account.name" that specifies the account name to use, and a key for that account in fs.azure.account.key.{name}.
+This file must also be in the classpath for the test to run.
+Also, if you have storage emulator setup on your box, you should set fs.azure.test.emulator to true to test against it.
+Please see azure-site.example.xml for an example.
+
+Simple steps to run the tests:
+1. Copy azure-site.example.xml to a local directory, rename to azure-test.xml and fill in the actual account details.
+2. Set the value for fs.azure.test.emulator depending if you have storage emulator setup.
+3. To run from:
+  a. Eclipse: Add that directory to the classpath for the test's Run Configuration.
+  b. ant (command-line): Copy that file to build/test/extraconf, then run the test.

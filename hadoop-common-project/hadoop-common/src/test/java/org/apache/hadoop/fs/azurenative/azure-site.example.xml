@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration xmlns:xi="http://www.w3.org/2001/XInclude">
+  <property>
+    <name>fs.azure.test.account.name</name>
+	<value>not-real-example</value>
+  </property>
+  <property>
+    <name>fs.azure.account.key.not-real-example</name>
+    <value>XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</value>
+  </property>
+  <property>
+    <name>fs.azure.test.emulator</name>
+    <value>true</value>
+  </property>
+</configuration>
