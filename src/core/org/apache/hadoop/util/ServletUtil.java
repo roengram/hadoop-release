@@ -52,7 +52,7 @@ public class ServletUtil {
   }
 
   public static final String HTML_TAIL = "<hr />\n"
-    + "This is <a href='http://hadoop.apache.org/'>Apache Hadoop</a> release "
+    + "This is Apache Hadoop release "
     + VersionInfo.getVersion() + "\n"
     + "</body></html>";
   

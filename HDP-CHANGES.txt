@@ -13,6 +13,8 @@ comanche-branch-1 release branched from condor-branch-1 (SHA1 bb0bbd77479125307c
     HDFS-4880. Print the image and edits file loaded by the namenode in the
     logs. (Arpit Agarwal via suresh) 
 
+    HDFS-6084. Namenode UI - "Hadoop" logo link shouldn't go to hadoop homepage
+
   BUG FIXES
 
     HDFS-4944. WebHDFS cannot create a file path containing characters that must
