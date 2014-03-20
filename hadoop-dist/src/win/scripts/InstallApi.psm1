@@ -708,7 +708,12 @@ function UninstallHdfs(
     ###
     ### Stop and delete services
     ###
-    foreach( $service in ("namenode", "datanode", "secondarynamenode"))
+    $services = @("namenode", "datanode", "secondarynamenode")
+    if ((Test-Path ENV:HA) -and ($ENV:HA -eq "yes"))
+    {
+        $services+=@("journalnode","zkfc")
+    }
+    foreach( $service in $services)
     {
         StopAndDeleteHadoopService $service
     }
