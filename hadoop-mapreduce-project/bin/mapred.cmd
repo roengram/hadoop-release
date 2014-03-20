@@ -29,7 +29,6 @@ if "%HADOOP_BIN_PATH:~`%" == "\" (
   if not defined HADOOP_ROOT_LOGGER (
     set HADOOP_ROOT_LOGGER=INFO,DRFA
   )
-)
 set DEFAULT_LIBEXEC_DIR=%HADOOP_BIN_PATH%\..\libexec
 if not defined HADOOP_LIBEXEC_DIR (
   set HADOOP_LIBEXEC_DIR=%DEFAULT_LIBEXEC_DIR%
