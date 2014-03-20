@@ -117,7 +117,7 @@ function Main( $scriptDir )
 
     ###Map Hadoop Roles to Components
 
-    $hadooproles="NAMENODE SECONDARYNAMENODE RESOURCEMANAGER SLAVE HA_NAMENODE JOURNALNODE"
+    $hadooproles="NAMENODE SECONDARYNAMENODE RESOURCEMANAGER SLAVE NN_HA_STANDBY_NAMENODE NN_HA_JOURNALNODE RM_HA_STANDBY_RESOURCEMANAGER"
     $hdfsRoles=""
     $mapredRoles=""
     $yarnRoles=""
@@ -132,17 +132,21 @@ function Main( $scriptDir )
                 $yarnRoles = $yarnRoles+" "+"nodemanager"
                 $hdfsroles = $hdfsroles+" "+"datanode"
             }
-            if (($role -eq "NAMENODE") -or ($role -eq "HA_NAMENODE")) {
+            if (($role -eq "NAMENODE") -or ($role -eq "NN_HA_STANDBY_NAMENODE")) {
                 $hdfsroles = $hdfsroles+" "+"namenode"
                 if ($ENV:HA -ieq "yes") {
                     $hdfsroles = $hdfsroles+" "+"zkfc"
                 }
             }
-            if ($role -eq "JOURNALNODE" ) {
+            if ($role -eq "NN_HA_JOURNALNODE" ) {
                 $hdfsroles = $hdfsroles+" "+"journalnode"
             }
             if ($role -eq "SECONDARYNAMENODE" ) {
                 $hdfsroles = $hdfsroles+" "+"secondarynamenode"
+            }
+            if (($role -eq "RM_HA_STANDBY_RESOURCEMANAGER" ) -and ($ENV:HA -ieq "yes")) {
+                $hdfsroles = $hdfsroles+" "+"zkfc"
+                $yarnRoles = $yarnRoles+" "+"resourcemanager"
             }
         }
     }
@@ -214,7 +218,7 @@ function Main( $scriptDir )
            $coreConfigs["fs.defaultFS"] = "hdfs://${ENV:NAMENODE_HOST}:8020"
 
        if ($ENV:HA -ieq "yes") {
-          $coreConfigs["fs.defaultFS"] = "hdfs://${ENV:HA_CLUSTER_NAME}"
+          $coreConfigs["fs.defaultFS"] = "hdfs://${ENV:NN_HA_CLUSTER_NAME}"
           $zookeeperNodes = $zookeeperNodes = $env:ZOOKEEPER_HOSTS.Replace(",",":2181,")
           $zookeeperNodes = $zookeeperNodes + ":2181"
           $coreConfigs["ha.zookeeper.quorum"] = $zookeeperNodes
@@ -249,24 +253,25 @@ function Main( $scriptDir )
         "dfs.hosts.exclude" = "${hadoopInstallDir}\etc\hadoop\dfs.exclude";
         "dfs.support.append" = "true"}
       if ($ENV:HA -ieq "yes") {
-          $hdfsConfigs["dfs.nameservices"] = "${ENV:HA_CLUSTER_NAME}"
-          $hdfsConfigs["dfs.ha.namenodes.${ENV:HA_CLUSTER_NAME}"] = "nn1,nn2"
-          $hdfsConfigs["dfs.namenode.rpc-address.${ENV:HA_CLUSTER_NAME}.nn1"] = "${ENV:NAMENODE_HOST}:8020"
-          $hdfsConfigs["dfs.namenode.rpc-address.${ENV:HA_CLUSTER_NAME}.nn2"] = "${ENV:HA_NAMENODE_HOST}:8020"
-          $hdfsConfigs["dfs.namenode.http-address.${ENV:HA_CLUSTER_NAME}.nn1"] = "${ENV:NAMENODE_HOST}:50070"
-          $hdfsConfigs["dfs.namenode.http-address.${ENV:HA_CLUSTER_NAME}.nn2"] = "${ENV:HA_NAMENODE_HOST}:50070"
-          $hdfsConfigs["dfs.namenode.https-address.${ENV:HA_CLUSTER_NAME}.nn1"] = "${ENV:NAMENODE_HOST}:50701"
-          $hdfsConfigs["dfs.namenode.https-address.${ENV:HA_CLUSTER_NAME}.nn2"] = "${ENV:HA_NAMENODE_HOST}:50701"
-          $hdfsConfigs["dfs.client.failover.proxy.provider.${ENV:HA_CLUSTER_NAME}"] = "org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider"
-          $hdfsConfigs["dfs.journalnode.edits.dir"] = "${ENV:HA_JOURNALNODE_EDITS_DIR}"
+          $hdfsConfigs["dfs.nameservices"] = "${ENV:NN_HA_CLUSTER_NAME}"
+          $hdfsConfigs["dfs.ha.namenodes.${ENV:NN_HA_CLUSTER_NAME}"] = "nn1,nn2"
+          $hdfsConfigs["dfs.namenode.rpc-address.${ENV:NN_HA_CLUSTER_NAME}.nn1"] = "${ENV:NAMENODE_HOST}:8020"
+          $hdfsConfigs["dfs.namenode.rpc-address.${ENV:NN_HA_CLUSTER_NAME}.nn2"] = "${ENV:NN_HA_STANDBY_NAMENODE_HOST}:8020"
+          $hdfsConfigs["dfs.namenode.http-address.${ENV:NN_HA_CLUSTER_NAME}.nn1"] = "${ENV:NAMENODE_HOST}:50070"
+          $hdfsConfigs["dfs.namenode.http-address.${ENV:NN_HA_CLUSTER_NAME}.nn2"] = "${ENV:NN_HA_STANDBY_NAMENODE_HOST}:50070"
+          $hdfsConfigs["dfs.namenode.https-address.${ENV:NN_HA_CLUSTER_NAME}.nn1"] = "${ENV:NAMENODE_HOST}:50701"
+          $hdfsConfigs["dfs.namenode.https-address.${ENV:NN_HA_CLUSTER_NAME}.nn2"] = "${ENV:NN_HA_STANDBY_NAMENODE_HOST}:50701"
+          $hdfsConfigs["dfs.client.failover.proxy.provider.${ENV:NN_HA_CLUSTER_NAME}"] = "org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider"
+          $hdfsConfigs["dfs.journalnode.edits.dir"] = "${ENV:NN_HA_JOURNALNODE_EDITS_DIR}"
           $hdfsConfigs["dfs.ha.automatic-failover.enabled"] = "true"
           $hdfsConfigs["dfs.ha.fencing.methods"] = "shell(exit 0)"
 
-          $journalNodes = ($ENV:HA_JOURNALNODE_HOSTS.Split(",") | foreach {$_.Trim() + ":8485"})
-          $journalNodes = $journalNodes = $env:HA_JOURNALNODE_HOSTS.Replace(",",":8485;")
+          $journalNodes = ($ENV:NN_HA_JOURNALNODE_HOSTS.Split(",") | foreach {$_.Trim() + ":8485"})
+          $journalNodes = $journalNodes = $env:NN_HA_JOURNALNODE_HOSTS.Replace(",",":8485;")
           $journalNodes = $journalNodes + ":8485"
 
-          $hdfsConfigs["dfs.namenode.shared.edits.dir"] = "qjournal://${journalNodes}/${ENV:HA_CLUSTER_NAME}"
+          $hdfsConfigs["dfs.namenode.shared.edits.dir"] = "qjournal://${journalNodes}/${ENV:NN_HA_CLUSTER_NAME}"
+
       }
       else {
           $hdfsConfigs["dfs.namenode.http-address"] = "${ENV:NAMENODE_HOST}:50070"
@@ -314,13 +319,57 @@ function Main( $scriptDir )
     Install "Yarn" $NodeInstallRoot $serviceCredential $yarnRoles
 
     $yarnConfigs =@{
-        "yarn.resourcemanager.hostname" = "${ENV:RESOURCEMANAGER_HOST}";
-        "yarn.resourcemanager.webapp.address" = "${ENV:RESOURCEMANAGER_HOST}:8088";
-        "yarn.resourcemanager.webapp.https.address" = "${ENV:RESOURCEMANAGER_HOST}:8088";
-        "yarn.log.server.url" = "http://${ENV:RESOURCEMANAGER_HOST}:19888/jobhistory/logs";
+        "yarn.resourcemanager.hostname" = "${ENV:RESOURCEMANAGER_HOST}".ToLower();
+        "yarn.resourcemanager.webapp.address" = "${ENV:RESOURCEMANAGER_HOST}:8088".ToLower();
+        "yarn.resourcemanager.webapp.https.address" = "${ENV:RESOURCEMANAGER_HOST}:8088".ToLower();
+        "yarn.log.server.url" = "http://${ENV:RESOURCEMANAGER_HOST}:19888/jobhistory/logs".ToLower();
         "yarn.nodemanager.log-dirs" = "$NMAndMRLogDir" ;
         "yarn.nodemanager.local-dirs" = "$NMAndMRLocalDir" }
-
+    if ($ENV:HA -ieq "yes") {
+        $yarnConfigs += @{
+        "yarn.resourcemanager.ha.enabled" = "true";
+        "yarn.resourcemanager.ha.rm-ids" = "$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST,$ENV:RESOURCEMANAGER_HOST".ToLower();
+        "yarn.resourcemanager.recovery.enabled" = "true";
+        "yarn.resourcemanager.store.class" = "org.apache.hadoop.yarn.server.resourcemanager.recovery.ZKRMStateStore";
+        "yarn.resourcemanager.zk-address" = "$ENV:ZOOKEEPER_HOSTS".ToLower();
+        "yarn.client.failover-proxy-provider" = "org.apache.hadoop.yarn.client.ConfiguredRMFailoverProxyProvider";
+        "yarn.resourcemanager.ha.automatic-failover.zk-base-path" = "/yarn-leader-election";
+        "yarn.resourcemanager.cluster-id" = "$ENV:RM_HA_CLUSTER_NAME".ToLower();
+        "yarn.resourcemanager.ha.id" = "$ENV:COMPUTERNAME".ToLower();
+        "yarn.nodemanager.localizer.address" = "localhost:23344";
+        "yarn.web-proxy.address" = "localhost:11199";
+        "yarn.client.failover-max-attempts" = "100";
+        "yarn.client.failover-retries" = "10";
+        "yarn.client.failover-retries-on-socket-timeouts" = "1000";
+        "yarn.client.failover-sleep-base-ms" = "500";
+        "yarn.client.failover-sleep-max-ms" = "15000";
+        "yarn.resourcemanager.ha.automatic-failover.enabled" = "true";
+        "yarn.resourcemanager.ha.automatic-failover.embedded" = "true"
+        "yarn.resourcemanager.hostname.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower()
+        "yarn.resourcemanager.hostname.$ENV:RESOURCEMANAGER_HOST".ToLower() = "$ENV:RESOURCEMANAGER_HOST".ToLower()
+        }
+    
+        if (IsSameHost($ENV:RESOURCEMANAGER_HOST))
+        {
+            $yarnConfigs += @{
+            "yarn.resourcemanager.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "localhost:23140";
+            "yarn.resourcemanager.scheduler.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "localhost:23130";
+            "yarn.resourcemanager.webapp.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "localhost:23188";
+            "yarn.resourcemanager.webapp.https.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "localhost:23120";
+            "yarn.resourcemanager.resource-tracker.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "localhost:23125";
+            "yarn.resourcemanager.admin.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "localhost:23141"}
+        }
+        elseif (IsSameHost($ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST))
+        {
+            $yarnConfigs += @{
+            "yarn.resourcemanager.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "localhost:33140";
+            "yarn.resourcemanager.scheduler.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "localhost:33130";
+            "yarn.resourcemanager.webapp.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "localhost:33188";
+            "yarn.resourcemanager.webapp.https.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "localhost:33120";
+            "yarn.resourcemanager.resource-tracker.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "localhost:33125";
+            "yarn.resourcemanager.admin.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "localhost:33141"}
+        }
+    }
     Configure "Yarn" $NodeInstallRoot $serviceCredential $yarnConfigs
     ###
     ### Install and Configure MapRed

@@ -2051,6 +2051,33 @@ function FormatNamenode(
     Invoke-CmdChk $cmd
 }
 
+### Helper routine to check if two hosts are the same
+function IsSameHost(
+    [string]
+    [parameter( Position=0, Mandatory=$true )]
+    $host1,
+    [array]
+    [parameter( Position=1, Mandatory=$false )]
+    $host2ips = ((GetIPAddress $ENV:COMPUTERNAME) -as [array]))
+{
+    $host1ips = ((GetIPAddress $host1) -as [array])
+    $heq = Compare-Object $host1ips $host2ips -ExcludeDifferent -IncludeEqual
+    return ($heq -ne $null)
+}
+
+### Helper routine to return the IPAddress given a hostname
+function GetIPAddress($hostname)
+{
+    try
+    {
+        [System.Net.Dns]::GetHostAddresses($hostname) | ForEach-Object { if ($_.AddressFamily -eq "InterNetwork") { $_.IPAddressToString } }
+    }
+    catch
+    {
+        throw "Error resolving IPAddress for host '$hostname'"
+    }
+}
+
 ###
 ### Public API
 ###
@@ -2063,7 +2090,7 @@ Export-ModuleMember -Function StopService
 Export-ModuleMember -Function FormatNamenode
 Export-ModuleMember -Function CheckDataDirectories
 Export-ModuleMember -Function Get-AppendedPath
-
+Export-ModuleMember -Function IsSameHost
 ###
 ### Private API (exposed for test only)
 ###
