@@ -269,6 +269,16 @@ function InstallAllTestIdempotent()
     Uninstall "Core" $NodeInstallRoot
 }
 
+function EmptyPasswordInstallTest()
+{
+    $EmptyPassword = New-Object System.Security.SecureString
+    $EmptyPassServiceCredential = New-Object System.Management.Automation.PSCredential ("$ENV:COMPUTERNAME\$Username", $EmptyPassword)
+    Install "Core" $NodeInstallRoot $ServiceCredential ""
+    Install "hdfs" $NodeInstallRoot $EmptyPassServiceCredential "namenode datanode"
+    Uninstall "hdfs" $NodeInstallRoot
+    Uninstall "Core" $NodeInstallRoot
+}
+
 function ValidateXmlConfigValue($xmlFileName, $key, $expectedValue)
 {
     $xml = [xml](gc $xmlFileName)
@@ -540,6 +550,7 @@ try
     MapRedInstallTestRoleNoSupported
     InstallAllTestBasic
     InstallAllTestIdempotent
+    EmptyPasswordInstallTest
     TestUpdateXmlConfig
     CoreConfigureTestBasic
     CoreConfigureWithFileTestBasic
