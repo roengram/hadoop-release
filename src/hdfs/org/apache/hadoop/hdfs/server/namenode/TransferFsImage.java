@@ -29,10 +29,13 @@ import javax.servlet.http.HttpServletRequest;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hdfs.protocol.FSConstants;
+import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.hdfs.util.DataTransferThrottler;
 import org.apache.hadoop.hdfs.server.namenode.SecondaryNameNode.ErrorSimulator;
 import org.apache.hadoop.io.MD5Hash;
+
+import com.google.common.net.InetAddresses;
 
 /**
  * This class provides fetching a specified file from the NameNode.
@@ -81,6 +84,13 @@ class TransferFsImage implements FSConstants {
         token = new CheckpointSignature(pmap.get("token")[0]);
       } else if (key.equals("newChecksum")) { 
         newChecksum = new MD5Hash(pmap.get("newChecksum")[0]);
+      }
+    }
+    
+    if (machineName == null) {
+      machineName = request.getRemoteHost();
+      if (InetAddresses.isInetAddress(machineName)) {
+        machineName = NetUtils.getHostNameOfIP(machineName);
       }
     }
 

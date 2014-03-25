@@ -26,6 +26,9 @@ comanche-branch-1 release branched from condor-branch-1 (SHA1 bb0bbd77479125307c
     BUG-10178. Fix negative value for JobInProgress.finishedMapTasks.
     (acmurthy) 
 
+    HDFS-3404. Make putImage in GetImageServlet infer remote address to fetch from
+    request. (Backported by Jing Zhao)
+
   Snapshot related changes
 
     Changes with Apache jira in trunk/branch-2

@@ -34,6 +34,7 @@ import java.nio.channels.SocketChannel;
 import java.util.Map.Entry;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 import javax.net.SocketFactory;
 
@@ -587,6 +588,31 @@ public class NetUtils {
       if (uri == null || uri.getHost() == null) {
         throw new UnknownHostException(name + " is not a valid Inet address");
       }
+    }
+  }
+  
+  private static final Pattern ipPortPattern = // Pattern for matching ip[:port]
+      Pattern.compile("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}(:\\d+)?");
+    
+  /**
+   * Attempt to obtain the host name of the given string which contains
+   * an IP address and an optional port.
+   * 
+   * @param ipPort string of form ip[:port]
+   * @return Host name or null if the name can not be determined
+   */
+  public static String getHostNameOfIP(String ipPort) {
+    if (null == ipPort || !ipPortPattern.matcher(ipPort).matches()) {
+      return null;
+    }
+    
+    try {
+      int colonIdx = ipPort.indexOf(':');
+      String ip = (-1 == colonIdx) ? ipPort
+          : ipPort.substring(0, ipPort.indexOf(':'));
+      return InetAddress.getByName(ip).getHostName();
+    } catch (UnknownHostException e) {
+      return null;
     }
   }
 

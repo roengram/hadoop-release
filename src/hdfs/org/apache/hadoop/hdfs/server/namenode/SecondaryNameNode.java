@@ -455,7 +455,6 @@ public class SecondaryNameNode implements Runnable {
    */
   private void putFSImage(CheckpointSignature sig) throws IOException {
     String fileid = "putimage=1&port=" + imagePort +
-      "&machine=" + infoBindAddress +
       "&token=" + sig.toString() +
       "&newChecksum=" + getNewChecksum();
     LOG.info("Posted URL " + fsName + fileid);
