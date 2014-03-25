@@ -5929,7 +5929,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean, FSClusterSt
     checkPermission(pc, path, false, null, null, null, null);
   }
 
-  private void checkSuperuserPrivilege() throws AccessControlException {
+  void checkSuperuserPrivilege() throws AccessControlException {
     if (isPermissionEnabled) {
       FSPermissionChecker pc = getPermissionChecker();
       pc.checkSuperuserPrivilege();
