@@ -194,6 +194,9 @@ function Main( $scriptDir )
         "hadoop.tmp.dir" = Join-Path $ENV:HADOOP_NODE_INSTALL_ROOT "temp\hadoop"
         "hadoop.proxyuser.$shortUsername.groups" = "HadoopUsers"}
 
+    if ((Test-Path ENV:ENABLE_LZO) -and ($ENV:ENABLE_LZO -ieq "yes")){
+        $coreConfigs["io.compression.codec.lzo.class"] = "com.hadoop.compression.lzo.LzoCodec"
+    }
 
     if ($ENV:DEFAULT_FS -eq "ASV"){
         Write-Log "ASV usage detected. Configuring HDP to use ASV as default filesystem"
@@ -231,6 +234,39 @@ function Main( $scriptDir )
 
 
     Configure "Core" $NodeInstallRoot $serviceCredential $coreConfigs
+
+    if ((Test-Path ENV:ENABLE_LZO) -and ($ENV:ENABLE_LZO -ieq "yes")){
+            $coresiteFile = Join-Path $ENV:HADOOP_HOME "etc/hadoop/core-site.xml"
+            $sourceXml = New-Object System.Xml.XmlDocument
+            $sourceXml.PreserveWhitespace = $true
+            $sourceXml.Load($coresiteFile)
+            $sourcexml.ReleasePath
+
+            $lzoKey = "io.compression.codecs"
+            $lzoValue = "com.hadoop.compression.lzo.LzoCodec"
+
+            foreach($property in $sourceXml.SelectNodes('/configuration/property'))
+            {
+                [string] $name = $property.name
+                [string] $value = $property.value
+
+                if ($name -notlike $lzoKey) {
+                    continue;
+                }
+
+                if (! $value) {
+                    $value = $lzoValue
+                }
+
+                $codecs = $value.Split(',')
+                if ($codecs -notcontains $lzoValue){
+                    $value += "," + $lzoValue
+                }
+
+                $finalValues = @{$lzoKey = $value}
+                UpdateXmlConfig $coresiteFile  $finalValues
+            }
+    }
 
     ###
     ### Install and Configure HDFS
