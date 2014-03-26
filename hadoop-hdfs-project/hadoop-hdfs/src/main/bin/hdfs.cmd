@@ -143,7 +143,7 @@ goto :eof
   goto :eof
 
 :oiv
-  set CLASS=org.apache.hadoop.hdfs.tools.offlineImageViewer.OfflineImageViewer
+  set CLASS=org.apache.hadoop.hdfs.tools.offlineImageViewer.OfflineImageViewerPB
   goto :eof
 
 :oev
