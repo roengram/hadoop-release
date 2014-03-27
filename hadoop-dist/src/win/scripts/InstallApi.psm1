@@ -188,6 +188,22 @@ function DataDirectoriesDelete-Chk(
     return $dataexists
 }
 
+### Function to convert a windows style path to a file URI
+function ConvertToFileURI(
+    [String]
+    [Parameter( Position=0, Mandatory=$true )]
+    $winPath
+    )
+{
+    $winPath = $winPath.Trim()
+    $winPath = $winPath.Replace('\','/')
+    if (! $winPath.StartsWith('file:///'))
+    {
+        $winPath = 'file:///' + $winPath
+    }
+    return $winPath
+}
+
 ### Function to append a sub-path to a list of paths
 function Get-AppendedPath(
     [String]
@@ -2110,6 +2126,7 @@ Export-ModuleMember -Function FormatNamenode
 Export-ModuleMember -Function CheckDataDirectories
 Export-ModuleMember -Function Get-AppendedPath
 Export-ModuleMember -Function IsSameHost
+Export-ModuleMember -Function ConvertToFileURI
 ###
 ### Private API (exposed for test only)
 ###

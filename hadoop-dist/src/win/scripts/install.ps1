@@ -280,10 +280,10 @@ function Main( $scriptDir )
     $NMAndMRLogDir = Join-Path (${ENV:HDP_DATA_DIR}.Split(",") | Select -first 1).Trim() "$shortUsername/logs"
 
     $hdfsConfigs = @{
-        "dfs.namenode.checkpoint.dir" = Get-AppendedPath $ENV:HDFS_DATA_DIR "snn";
-        "dfs.namenode.checkpoint.edits.dir" = Get-AppendedPath $ENV:HDFS_DATA_DIR "snn";
-        "dfs.namenode.name.dir" = Get-AppendedPath $ENV:HDFS_DATA_DIR "nn";
-        "dfs.datanode.data.dir" = Get-AppendedPath $ENV:HDFS_DATA_DIR "dn";
+        "dfs.namenode.checkpoint.dir" = ConvertToFileURI(Get-AppendedPath $ENV:HDFS_DATA_DIR "snn");
+        "dfs.namenode.checkpoint.edits.dir" = ConvertToFileURI(Get-AppendedPath $ENV:HDFS_DATA_DIR "snn");
+        "dfs.namenode.name.dir" = ConvertToFileURI(Get-AppendedPath $ENV:HDFS_DATA_DIR "nn");
+        "dfs.datanode.data.dir" = ConvertToFileURI(Get-AppendedPath $ENV:HDFS_DATA_DIR "dn");
         "dfs.replication" = "$replicationfactor";
         "dfs.hosts" = "${hadoopInstallDir}\etc\hadoop\dfs.include";
         "dfs.hosts.exclude" = "${hadoopInstallDir}\etc\hadoop\dfs.exclude";
