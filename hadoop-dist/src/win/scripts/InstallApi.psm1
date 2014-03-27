@@ -367,6 +367,18 @@ function InstallCore(
         Invoke-CmdChk $cmd
     }
     GiveFullPermissions "$hadooplogdir" "Users"
+    ###
+    ### ACL Hadoop temp directory such that machine users can write to it
+    ###
+    $hadooptempdir = Join-Path $ENV:HADOOP_NODE_INSTALL_ROOT "temp\hadoop"
+    if( -not (Test-Path "$hadooptempdir"))
+    {
+        Write-Log "Creating Hadoop tmp folder"
+        $cmd = "mkdir `"$hadooptempdir`""
+        Invoke-CmdChk $cmd
+    }
+    GiveFullPermissions "$hadooptempdir" "Users"
+	
 
     Write-Log "Installation of Apache Hadoop Core complete"
 }

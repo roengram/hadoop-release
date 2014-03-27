@@ -191,7 +191,7 @@ function Main( $scriptDir )
 
     $coreConfigs = @{
         "hadoop.proxyuser.$shortUsername.hosts" = "$proxyHosts";
-        "hadoop.tmp.dir" = Join-Path (${ENV:HDFS_DATA_DIR}.Split(",") | Select -first 1).Trim() "tmp";
+        "hadoop.tmp.dir" = Join-Path $ENV:HADOOP_NODE_INSTALL_ROOT "temp\hadoop"
         "hadoop.proxyuser.$shortUsername.groups" = "HadoopUsers"}
 
 
@@ -380,7 +380,7 @@ function Main( $scriptDir )
     $mapredConfigs = @{
         "mapred.local.dir" = Get-AppendedPath $ENV:HDFS_DATA_DIR "mapred\local";
         "mapred.job.tracker.history.completed.location" = "/mapred/history/done"
-        "mapred.child.tmp" = Join-Path (${ENV:HDFS_DATA_DIR}.Split(",") | Select -first 1).Trim() "tmp" ;
+        "mapred.child.tmp" = Join-Path $ENV:HADOOP_NODE_INSTALL_ROOT "temp\hadoop"
         "mapreduce.jobhistory.address" = "${ENV:RESOURCEMANAGER_HOST}:10020";
         "mapreduce.jobhistory.webapp.address" = "${ENV:RESOURCEMANAGER_HOST}:19888";
         "mapreduce.jobhistory.webapp.https.address" = "${ENV:RESOURCEMANAGER_HOST}:19888";
