@@ -38,6 +38,17 @@ if exist %HADOOP_HOME%\contrib\capacity-scheduler (
   )
 )
 
+@rem If TEZ_CLASSPATH is defined in the env, that means that TEZ is enabled
+@rem append it to the HADOOP_CLASSPATH
+
+if defined TEZ_CLASSPATH (
+  if not defined HADOOP_CLASSPATH (
+    set HADOOP_CLASSPATH=%TEZ_CLASSPATH%
+  ) else (
+    set HADOOP_CLASSPATH=%HADOOP_CLASSPATH%;%TEZ_CLASSPATH%
+  )
+)
+
 @rem The maximum amount of heap to use, in MB. Default is 1000.
 @rem set HADOOP_HEAPSIZE=
 @rem set HADOOP_NAMENODE_INIT_HEAPSIZE=""
