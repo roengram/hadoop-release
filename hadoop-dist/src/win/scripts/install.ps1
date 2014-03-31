@@ -356,24 +356,23 @@ function Main( $scriptDir )
 
     $yarnConfigs =@{
         "yarn.resourcemanager.hostname" = "${ENV:RESOURCEMANAGER_HOST}".ToLower();
-        "yarn.resourcemanager.webapp.address" = "${ENV:RESOURCEMANAGER_HOST}:8088".ToLower();
-        "yarn.resourcemanager.webapp.https.address" = "${ENV:RESOURCEMANAGER_HOST}:8088".ToLower();
+        "yarn.resourcemanager.webapp.address" = "${ENV:RESOURCEMANAGER_HOST}".ToLower();
+        "yarn.resourcemanager.webapp.https.address" = "${ENV:RESOURCEMANAGER_HOST}".ToLower();
         "yarn.log.server.url" = "http://${ENV:RESOURCEMANAGER_HOST}:19888/jobhistory/logs".ToLower();
         "yarn.nodemanager.log-dirs" = "$NMAndMRLogDir" ;
         "yarn.nodemanager.local-dirs" = "$NMAndMRLocalDir" }
     if ($ENV:HA -ieq "yes") {
         $yarnConfigs += @{
         "yarn.resourcemanager.ha.enabled" = "true";
-        "yarn.resourcemanager.ha.rm-ids" = "$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST,$ENV:RESOURCEMANAGER_HOST".ToLower();
+        "yarn.resourcemanager.ha.rm-ids" = "rm1,rm2";
         "yarn.resourcemanager.recovery.enabled" = "true";
         "yarn.resourcemanager.store.class" = "org.apache.hadoop.yarn.server.resourcemanager.recovery.ZKRMStateStore";
         "yarn.resourcemanager.zk-address" = "$ENV:ZOOKEEPER_HOSTS".ToLower();
         "yarn.client.failover-proxy-provider" = "org.apache.hadoop.yarn.client.ConfiguredRMFailoverProxyProvider";
         "yarn.resourcemanager.ha.automatic-failover.zk-base-path" = "/yarn-leader-election";
         "yarn.resourcemanager.cluster-id" = "$ENV:RM_HA_CLUSTER_NAME".ToLower();
-        "yarn.resourcemanager.ha.id" = "$ENV:COMPUTERNAME".ToLower();
-        "yarn.nodemanager.localizer.address" = "localhost:23344";
-        "yarn.web-proxy.address" = "localhost:11199";
+        "yarn.nodemanager.localizer.address" = "$ENV:COMPUTERNAME".ToLower();
+        "yarn.web-proxy.address" = "$ENV:COMPUTERNAME".ToLower();
         "yarn.client.failover-max-attempts" = "100";
         "yarn.client.failover-retries" = "10";
         "yarn.client.failover-retries-on-socket-timeouts" = "1000";
@@ -381,29 +380,32 @@ function Main( $scriptDir )
         "yarn.client.failover-sleep-max-ms" = "15000";
         "yarn.resourcemanager.ha.automatic-failover.enabled" = "true";
         "yarn.resourcemanager.ha.automatic-failover.embedded" = "true"
-        "yarn.resourcemanager.hostname.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower()
-        "yarn.resourcemanager.hostname.$ENV:RESOURCEMANAGER_HOST".ToLower() = "$ENV:RESOURCEMANAGER_HOST".ToLower()
+        "yarn.yarn.resourcemanager.am.max-attempts" = "20"
+        "yarn.resourcemanager.hostname.rm2" = "$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower()
+        "yarn.resourcemanager.hostname.rm1" = "$ENV:RESOURCEMANAGER_HOST".ToLower()
         }
     
         if (IsSameHost($ENV:RESOURCEMANAGER_HOST))
         {
             $yarnConfigs += @{
-            "yarn.resourcemanager.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "localhost:23140";
-            "yarn.resourcemanager.scheduler.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "localhost:23130";
-            "yarn.resourcemanager.webapp.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "localhost:23188";
-            "yarn.resourcemanager.webapp.https.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "localhost:23120";
-            "yarn.resourcemanager.resource-tracker.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "localhost:23125";
-            "yarn.resourcemanager.admin.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "localhost:23141"}
+            "yarn.resourcemanager.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.scheduler.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.webapp.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.webapp.https.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.resource-tracker.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.admin.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.ha.id" = "rm1"}
         }
         elseif (IsSameHost($ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST))
         {
             $yarnConfigs += @{
-            "yarn.resourcemanager.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "localhost:33140";
-            "yarn.resourcemanager.scheduler.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "localhost:33130";
-            "yarn.resourcemanager.webapp.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "localhost:33188";
-            "yarn.resourcemanager.webapp.https.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "localhost:33120";
-            "yarn.resourcemanager.resource-tracker.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "localhost:33125";
-            "yarn.resourcemanager.admin.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "localhost:33141"}
+            "yarn.resourcemanager.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.scheduler.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.webapp.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.webapp.https.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.resource-tracker.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.admin.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.ha.id" = "rm2"}
         }
     }
     Configure "Yarn" $NodeInstallRoot $serviceCredential $yarnConfigs
