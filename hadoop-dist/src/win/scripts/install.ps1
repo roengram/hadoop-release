@@ -356,8 +356,8 @@ function Main( $scriptDir )
 
     $yarnConfigs =@{
         "yarn.resourcemanager.hostname" = "${ENV:RESOURCEMANAGER_HOST}".ToLower();
-        "yarn.resourcemanager.webapp.address" = "${ENV:RESOURCEMANAGER_HOST}".ToLower();
-        "yarn.resourcemanager.webapp.https.address" = "${ENV:RESOURCEMANAGER_HOST}".ToLower();
+        "yarn.resourcemanager.webapp.address" = "${ENV:RESOURCEMANAGER_HOST}:8088".ToLower();
+        "yarn.resourcemanager.webapp.https.address" = "${ENV:RESOURCEMANAGER_HOST}:8088".ToLower();
         "yarn.log.server.url" = "http://${ENV:RESOURCEMANAGER_HOST}:19888/jobhistory/logs".ToLower();
         "yarn.nodemanager.log-dirs" = "$NMAndMRLogDir" ;
         "yarn.nodemanager.local-dirs" = "$NMAndMRLocalDir" }
