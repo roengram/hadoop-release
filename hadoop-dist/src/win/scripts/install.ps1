@@ -380,31 +380,31 @@ function Main( $scriptDir )
         "yarn.client.failover-sleep-max-ms" = "15000";
         "yarn.resourcemanager.ha.automatic-failover.enabled" = "true";
         "yarn.resourcemanager.ha.automatic-failover.embedded" = "true"
-        "yarn.yarn.resourcemanager.am.max-attempts" = "20"
-        "yarn.resourcemanager.hostname.rm2" = "$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower()
-        "yarn.resourcemanager.hostname.rm1" = "$ENV:RESOURCEMANAGER_HOST".ToLower()
+        "yarn.yarn.resourcemanager.am.max-attempts" = "20";
+        "yarn.resourcemanager.hostname.rm2" = "$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower();
+        "yarn.resourcemanager.hostname.rm1" = "$ENV:RESOURCEMANAGER_HOST".ToLower()}
         }
     
         if (IsSameHost($ENV:RESOURCEMANAGER_HOST))
         {
             $yarnConfigs += @{
-            "yarn.resourcemanager.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
-            "yarn.resourcemanager.scheduler.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
-            "yarn.resourcemanager.webapp.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
-            "yarn.resourcemanager.webapp.https.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
-            "yarn.resourcemanager.resource-tracker.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
-            "yarn.resourcemanager.admin.address.$ENV:RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.address.rm1" = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.scheduler.address.rm1" = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.webapp.address.rm1" = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.webapp.https.address.rm1" = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.resource-tracker.address.rm1" = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.admin.address.rm1" = "$ENV:COMPUTERNAME".ToLower();
             "yarn.resourcemanager.ha.id" = "rm1"}
         }
         elseif (IsSameHost($ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST))
         {
             $yarnConfigs += @{
-            "yarn.resourcemanager.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
-            "yarn.resourcemanager.scheduler.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
-            "yarn.resourcemanager.webapp.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
-            "yarn.resourcemanager.webapp.https.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
-            "yarn.resourcemanager.resource-tracker.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
-            "yarn.resourcemanager.admin.address.$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower() = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.address.rm2" = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.scheduler.address.rm2" = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.webapp.address.rm2" = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.webapp.https.address.rm2" = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.resource-tracker.address.rm2" = "$ENV:COMPUTERNAME".ToLower();
+            "yarn.resourcemanager.admin.address.rm2" = "$ENV:COMPUTERNAME".ToLower();
             "yarn.resourcemanager.ha.id" = "rm2"}
         }
     }
