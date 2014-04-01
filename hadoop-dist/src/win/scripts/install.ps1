@@ -407,7 +407,6 @@ function Main( $scriptDir )
             "yarn.resourcemanager.admin.address.rm2" = "$ENV:COMPUTERNAME".ToLower();
             "yarn.resourcemanager.ha.id" = "rm2"}
         }
-    }
     Configure "Yarn" $NodeInstallRoot $serviceCredential $yarnConfigs
     ###
     ### Install and Configure MapRed
