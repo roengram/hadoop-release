@@ -386,7 +386,7 @@ function Main( $scriptDir )
         "yarn.yarn.resourcemanager.am.max-attempts" = "20";
         "yarn.resourcemanager.hostname.rm2" = "$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower();
         "yarn.resourcemanager.hostname.rm1" = "$ENV:RESOURCEMANAGER_HOST".ToLower()}
-        }
+        
     
         if (IsSameHost($ENV:RESOURCEMANAGER_HOST))
         {
@@ -410,6 +410,7 @@ function Main( $scriptDir )
             "yarn.resourcemanager.admin.address.rm2" = "$ENV:COMPUTERNAME".ToLower();
             "yarn.resourcemanager.ha.id" = "rm2"}
         }
+    }
     Configure "Yarn" $NodeInstallRoot $serviceCredential $yarnConfigs
     ###
     ### Install and Configure MapRed
