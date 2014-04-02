@@ -370,46 +370,21 @@ function Main( $scriptDir )
         "yarn.resourcemanager.ha.rm-ids" = "rm1,rm2";
         "yarn.resourcemanager.recovery.enabled" = "true";
         "yarn.resourcemanager.store.class" = "org.apache.hadoop.yarn.server.resourcemanager.recovery.ZKRMStateStore";
-        "yarn.resourcemanager.zk-address" = "$ENV:ZOOKEEPER_HOSTS".ToLower();
         "yarn.client.failover-proxy-provider" = "org.apache.hadoop.yarn.client.ConfiguredRMFailoverProxyProvider";
         "yarn.resourcemanager.ha.automatic-failover.zk-base-path" = "/yarn-leader-election";
         "yarn.resourcemanager.cluster-id" = "$ENV:RM_HA_CLUSTER_NAME".ToLower();
         "yarn.nodemanager.localizer.address" = "$ENV:COMPUTERNAME".ToLower();
         "yarn.web-proxy.address" = "$ENV:COMPUTERNAME".ToLower();
-        "yarn.client.failover-max-attempts" = "100";
-        "yarn.client.failover-retries" = "10";
-        "yarn.client.failover-retries-on-socket-timeouts" = "1000";
-        "yarn.client.failover-sleep-base-ms" = "500";
-        "yarn.client.failover-sleep-max-ms" = "15000";
         "yarn.resourcemanager.ha.automatic-failover.enabled" = "true";
         "yarn.resourcemanager.ha.automatic-failover.embedded" = "true"
-        "yarn.yarn.resourcemanager.am.max-attempts" = "20";
+        "yarn.resourcemanager.am.max-attempts" = "20";
         "yarn.resourcemanager.hostname.rm2" = "$ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST".ToLower();
-        "yarn.resourcemanager.hostname.rm1" = "$ENV:RESOURCEMANAGER_HOST".ToLower()}
-        
-    
-        if (IsSameHost($ENV:RESOURCEMANAGER_HOST))
-        {
-            $yarnConfigs += @{
-            "yarn.resourcemanager.address.rm1" = "$ENV:COMPUTERNAME".ToLower();
-            "yarn.resourcemanager.scheduler.address.rm1" = "$ENV:COMPUTERNAME".ToLower();
-            "yarn.resourcemanager.webapp.address.rm1" = "$ENV:COMPUTERNAME".ToLower();
-            "yarn.resourcemanager.webapp.https.address.rm1" = "$ENV:COMPUTERNAME".ToLower();
-            "yarn.resourcemanager.resource-tracker.address.rm1" = "$ENV:COMPUTERNAME".ToLower();
-            "yarn.resourcemanager.admin.address.rm1" = "$ENV:COMPUTERNAME".ToLower();
-            "yarn.resourcemanager.ha.id" = "rm1"}
+        "yarn.resourcemanager.hostname.rm1" = "$ENV:RESOURCEMANAGER_HOST".ToLower()
         }
-        elseif (IsSameHost($ENV:RM_HA_STANDBY_RESOURCEMANAGER_HOST))
-        {
-            $yarnConfigs += @{
-            "yarn.resourcemanager.address.rm2" = "$ENV:COMPUTERNAME".ToLower();
-            "yarn.resourcemanager.scheduler.address.rm2" = "$ENV:COMPUTERNAME".ToLower();
-            "yarn.resourcemanager.webapp.address.rm2" = "$ENV:COMPUTERNAME".ToLower();
-            "yarn.resourcemanager.webapp.https.address.rm2" = "$ENV:COMPUTERNAME".ToLower();
-            "yarn.resourcemanager.resource-tracker.address.rm2" = "$ENV:COMPUTERNAME".ToLower();
-            "yarn.resourcemanager.admin.address.rm2" = "$ENV:COMPUTERNAME".ToLower();
-            "yarn.resourcemanager.ha.id" = "rm2"}
-        }
+
+        $zookeeperNodes = $env:ZOOKEEPER_HOSTS.Replace(",",":2181,")
+        $zookeeperNodes = $zookeeperNodes + ":2181"
+        $yarnConfigs["yarn.resourcemanager.zk-address"] = $zookeeperNodes
     }
     Configure "Yarn" $NodeInstallRoot $serviceCredential $yarnConfigs
     ###
