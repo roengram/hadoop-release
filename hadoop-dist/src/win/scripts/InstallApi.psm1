@@ -2038,7 +2038,7 @@ function StopService(
     elseif ( $component -eq "yarn" )
     {
         ### Verify that roles are in the supported set
-        CheckRole $roles @("resourcemanager","nodemanager")
+        CheckRole $roles @("resourcemanager","nodemanager","historyserver")
 
         foreach ( $role in $roles -Split("\s+") )
         {
