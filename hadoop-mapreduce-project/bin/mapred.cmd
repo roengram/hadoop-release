@@ -134,7 +134,7 @@ goto :eof
   set HADOOP_OPTS=%HADOOP_OPTS% %HADOOP_CLIENT_OPTS%
   goto :eof
 
-:historyserver
+:jobhistoryserver
   set CLASS=org.apache.hadoop.mapreduce.v2.hs.JobHistoryServer
   if not defined HADOOP_JHS_LOGGER (
     set HADOOP_JHS_LOGGER=INFO,console
@@ -219,7 +219,7 @@ goto :eof
   @echo   queue                get information regarding JobQueues
   @echo   classpath            prints the class path needed for running
   @echo                        mapreduce subcommands
-  @echo   historyserver        run job history servers as a standalone daemon
+  @echo   jobhistoryserver        run job history servers as a standalone daemon
   @echo   distcp ^<srcurl^> ^<desturl^> copy file or directories recursively
   @echo   archive -archiveName NAME -p ^<parent path^> ^<src^>* ^<dest^> create a hadoop archive
   @echo 

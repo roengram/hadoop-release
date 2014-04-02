@@ -793,12 +793,12 @@ function InstallMapRed(
 
     if( $mapredRole -eq $null )
     {
-        $mapredRole = "jobclient historyserver"
+        $mapredRole = "jobclient jobhistoryserver"
     }
 
     $mapredRole = $mapredRole.Trim()
     ### Verify that mapredRole are in the supported set
-    CheckRole $mapredRole @("jobclient","historyserver")
+    CheckRole $mapredRole @("jobclient","jobhistoryserver")
 
     $HDP_INSTALL_PATH, $HDP_RESOURCES_DIR = Initialize-InstallationEnv $ScriptDir "hadoop-@version@.winpkg.log"
     Test-JavaHome
@@ -845,6 +845,12 @@ function InstallMapRed(
             Write-Log "Creating service config ${hadoopInstallToBin}\$service.xml"
             $cmd = "$hadoopInstallToBin\mapred.cmd --service $service > `"$hadoopInstallToBin\$service.xml`""
             Invoke-CmdChk $cmd
+            if ( $service -eq "jobhistoryserver")
+            {
+                Write-Log "Reanming 'Apache Hadoop jobhistoryserver' to 'Apache Hadoop MapReduce JobHistoryServer'"
+                $cmd="$ENV:WINDIR\system32\sc.exe config $service DisplayName= " +'"Apache Hadoop MapReduce JobHistoryServer"'
+                Invoke-CmdChk $cmd
+            }
         }
     }
     else{
@@ -878,7 +884,7 @@ function UninstallMapRed(
     ###
     ### Stop and delete services
     ###
-    foreach( $service in ("historyserver"))
+    foreach( $service in ("jobhistoryserver"))
     {
         StopAndDeleteHadoopService $service
     }
@@ -939,12 +945,12 @@ function InstallYarn(
 
     if( $yarnRole -eq $null )
     {
-        $yarnRole = "resourcemanager nodemanager"
+        $yarnRole = "resourcemanager nodemanager historyserver"
     }
 
     $yarnRole = $yarnRole.Trim()
     ### Verify that yarnRoles are in the supported set
-    CheckRole $yarnRole @("resourcemanager","nodemanager")
+    CheckRole $yarnRole @("resourcemanager","nodemanager","historyserver")
 
     $HDP_INSTALL_PATH, $HDP_RESOURCES_DIR = Initialize-InstallationEnv $ScriptDir "hadoop-@version@.winpkg.log"
     Test-JavaHome
@@ -989,6 +995,12 @@ function InstallYarn(
             Write-Log "Creating service config ${hadoopInstallToBin}\$service.xml"
             $cmd = "$hadoopInstallToBin\yarn.cmd --service $service > `"$hadoopInstallToBin\$service.xml`""
             Invoke-CmdChk $cmd
+            if ( $service -eq "historyserver")
+            {
+                Write-Log "Renaming 'Apache Hadoop historyserver' to 'Apache Hadoop YARN TimelineServer'"
+                $cmd="$ENV:WINDIR\system32\sc.exe config $service DisplayName= " +'"Apache Hadoop YARN TimelineServer"'
+                Invoke-CmdChk $cmd
+            }
         }
     }
     else
@@ -1023,7 +1035,7 @@ function UninstallYarn(
     ###
     ### Stop and delete services
     ###
-    foreach( $service in ("resourcemanager", "nodemanager"))
+    foreach( $service in ("resourcemanager", "nodemanager", "historyserver"))
     {
         StopAndDeleteHadoopService $service
     }
@@ -1922,7 +1934,7 @@ function StartService(
     elseif ( $component -eq "mapred" )
     {
         ### Verify that roles are in the supported set
-        CheckRole $roles @("historyserver")
+        CheckRole $roles @("jobhistoryserver")
 
         foreach ( $role in $roles.Split(" ") )
         {
@@ -2000,7 +2012,7 @@ function StopService(
     elseif ( $component -eq "mapreduce" )
     {
         ### Verify that roles are in the supported set
-        CheckRole $roles @("historyserver")
+        CheckRole $roles @("jobhistoryserver")
 
         foreach ( $role in $roles -Split("\s+") )
         {

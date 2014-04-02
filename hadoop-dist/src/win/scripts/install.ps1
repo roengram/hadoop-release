@@ -59,9 +59,9 @@ param(
     [String]
     $hdfsRoles = "namenode datanode secondarynamenode",
     [String]
-    $yarnRoles = "nodemanager resourcemanager",
+    $yarnRoles = "nodemanager resourcemanager historyserver",
     [String]
-    $mapredRoles = "historyserver",
+    $mapredRoles = "jobhistoryserver",
     [Switch]
     $skipNamenodeFormat = $false
     )
@@ -107,10 +107,10 @@ function Main( $scriptDir )
     ### files will be in-use and installation can fail
     ###
     Write-Log "Stopping MapRed services if already running before proceeding with install"
-    StopService "mapreduce" "historyserver"
+    StopService "mapreduce" "jobhistoryserver"
 
     Write-Log "Stoppping Yarn services if already running before proceeding with Install"
-    StopService "yarn" "resourcemanager nodemanager"
+    StopService "yarn" "resourcemanager nodemanager historyserver"
 
     Write-Log "Stopping HDFS services if already running before proceeding with install"
     StopService "hdfs" "namenode datanode secondarynamenode"
@@ -125,11 +125,13 @@ function Main( $scriptDir )
         if ((iex `$'ENV:IS_'$role) -eq ("yes"))
         {
             if ($role -eq "RESOURCEMANAGER" ) {
-                $mapredRoles = $mapredRoles+" "+"historyserver"
+                $mapredRoles = $mapredRoles+" "+"jobhistoryserver"
                 $yarnRoles = $yarnRoles+" "+"resourcemanager"
+                $yarnRoles = $yarnRoles+" "+"historyserver"
             }
             if ($role -eq "SLAVE" ) {
                 $yarnRoles = $yarnRoles+" "+"nodemanager"
+                $yarnRoles = $yarnRoles+" "+"historyserver"
                 $hdfsroles = $hdfsroles+" "+"datanode"
             }
             if (($role -eq "NAMENODE") -or ($role -eq "NN_HA_STANDBY_NAMENODE")) {
@@ -147,6 +149,7 @@ function Main( $scriptDir )
             if (($role -eq "RM_HA_STANDBY_RESOURCEMANAGER" ) -and ($ENV:HA -ieq "yes")) {
                 $hdfsroles = $hdfsroles+" "+"zkfc"
                 $yarnRoles = $yarnRoles+" "+"resourcemanager"
+                $yarnRoles = $yarnRoles+" "+"historyserver"
             }
         }
     }
