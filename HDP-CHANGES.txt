@@ -5,6 +5,8 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
   NEW FEATURES
 
   IMPROVEMENTS
+     MAPREDUCE-5014. Extend Distcp to accept a custom CopyListing.
+    (Srikanth Sundarrajan via amareshwari)
 
   BUG FIXES
 
