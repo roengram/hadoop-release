@@ -33,6 +33,7 @@ import org.apache.hadoop.hdfs.DFSTestUtil;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
+import org.apache.hadoop.hdfs.protocol.FSConstants.SafeModeAction;
 import org.apache.hadoop.hdfs.server.common.HdfsConstants;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 import org.apache.hadoop.hdfs.server.namenode.FSDirectory;
@@ -85,7 +86,38 @@ public class TestSnapshotDeletion {
       cluster.shutdown();
     }
   }
-    
+
+  /**
+   * Test applying editlog of operation which deletes a snapshottable directory
+   * without snapshots. The snapshottable dir list in snapshot manager should be
+   * updated.
+   */
+  @Test
+  public void testApplyEditLogForDeletion() throws Exception {
+    final Path foo = new Path("/foo");
+    final Path bar1 = new Path(foo, "bar1");
+    final Path bar2 = new Path(foo, "bar2");
+    hdfs.mkdirs(bar1);
+    hdfs.mkdirs(bar2);
+
+    // allow snapshots on bar1 and bar2
+    hdfs.allowSnapshot(bar1);
+    hdfs.allowSnapshot(bar2);
+    assertEquals(2, cluster.getNameNode().getNamesystem().getSnapshotManager()
+        .getNumSnapshottableDirs());
+
+    // delete /foo
+    hdfs.delete(foo, true);
+    cluster.restartNameNode();
+    // the snapshottable dir list in snapshot manager should be empty
+    assertEquals(0, cluster.getNameNode().getNamesystem().getSnapshotManager()
+        .getNumSnapshottableDirs());
+    hdfs.setSafeMode(SafeModeAction.SAFEMODE_ENTER);
+    hdfs.saveNamespace();
+    hdfs.setSafeMode(SafeModeAction.SAFEMODE_LEAVE);
+    cluster.restartNameNode();
+  }
+
   /**
    * Deleting snapshottable directory with snapshots must fail.
    */

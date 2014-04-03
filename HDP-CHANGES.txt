@@ -29,6 +29,9 @@ comanche-branch-1 release branched from condor-branch-1 (SHA1 bb0bbd77479125307c
     HDFS-3404. Make putImage in GetImageServlet infer remote address to fetch from
     request. (Backported by Jing Zhao)
 
+    HDFS-5982. Need to update snapshot manager when applying editlog for deleting
+    a snapshottable directory. (Jing Zhao)
+
   Snapshot related changes
 
     Changes with Apache jira in trunk/branch-2
