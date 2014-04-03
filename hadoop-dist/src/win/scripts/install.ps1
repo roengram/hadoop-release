@@ -404,6 +404,10 @@ function Main( $scriptDir )
         "mapreduce.map.java.opts" = "-Xmx756m";
         "mapreduce.cluster.local.dir" = "$NMAndMRLocalDir" }
 
+    if ((Test-Path ENV:HA) -and ($ENV:HA -ieq "yes")) {
+        $mapredConfigs["mapreduce.am.max-attempts"] = "20"
+    }
+
     Configure "mapreduce" $NodeInstallRoot $serviceCredential $mapredConfigs
     Write-Log "Install of Hadoop Core, HDFS, MapRed completed successfully"
 }
