@@ -25,10 +25,6 @@ if not defined HADOOP_BIN_PATH (
 if "%HADOOP_BIN_PATH:~`%" == "\" (
   set HADOOP_BIN_PATH=%HADOOP_BIN_PATH:~0,-1%
 )
-
-  if not defined HADOOP_ROOT_LOGGER (
-    set HADOOP_ROOT_LOGGER=INFO,DRFA
-  )
 set DEFAULT_LIBEXEC_DIR=%HADOOP_BIN_PATH%\..\libexec
 if not defined HADOOP_LIBEXEC_DIR (
   set HADOOP_LIBEXEC_DIR=%DEFAULT_LIBEXEC_DIR%
@@ -42,8 +38,11 @@ if "%1" == "--config" (
 
 if "%1" == "--service" (
   set service_entry=true
-  set HADOOP_ROOT_LOGGER=INFO,DRFA
   shift
+
+  if not defined HADOOP_ROOT_LOGGER (
+    set HADOOP_ROOT_LOGGER=INFO,DRFA
+  )
 )
 
 :main
@@ -174,9 +173,6 @@ goto :eof
   if [%2] == [] goto :eof
   if "%1" == "--config" (
     shift
-    shift
-  )
-  if "%1" == "--service" (
     shift
   )
   shift
