@@ -131,7 +131,6 @@ function Main( $scriptDir )
             }
             if ($role -eq "SLAVE" ) {
                 $yarnRoles = $yarnRoles+" "+"nodemanager"
-                $yarnRoles = $yarnRoles+" "+"historyserver"
                 $hdfsroles = $hdfsroles+" "+"datanode"
             }
             if (($role -eq "NAMENODE") -or ($role -eq "NN_HA_STANDBY_NAMENODE")) {
