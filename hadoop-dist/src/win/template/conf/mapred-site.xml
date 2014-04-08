@@ -164,4 +164,20 @@
     <name>mapreduce.ssl.enabled</name>
     <value>false</value>
   </property>
+  <property>
+    <name>mapreduce.job.counters.max</name>
+    <value>20000</value>
+  </property>
+  <property>
+    <name>mapreduce.job.counters.groups.max</name>
+    <value>10000</value>
+  </property>
+  <property>
+    <name>mapreduce.job.counters.group.name.max</name>
+    <value>1000</value>
+  </property>
+  <property>
+    <name>mapreduce.job.counters.counter.name.max</name>
+    <value>1000</value>
+  </property>
 </configuration>
