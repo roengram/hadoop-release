@@ -42,6 +42,7 @@ public class TestWasbFsck {
    * Tests that we recover files properly
    */
   @Test
+  @Ignore  /* flush() no longer does anything  @@TODO: reinstate an appropriate test of fsck recovery*/
   public void testRecover() throws Exception {
     Path danglingFile = new Path("/crashedInTheMiddle");
 
