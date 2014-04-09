@@ -14,3 +14,5 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
     HADOOP-10475. ConcurrentModificationException in
     AbstractDelegationTokenSelector.selectToken(). (jing9)
 
+    HDFS-6160. TestSafeMode occasionally fails. (Arpit Agarwal)
+
