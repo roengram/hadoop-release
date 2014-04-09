@@ -11,3 +11,6 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
     HDFS-5089. When a LayoutVersion support SNAPSHOT, it must support
     FSIMAGE_NAME_OPTIMIZATION.  (szetszwo)
 
+    HADOOP-10475. ConcurrentModificationException in
+    AbstractDelegationTokenSelector.selectToken(). (jing9)
+
