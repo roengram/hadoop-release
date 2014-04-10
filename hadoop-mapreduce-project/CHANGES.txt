@@ -8,6 +8,28 @@ Release 2.5.0 - UNRELEASED
 
   IMPROVEMENTS
 
+<<<<<<< HEAD
+=======
+    MAPREDUCE-5671. NaN can be created by client and assign to Progress (Chen
+    He via jeagles)
+
+    MAPREDUCE-5665. Add audience annotations to MiniMRYarnCluster and 
+    MiniMRCluster. (Anubhav Dhoot via kasha)
+
+    MAPREDUCE-5765. Update hadoop-pipes examples README (Mit Desai via jeagles)
+
+    MAPREDUCE-5713. InputFormat and JobConf JavaDoc Fixes (Chen He via jeagles)
+
+    MAPREDUCE-5456. TestFetcher.testCopyFromHostExtraBytes is missing (Jason
+    Lowe via jeagles)
+
+    MAPREDUCE-5804. TestMRJobsWithProfiler#testProfiler timesout (Mit Desai
+    via kihwal)
+
+    MAPREDUCE-5825. Provide diagnostics for reducers killed during ramp down
+    (Gera Shegalov via jlowe)
+
+>>>>>>> 10a3185... MAPREDUCE-5825. Provide diagnostics for reducers killed during ramp down. Contributed by Gera Shegalov
   OPTIMIZATIONS
 
   BUG FIXES 
