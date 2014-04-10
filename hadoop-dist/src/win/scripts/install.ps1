@@ -362,7 +362,8 @@ function Main( $scriptDir )
         "yarn.resourcemanager.webapp.https.address" = "${ENV:RESOURCEMANAGER_HOST}:8088".ToLower();
         "yarn.log.server.url" = "http://${ENV:RESOURCEMANAGER_HOST}:19888/jobhistory/logs".ToLower();
         "yarn.nodemanager.log-dirs" = "$NMAndMRLogDir" ;
-        "yarn.nodemanager.local-dirs" = "$NMAndMRLocalDir" }
+        "yarn.nodemanager.local-dirs" = "$NMAndMRLocalDir" ;
+        "yarn.timeline-service.hostname" = "${ENV:RESOURCEMANAGER_HOST}".ToLower() }
     if ($ENV:HA -ieq "yes") {
         $yarnConfigs += @{
         "yarn.resourcemanager.ha.enabled" = "true";

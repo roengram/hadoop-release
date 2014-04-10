@@ -94,4 +94,13 @@
     <name>yarn.timeline-service.generic-application-history.fs-history-store.compression-type</name>
     <value>none</value>
   </property>
+  <property>
+    <description>Indicate to ResourceManager as well as clients whether
+    history-service is enabled or not. If enabled, ResourceManager starts
+    recording historical data that ApplicationHistory service can consume.
+    Similarly, clients can redirect to the history service when applications
+    finish if this is enabled.</description>
+    <name>yarn.timeline-service.generic-application-history.enabled</name>
+    <value>false</value>
+  </property>
 </configuration>
