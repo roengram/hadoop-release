@@ -237,7 +237,7 @@ public class HardLink {
     static String   hardLinkMultDir = "\\%f";
     static String[] hardLinkMultSuffix = {
                         ")", "do", Shell.WINUTILS, "hardlink", "create", null,
-                        "%f", "1>NUL"};
+                        "%f"};
     static String[] getLinkCountCommand = {
                         Shell.WINUTILS, "hardlink",
                         "stat", null};
@@ -278,7 +278,7 @@ public class HardLink {
       System.arraycopy(hardLinkMultSuffix, 0, buf, mark, 
                        hardLinkMultSuffix.length);
       mark += hardLinkMultSuffix.length;
-      buf[mark - 3] = td;
+      buf[mark - 2] = td;
       return buf;
     }
     
@@ -311,7 +311,7 @@ public class HardLink {
       //add the fixed overhead of the hardLinkMult command 
       //(prefix, suffix, and Dir suffix)
       sum += ("cmd.exe /q /c for %f in ( ) do "
-              + Shell.WINUTILS + " hardlink create \\%f %f 1>NUL ").length();
+              + Shell.WINUTILS + " hardlink create \\%f %f ").length();
       return sum;
     }
     
