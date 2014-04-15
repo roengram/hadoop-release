@@ -19,3 +19,6 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
     HDFS-6233. Datanode throws HardLink exception during upgrade from
     1.3 to 2.1 in Windows. (Arpit Agarwal)
 
+    HDFS-6245. datanode fails to start with a bad disk even when failed volumes
+    is set (Arpit Agarwal)
+
