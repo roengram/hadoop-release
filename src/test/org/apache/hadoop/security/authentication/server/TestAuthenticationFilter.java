@@ -35,6 +35,11 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.*;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
 public class TestAuthenticationFilter {
 
   @Test
@@ -478,6 +483,26 @@ public class TestAuthenticationFilter {
     }
   }
 
+  private static void parseCookieMap(String cookieHeader, HashMap<String,
+          String> cookieMap) {
+    for (String pair : cookieHeader.split(";")) {
+      String p = pair.trim();
+      int idx = p.indexOf('=');
+      final String k, v;
+      if (idx == -1) {
+        k = p;
+        v = null;
+      } else if (idx == p.length()) {
+        k = p.substring(0, idx - 1);
+        v = null;
+      } else {
+        k = p.substring(0, idx);
+        v = p.substring(idx + 1);
+      }
+      cookieMap.put(k, v);
+    }
+  }
+
   public void testDoFilterAuthentication() throws Exception {
     _testDoFilterAuthentication(false, false);
   }
@@ -638,52 +663,4 @@ public class TestAuthenticationFilter {
       filter.destroy();
     }
   }
-
-  @Test
-  public void testManagementOperation() throws Exception {
-    AuthenticationFilter filter = new AuthenticationFilter();
-    try {
-      FilterConfig config = Mockito.mock(FilterConfig.class);
-      Mockito.when(config.getInitParameter("management.operation.return")).
-        thenReturn("false");
-      Mockito.when(config.getInitParameter(AuthenticationFilter.AUTH_TYPE)).
-        thenReturn(DummyAuthenticationHandler.class.getName());
-      Mockito.when(config.getInitParameterNames()).thenReturn(
-        new Vector<String>(
-          Arrays.asList(AuthenticationFilter.AUTH_TYPE,
-                        "management.operation.return")).elements());
-      filter.init(config);
-
-      HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
-      Mockito.when(request.getRequestURL()).
-        thenReturn(new StringBuffer("http://foo:8080/bar"));
-
-      HttpServletResponse response = Mockito.mock(HttpServletResponse.class);
-
-      FilterChain chain = Mockito.mock(FilterChain.class);
-
-      filter.doFilter(request, response, chain);
-      Mockito.verify(response).setStatus(HttpServletResponse.SC_ACCEPTED);
-      Mockito.verifyNoMoreInteractions(response);
-
-      Mockito.reset(request);
-      Mockito.reset(response);
-
-      AuthenticationToken token = new AuthenticationToken("u", "p", "t");
-      token.setExpires(System.currentTimeMillis() + 1000);
-      Signer signer = new Signer("secret".getBytes());
-      String tokenSigned = signer.sign(token.toString());
-      Cookie cookie = new Cookie(AuthenticatedURL.AUTH_COOKIE, tokenSigned);
-      Mockito.when(request.getCookies()).thenReturn(new Cookie[]{cookie});
-
-      filter.doFilter(request, response, chain);
-
-      Mockito.verify(response).setStatus(HttpServletResponse.SC_ACCEPTED);
-      Mockito.verifyNoMoreInteractions(response);
-
-    } finally {
-      filter.destroy();
-    }
-  }
-
 }
