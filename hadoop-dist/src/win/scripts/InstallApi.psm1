@@ -141,7 +141,7 @@ function ListNonEmptyFoldersListedInPropertyValue(
     foreach ($folder in $folders.Split(","))
     {
         $folder = $folder.Trim()
-        if ( ( $folder -ne $null ) -and ( Test-Path "$folder\*" ) )
+        if ($folder -and ( Test-Path "$folder\*" ) )
         {
             $nonEmptyFolderList = $nonEmptyFolderList + $folder
         }
@@ -437,7 +437,7 @@ function UninstallCore(
     {
         [String]$folder = FindXmlPropertyValue $xmlFile $property
         $folder = $folder.Trim()
-        if ( ( $folder -ne $null ) -and ( Test-Path $folder ) )
+        if ( $folder -and ( Test-Path $folder ) )
         {
             Write-Log "Removing Hadoop `"$property`" located under `"$folder`""
             $cmd = "rd /s /q `"$folder`""
@@ -933,7 +933,7 @@ function UninstallMapRed(
     {
         [String]$folder = FindXmlPropertyValue $xmlFile $property
         $folder = $folder.Trim()
-        if ( ( $folder -ne $null ) -and ( Test-Path $folder ) )
+        if ( $folder -and ( Test-Path $folder ) )
         {
             Write-Log "Removing Hadoop `"$property`" located under `"$folder`""
             $cmd = "rd /s /q `"$folder`""
