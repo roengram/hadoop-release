@@ -24,3 +24,5 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
 
     HDFS-6273. Config options to allow wildcard endpoints for namenode HTTP
     and HTTPS servers. (Arpit Agarwal)
+
+    HDFS-6278. Create HTML5-based UI for SNN. (wheat9)
