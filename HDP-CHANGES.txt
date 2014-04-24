@@ -20,5 +20,7 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
     1.3 to 2.1 in Windows. (Arpit Agarwal)
 
     HDFS-6245. datanode fails to start with a bad disk even when failed volumes
-    is set (Arpit Agarwal)
+    is set. (Arpit Agarwal)
 
+    HDFS-6273. Config options to allow wildcard endpoints for namenode HTTP
+    and HTTPS servers. (Arpit Agarwal)
