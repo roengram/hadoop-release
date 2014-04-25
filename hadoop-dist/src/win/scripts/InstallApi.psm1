@@ -511,6 +511,14 @@ function CreateAndConfigureHadoopService(
             # this path is used for creating services that run under (AD) Managed Service Account
             # for them password is not provided and in that case service cannot be created using New-Service commandlet
             $serviceUserName = $serviceCredential.UserName
+            $cred = $serviceCredential.UserName.Split("\")
+
+            # Throw exception if domain is not specified
+            if (($cred.Length -lt 2) -or ($cred[0] -eq "."))
+            {
+                throw "Environment is not AD or domain is not specified"
+            }
+
             $cmd="$ENV:WINDIR\system32\sc.exe create `"$service`" binPath= `"$serviceBinDir\$service.exe`" obj= $serviceUserName DisplayName= `"Apache Hadoop $service`" "
             try
             {
