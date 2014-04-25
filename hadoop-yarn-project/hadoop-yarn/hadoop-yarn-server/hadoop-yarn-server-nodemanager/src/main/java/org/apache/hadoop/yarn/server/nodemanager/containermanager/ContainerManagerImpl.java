@@ -262,7 +262,9 @@ public class ContainerManagerImpl extends CompositeService implements
     
     YarnRPC rpc = YarnRPC.create(conf);
 
-    InetSocketAddress initialAddress = conf.getSocketAddr(
+    InetSocketAddress initialAddress = RPCUtil.getSocketAddr(
+        conf,
+        YarnConfiguration.NM_BIND_HOST,
         YarnConfiguration.NM_ADDRESS,
         YarnConfiguration.DEFAULT_NM_ADDRESS,
         YarnConfiguration.DEFAULT_NM_PORT);
@@ -284,14 +286,18 @@ public class ContainerManagerImpl extends CompositeService implements
     		" server is still starting.");
     this.setBlockNewContainerRequests(true);
     server.start();
-    InetSocketAddress connectAddress = NetUtils.getConnectAddress(server);
+    InetSocketAddress connectAddress = NetUtils.getConnectAddress(
+        conf.getSocketAddr(
+            YarnConfiguration.NM_ADDRESS,
+            YarnConfiguration.DEFAULT_NM_ADDRESS,
+            YarnConfiguration.DEFAULT_NM_PORT));
     NodeId nodeId = NodeId.newInstance(
         connectAddress.getAddress().getCanonicalHostName(),
         connectAddress.getPort());
     ((NodeManager.NMContext)context).setNodeId(nodeId);
     this.context.getNMTokenSecretManager().setNodeId(nodeId);
     this.context.getContainerTokenSecretManager().setNodeId(nodeId);
-    LOG.info("ContainerManager started at " + connectAddress);
+    LOG.info("ContainerManager started at " + initialAddress);
     super.serviceStart();
   }
 

@@ -122,7 +122,9 @@ public class ApplicationMasterService extends AbstractService implements
     Configuration conf = getConfig();
     YarnRPC rpc = YarnRPC.create(conf);
 
-    InetSocketAddress masterServiceAddress = conf.getSocketAddr(
+    InetSocketAddress masterServiceAddress = RPCUtil.getSocketAddr(
+        conf,
+        YarnConfiguration.RM_SCHEDULER_BIND_HOST,
         YarnConfiguration.RM_SCHEDULER_ADDRESS,
         YarnConfiguration.DEFAULT_RM_SCHEDULER_ADDRESS,
         YarnConfiguration.DEFAULT_RM_SCHEDULER_PORT);

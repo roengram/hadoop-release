@@ -21,9 +21,12 @@ package org.apache.hadoop.yarn.ipc;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.net.InetSocketAddress;
 
 import org.apache.hadoop.classification.InterfaceAudience;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.ipc.RemoteException;
+import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.yarn.exceptions.YarnException;
 
 import com.google.protobuf.ServiceException;
@@ -123,5 +126,40 @@ public class RPCUtil {
         throw new IOException(se);
       }
     }
+  }
+
+  /**
+   * Get the socket address for <code>hostProperty</code> as a
+   * <code>InetSocketAddress</code>. If <code>hostProperty</code> is
+   * <code>null</code>, <code>addressProperty</code> will be used. This
+   * is useful for cases where we want to differentiate between host
+   * bind address and address clients should use to establish connection.
+   *
+   * @param conf the configuration.
+   * @param hostProperty bind host property name.
+   * @param addressProperty address property name.
+   * @param defaultAddress the default value
+   * @param defaultPort the default port
+   * @return InetSocketAddress
+   */
+  public static InetSocketAddress getSocketAddr(
+      Configuration conf,
+      String hostProperty,
+      String addressProperty,
+      String defaultAddress,
+      int defaultPort) {
+
+    final String host = conf.get(hostProperty);
+    final String address = conf.get(addressProperty, defaultAddress);
+
+    InetSocketAddress bindAddr = NetUtils.createSocketAddr(
+        address, defaultPort, addressProperty);
+
+    if (host == null || host.isEmpty()) {
+      return bindAddr;
+    }
+
+    return NetUtils.createSocketAddr(
+        host, bindAddr.getPort(), hostProperty);
   }
 }

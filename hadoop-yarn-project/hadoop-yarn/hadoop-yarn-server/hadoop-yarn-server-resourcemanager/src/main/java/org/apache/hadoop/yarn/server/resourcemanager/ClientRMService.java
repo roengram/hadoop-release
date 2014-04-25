@@ -212,7 +212,10 @@ public class ClientRMService extends AbstractService implements
   }
 
   InetSocketAddress getBindAddress(Configuration conf) {
-    return conf.getSocketAddr(YarnConfiguration.RM_ADDRESS,
+    return RPCUtil.getSocketAddr(
+            conf,
+            YarnConfiguration.RM_BIND_HOST,
+            YarnConfiguration.RM_ADDRESS,
             YarnConfiguration.DEFAULT_RM_ADDRESS,
             YarnConfiguration.DEFAULT_RM_PORT);
   }

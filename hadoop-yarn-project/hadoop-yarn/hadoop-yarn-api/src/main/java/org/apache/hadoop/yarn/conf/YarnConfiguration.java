@@ -126,6 +126,10 @@ public class YarnConfiguration extends Configuration {
   public static final String DEFAULT_RM_ADDRESS =
     "0.0.0.0:" + DEFAULT_RM_PORT;
 
+  /** The actual bind address or the RM.*/
+  public static final String RM_BIND_HOST =
+    RM_PREFIX + "bind-host";
+
   /** The number of threads used to handle applications manager requests.*/
   public static final String RM_CLIENT_THREAD_COUNT =
     RM_PREFIX + "client.thread-count";
@@ -141,6 +145,10 @@ public class YarnConfiguration extends Configuration {
   public static final int DEFAULT_RM_SCHEDULER_PORT = 8030;
   public static final String DEFAULT_RM_SCHEDULER_ADDRESS = "0.0.0.0:" +
     DEFAULT_RM_SCHEDULER_PORT;
+
+  /** The actual bind address or the RM scheduler.*/
+  public static final String RM_SCHEDULER_BIND_HOST =
+    RM_PREFIX + "scheduler.bind-host";
 
   /** Miniumum request grant-able by the RM scheduler. */
   public static final String RM_SCHEDULER_MINIMUM_ALLOCATION_MB =
@@ -207,6 +215,10 @@ public class YarnConfiguration extends Configuration {
   public static final int DEFAULT_RM_RESOURCE_TRACKER_PORT = 8031;
   public static final String DEFAULT_RM_RESOURCE_TRACKER_ADDRESS =
     "0.0.0.0:" + DEFAULT_RM_RESOURCE_TRACKER_PORT;
+
+  /** The actual bind address or the RM resource tracker.*/
+  public static final String RM_RESOURCE_TRACKER_BIND_HOST =
+    RM_PREFIX + "resource-tracker.bind-host";
 
   /** The expiry interval for application master reporting.*/
   public static final String RM_AM_EXPIRY_INTERVAL_MS = 
@@ -526,7 +538,11 @@ public class YarnConfiguration extends Configuration {
   public static final int DEFAULT_NM_PORT = 0;
   public static final String DEFAULT_NM_ADDRESS = "0.0.0.0:"
       + DEFAULT_NM_PORT;
-  
+
+  /** The actual bind address or the NM.*/
+  public static final String NM_BIND_HOST =
+    NM_PREFIX + "bind-host";
+
   /** who will execute(launch) the containers.*/
   public static final String NM_CONTAINER_EXECUTOR = 
     NM_PREFIX + "container-executor.class";

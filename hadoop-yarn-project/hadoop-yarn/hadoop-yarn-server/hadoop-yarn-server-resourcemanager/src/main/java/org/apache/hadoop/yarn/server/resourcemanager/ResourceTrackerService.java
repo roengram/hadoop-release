@@ -43,6 +43,7 @@ import org.apache.hadoop.yarn.exceptions.YarnException;
 import org.apache.hadoop.yarn.exceptions.YarnRuntimeException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.server.api.ResourceTracker;
 import org.apache.hadoop.yarn.server.api.protocolrecords.NodeHeartbeatRequest;
@@ -119,7 +120,10 @@ public class ResourceTrackerService extends AbstractService implements
 
   @Override
   protected void serviceInit(Configuration conf) throws Exception {
-    resourceTrackerAddress = conf.getSocketAddr(
+
+    resourceTrackerAddress = RPCUtil.getSocketAddr(
+        conf,
+        YarnConfiguration.RM_RESOURCE_TRACKER_BIND_HOST,
         YarnConfiguration.RM_RESOURCE_TRACKER_ADDRESS,
         YarnConfiguration.DEFAULT_RM_RESOURCE_TRACKER_ADDRESS,
         YarnConfiguration.DEFAULT_RM_RESOURCE_TRACKER_PORT);
