@@ -74,17 +74,6 @@
   </property>
 
   <property>
-    <description>
-      The actual address the server will bind to. If this optional address is
-      set, the RPC server will bind to this address and the port specified in
-      yarn.resourcemanager.address for the RPC server. This is most useful for
-      making RM listen to all interfaces by setting to 0.0.0.0.
-    </description>
-    <name>yarn.resourcemanager.bind-host</name>
-    <value></value>
-  </property>
-
-  <property>
     <description>The number of threads used to handle applications manager requests.</description>
     <name>yarn.resourcemanager.client.thread-count</name>
     <value>50</value>
@@ -108,17 +97,6 @@
     </description>
     <name>yarn.resourcemanager.scheduler.address</name>
     <value>${yarn.resourcemanager.hostname}:8030</value>
-  </property>
-
-  <property>
-    <description>
-      The actual address the server will bind to. If this optional address is
-      set, the RPC server will bind to this address and the port specified in
-      yarn.resourcemanager.scheduler.address for the RPC server. This is most
-      useful for making RM scheduler listen to all interfaces by setting to 0.0.0.0.
-    </description>
-    <name>yarn.resourcemanager.scheduler.bind-host</name>
-    <value></value>
   </property>
 
   <property>
@@ -157,18 +135,6 @@
     </description>
     <name>yarn.resourcemanager.resource-tracker.address</name>
     <value>${yarn.resourcemanager.hostname}:8031</value>
-  </property>
-
-  <property>
-    <description>
-      The actual address the server will bind to. If this optional address is
-      set, the RPC server will bind to this address and the port specified in
-      yarn.resourcemanager.resource-tracker.address for the RPC server. This
-      is most useful for making RM resource tracker listen to all interfaces
-      by setting to 0.0.0.0.
-    </description>
-    <name>yarn.resourcemanager.resource-tracker.bind-host</name>
-    <value></value>
   </property>
 
   <property>
@@ -648,17 +614,6 @@
     </description>
     <name>yarn.nodemanager.address</name>
     <value>${yarn.nodemanager.hostname}:0</value>
-  </property>
-
-  <property>
-    <description>
-      The actual address the server will bind to. If this optional address is
-      set, the RPC server will bind to this address and the port specified in
-      yarn.nodemanager.address for the RPC server. This is most useful for
-      making NM listen to all interfaces by setting to 0.0.0.0.
-    </description>
-    <name>yarn.nodemanager.bind-host</name>
-    <value></value>
   </property>
 
   <property>
