@@ -25,6 +25,13 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
     HDFS-6273. Config options to allow wildcard endpoints for namenode HTTP
     and HTTPS servers. (Arpit Agarwal)
 
+    Monarch HADOOP-813. Add support for Multi NIC to YARN/MR. (Milan
+    Potocnik)
+
     HDFS-6278. Create HTML5-based UI for SNN. (wheat9)
 
     HDFS-6279. Create new index page for JN / DN. (wheat9)
+  
+    BUG-17186. Allow wildcard bind for additional endpoints requested by
+    Teradata. (Arpit Agarwal)
+
