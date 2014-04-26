@@ -249,6 +249,8 @@ public class YarnConfiguration extends Configuration {
   public static final int DEFAULT_RM_ADMIN_PORT = 8033;
   public static final String DEFAULT_RM_ADMIN_ADDRESS = "0.0.0.0:" +
       DEFAULT_RM_ADMIN_PORT;
+  public static final String RM_ADMIN_BIND_HOST =
+    RM_PREFIX + "admin.bind-host";
   
   /**Number of threads used to handle RM admin interface.*/
   public static final String RM_ADMIN_CLIENT_THREAD_COUNT =
@@ -712,6 +714,7 @@ public class YarnConfiguration extends Configuration {
   
   /** NM Webapp address.**/
   public static final String NM_WEBAPP_ADDRESS = NM_PREFIX + "webapp.address";
+  public static final String NM_WEBAPP_BIND_HOST = NM_PREFIX + "webapp.bind-host";
   public static final int DEFAULT_NM_WEBAPP_PORT = 8042;
   public static final String DEFAULT_NM_WEBAPP_ADDRESS = "0.0.0.0:" +
     DEFAULT_NM_WEBAPP_PORT;
@@ -719,6 +722,8 @@ public class YarnConfiguration extends Configuration {
   /** NM Webapp https address.**/
   public static final String NM_WEBAPP_HTTPS_ADDRESS = NM_PREFIX
       + "webapp.https.address";
+  public static final String NM_WEBAPP_HTTPS_BIND_HOST = NM_PREFIX
+      + "webapp.https.bind-host";
   public static final int DEFAULT_NM_WEBAPP_HTTPS_PORT = 8044;
   public static final String DEFAULT_NM_WEBAPP_HTTPS_ADDRESS = "0.0.0.0:"
       + DEFAULT_NM_WEBAPP_HTTPS_PORT; 
@@ -1133,6 +1138,10 @@ public class YarnConfiguration extends Configuration {
   public static final String TIMELINE_SERVICE_WEBAPP_ADDRESS =
       TIMELINE_SERVICE_PREFIX  + "webapp.address";
 
+  /** The listening endpoint for the timeline service web application.*/
+  public static final String TIMELINE_SERVICE_WEBAPP_BIND_HOST =
+      TIMELINE_SERVICE_PREFIX + "webapp.bind-host";
+
   public static final int DEFAULT_TIMELINE_SERVICE_WEBAPP_PORT = 8188;
   public static final String DEFAULT_TIMELINE_SERVICE_WEBAPP_ADDRESS =
       "0.0.0.0:" + DEFAULT_TIMELINE_SERVICE_WEBAPP_PORT;
@@ -1141,6 +1150,10 @@ public class YarnConfiguration extends Configuration {
   public static final String TIMELINE_SERVICE_WEBAPP_HTTPS_ADDRESS =
       TIMELINE_SERVICE_PREFIX + "webapp.https.address";
 
+  /** The listening endpoint for the timeline service web application.*/
+  public static final String TIMELINE_SERVICE_WEBAPP_HTTPS_BIND_HOST =
+      TIMELINE_SERVICE_PREFIX + "webapp.https.bind-host";
+  
   public static final int DEFAULT_TIMELINE_SERVICE_WEBAPP_HTTPS_PORT = 8190;
   public static final String DEFAULT_TIMELINE_SERVICE_WEBAPP_HTTPS_ADDRESS =
       "0.0.0.0:" + DEFAULT_TIMELINE_SERVICE_WEBAPP_HTTPS_PORT;

@@ -149,7 +149,7 @@ public class ApplicationHistoryServer extends CompositeService {
   }
 
   protected void startWebApp() {
-    String bindAddress = WebAppUtils.getAHSWebAppURLWithoutScheme(getConfig());
+    String bindAddress = WebAppUtils.getAHSWebAppBindURLWithoutScheme(getConfig());
     LOG.info("Instantiating AHSWebApp at " + bindAddress);
     try {
       webApp =

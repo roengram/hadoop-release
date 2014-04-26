@@ -88,7 +88,12 @@ public class AdminService extends CompositeService implements
   private boolean autoFailoverEnabled;
 
   private Server server;
+
+  // Address to use for connection.
   private InetSocketAddress masterServiceAddress;
+
+  // Address to use for binding. May be a wildcard address.
+  private InetSocketAddress masterServiceBindAddress;
   private AccessControlList adminAcl;
 
   private final RecordFactory recordFactory = 
@@ -115,6 +120,14 @@ public class AdminService extends CompositeService implements
         YarnConfiguration.RM_ADMIN_ADDRESS,
         YarnConfiguration.DEFAULT_RM_ADMIN_ADDRESS,
         YarnConfiguration.DEFAULT_RM_ADMIN_PORT);
+
+    masterServiceBindAddress = RPCUtil.getSocketAddr(
+        conf,
+        YarnConfiguration.RM_ADMIN_BIND_HOST,
+        YarnConfiguration.RM_ADMIN_ADDRESS,
+        YarnConfiguration.DEFAULT_RM_ADMIN_ADDRESS,
+        YarnConfiguration.DEFAULT_RM_ADMIN_PORT);
+
     adminAcl = new AccessControlList(conf.get(
         YarnConfiguration.YARN_ADMIN_ACL,
         YarnConfiguration.DEFAULT_YARN_ADMIN_ACL));
@@ -138,7 +151,7 @@ public class AdminService extends CompositeService implements
     Configuration conf = getConfig();
     YarnRPC rpc = YarnRPC.create(conf);
     this.server = (Server) rpc.getServer(
-        ResourceManagerAdministrationProtocol.class, this, masterServiceAddress,
+        ResourceManagerAdministrationProtocol.class, this, masterServiceBindAddress,
         conf, null,
         conf.getInt(YarnConfiguration.RM_ADMIN_CLIENT_THREAD_COUNT,
             YarnConfiguration.DEFAULT_RM_ADMIN_CLIENT_THREAD_COUNT));
@@ -168,7 +181,7 @@ public class AdminService extends CompositeService implements
 
     this.server.start();
     conf.updateConnectAddr(YarnConfiguration.RM_ADMIN_ADDRESS,
-        server.getListenerAddress());
+      masterServiceAddress);
   }
 
   protected void stopServer() throws Exception {

@@ -38,6 +38,8 @@ public class JHAdminConfig {
   public static final int DEFAULT_MR_HISTORY_PORT = 10020;
   public static final String DEFAULT_MR_HISTORY_ADDRESS = "0.0.0.0:" +
       DEFAULT_MR_HISTORY_PORT;
+  public static final String MR_HISTORY_BIND_HOST = MR_HISTORY_PREFIX
+      + "bind-host";
   
   /** The address of the History server admin interface. */
   public static final String JHS_ADMIN_ADDRESS = MR_HISTORY_PREFIX
@@ -45,6 +47,8 @@ public class JHAdminConfig {
   public static final int DEFAULT_JHS_ADMIN_PORT = 10033;
   public static final String DEFAULT_JHS_ADMIN_ADDRESS = "0.0.0.0:"
       + DEFAULT_JHS_ADMIN_PORT;
+  public static final String JHS_ADMIN_BIND_HOST = MR_HISTORY_PREFIX
+      + "admin.bind-host";
 
   /** ACL of who can be admin of Job history server. */
   public static final String JHS_ADMIN_ACL = MR_HISTORY_PREFIX + "admin.acl";
@@ -144,6 +148,8 @@ public class JHAdminConfig {
   public static final int DEFAULT_MR_HISTORY_WEBAPP_PORT = 19888;
   public static final String DEFAULT_MR_HISTORY_WEBAPP_ADDRESS =
     "0.0.0.0:" + DEFAULT_MR_HISTORY_WEBAPP_PORT;
+  public static final String MR_HISTORY_WEBAPP_BIND_HOST =
+      MR_HISTORY_PREFIX + "webapp.bind-host";
   
   /**The https address the history server webapp is on.*/
   public static final String MR_HISTORY_WEBAPP_HTTPS_ADDRESS =
@@ -151,6 +157,8 @@ public class JHAdminConfig {
   public static final int DEFAULT_MR_HISTORY_WEBAPP_HTTPS_PORT = 19890;
   public static final String DEFAULT_MR_HISTORY_WEBAPP_HTTPS_ADDRESS =
       "0.0.0.0:" + DEFAULT_MR_HISTORY_WEBAPP_HTTPS_PORT;
+  public static final String MR_HISTORY_WEBAPP_HTTPS_BIND_HOST =
+      MR_HISTORY_PREFIX + "webapp.https.bind-host";
   
   /**The kerberos principal to be used for spnego filter for history server*/
   public static final String MR_WEBAPP_SPNEGO_USER_NAME_KEY =

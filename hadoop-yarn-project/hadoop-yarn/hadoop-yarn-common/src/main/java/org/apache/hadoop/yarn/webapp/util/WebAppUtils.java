@@ -170,14 +170,29 @@ public class WebAppUtils {
     return sb.toString();
   }
   
-  public static String getNMWebAppURLWithoutScheme(Configuration conf) {
+  public static String getNMWebAppBindURLWithoutScheme(Configuration conf) {
+    String address;
+    String bindHost;
+
     if (YarnConfiguration.useHttps(conf)) {
-      return conf.get(YarnConfiguration.NM_WEBAPP_HTTPS_ADDRESS,
+      address = conf.get(YarnConfiguration.NM_WEBAPP_HTTPS_ADDRESS,
         YarnConfiguration.DEFAULT_NM_WEBAPP_HTTPS_ADDRESS);
+      bindHost = conf.getTrimmed(
+          YarnConfiguration.NM_WEBAPP_HTTPS_BIND_HOST);
     } else {
-      return conf.get(YarnConfiguration.NM_WEBAPP_ADDRESS,
-        YarnConfiguration.DEFAULT_NM_WEBAPP_ADDRESS);
+      address = conf.get(YarnConfiguration.NM_WEBAPP_ADDRESS,
+                         YarnConfiguration.DEFAULT_NM_WEBAPP_ADDRESS);
+      bindHost = conf.getTrimmed(
+          YarnConfiguration.NM_WEBAPP_BIND_HOST);
     }
+
+    // If the bind-host setting exists then it overrides the hostname
+    // portion of the corresponding address.
+    if (bindHost != null && !bindHost.isEmpty()) {
+      address = bindHost + ":" + address.split(":")[1];
+    }
+          
+    return address;
   }
 
   public static String getAHSWebAppURLWithoutScheme(Configuration conf) {
@@ -189,7 +204,32 @@ public class WebAppUtils {
         YarnConfiguration.DEFAULT_TIMELINE_SERVICE_WEBAPP_ADDRESS);
     }
   }
-  
+
+  public static String getAHSWebAppBindURLWithoutScheme(Configuration conf) {
+    String address;
+    String bindHost;
+
+    if (YarnConfiguration.useHttps(conf)) {
+      address = conf.get(YarnConfiguration.TIMELINE_SERVICE_WEBAPP_HTTPS_ADDRESS,
+        YarnConfiguration.DEFAULT_TIMELINE_SERVICE_WEBAPP_HTTPS_ADDRESS);
+      bindHost = conf.getTrimmed(
+        YarnConfiguration.TIMELINE_SERVICE_WEBAPP_HTTPS_BIND_HOST);
+    } else {
+      address = conf.get(YarnConfiguration.TIMELINE_SERVICE_WEBAPP_ADDRESS,
+        YarnConfiguration.DEFAULT_TIMELINE_SERVICE_WEBAPP_ADDRESS);
+      bindHost = conf.getTrimmed(
+        YarnConfiguration.TIMELINE_SERVICE_WEBAPP_BIND_HOST); 
+    }
+    
+    // If bindHost is specified it overrides the hostname portion of the
+    // address.
+    if (bindHost != null && !bindHost.isEmpty()) {
+      address = bindHost + ":" + address.split(":")[1];
+    }
+    
+    return address;
+  }
+
   /**
    * if url has scheme then it will be returned as it is else it will return
    * url with scheme.

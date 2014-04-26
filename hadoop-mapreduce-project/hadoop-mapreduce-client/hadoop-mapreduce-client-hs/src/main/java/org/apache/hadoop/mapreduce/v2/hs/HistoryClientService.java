@@ -83,6 +83,7 @@ import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.service.AbstractService;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.util.Records;
 import org.apache.hadoop.yarn.webapp.WebApp;
@@ -118,7 +119,9 @@ public class HistoryClientService extends AbstractService {
     Configuration conf = getConfig();
     YarnRPC rpc = YarnRPC.create(conf);
     initializeWebApp(conf);
-    InetSocketAddress address = conf.getSocketAddr(
+    InetSocketAddress address = RPCUtil.getSocketAddr(
+        conf,
+        JHAdminConfig.MR_HISTORY_BIND_HOST,
         JHAdminConfig.MR_HISTORY_ADDRESS,
         JHAdminConfig.DEFAULT_MR_HISTORY_ADDRESS,
         JHAdminConfig.DEFAULT_MR_HISTORY_PORT);

@@ -22,7 +22,6 @@ import static org.apache.hadoop.yarn.util.StringHelper.pajoin;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.http.HttpConfig;
 import org.apache.hadoop.service.AbstractService;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.exceptions.YarnRuntimeException;
@@ -55,7 +54,7 @@ public class WebServer extends AbstractService {
 
   @Override
   protected void serviceStart() throws Exception {
-    String bindAddress = WebAppUtils.getNMWebAppURLWithoutScheme(getConfig());
+    String bindAddress = WebAppUtils.getNMWebAppBindURLWithoutScheme(getConfig());
     
     LOG.info("Instantiating NMWebApp at " + bindAddress);
     try {
