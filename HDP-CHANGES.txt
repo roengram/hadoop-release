@@ -35,3 +35,6 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
     BUG-17186. Allow wildcard bind for additional endpoints requested by
     Teradata. (Arpit Agarwal)
 
+    HADOOP-10508. RefreshCallQueue fails when authorization is enabled.
+    (Chris Li via wheat9)
+
