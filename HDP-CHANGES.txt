@@ -35,6 +35,9 @@ comanche-branch-1 release branched from condor-branch-1 (SHA1 bb0bbd77479125307c
     HDFS-6141. WebHdfsFileSystem#toUrl does not perform character escaping.
     (cnauroth)
 
+    HADOOP-10562. Namenode exits on exception without printing stack trace
+    in AbstractDelegationTokenSecretManager (Backported by Arpit Agarwal)
+
   Snapshot related changes
 
     Changes with Apache jira in trunk/branch-2
