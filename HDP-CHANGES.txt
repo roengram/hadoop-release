@@ -8,6 +8,9 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
      MAPREDUCE-5014. Extend Distcp to accept a custom CopyListing.
     (Srikanth Sundarrajan via amareshwari)
 
+    YARN-1982. Renamed the daemon name to be TimelineServer instead of History
+    Server and deprecated the old usage. (Zhijie Shen via vinodkv)
+
   BUG FIXES
 
     HDFS-5089. When a LayoutVersion support SNAPSHOT, it must support

@@ -129,11 +129,12 @@ if "%1" == "--service" (
 
   if exist %HADOOP_YARN_HOME%\yarn-server\yarn-server-resourcemanager\target\classes (
     set CLASSPATH=%CLASSPATH%;%HADOOP_YARN_HOME%\yarn-server\yarn-server-resourcemanager\target\classes
-    set CLASSPATH=%CLASSPATH%;%HADOOP_YARN_HOME%\yarn-server\yarn-server-applicationhistoryservice\target\classes
   )
+
   if exist %HADOOP_YARN_HOME%\yarn-server\yarn-server-applicationhistoryservice\target\classes (
     set CLASSPATH=%CLASSPATH%;%HADOOP_YARN_HOME%\yarn-server\yarn-server-applicationhistoryservice\target\classes
   )
+
   if exist %HADOOP_YARN_HOME%\build\test\classes (
     set CLASSPATH=%CLASSPATH%;%HADOOP_YARN_HOME%\build\test\classes
   )
@@ -151,7 +152,12 @@ if "%1" == "--service" (
   )
 
   set yarncommands=resourcemanager nodemanager proxyserver rmadmin version jar ^
+<<<<<<< HEAD
      application applicationattempt container node logs daemonlog timelineserver
+=======
+     application applicationattempt container node logs daemonlog historyserver ^
+     timelineserver
+>>>>>>> 3a15878... YARN-1982. Renamed the daemon name to be TimelineServer instead of History Server and deprecated the old usage. Contributed by Zhijie Shen.
   for %%i in ( %yarncommands% ) do (
     if %yarn-command% == %%i set yarncommand=true
   )
@@ -205,12 +211,37 @@ goto :eof
   set CLASS=org.apache.hadoop.yarn.client.cli.NodeCLI
   set YARN_OPTS=%YARN_OPTS% %YARN_CLIENT_OPTS%
   goto :eof
+<<<<<<< HEAD
 :timelineserver
+=======
+
+:resourcemanager
+  set CLASSPATH=%CLASSPATH%;%YARN_CONF_DIR%\rm-config\log4j.properties
+  set CLASS=org.apache.hadoop.yarn.server.resourcemanager.ResourceManager
+  set YARN_OPTS=%YARN_OPTS% %YARN_RESOURCEMANAGER_OPTS%
+  if defined YARN_RESOURCEMANAGER_HEAPSIZE (
+    set JAVA_HEAP_MAX=-Xmx%YARN_RESOURCEMANAGER_HEAPSIZE%m
+  )
+  goto :eof
+
+:historyserver
+  @echo DEPRECATED: Use of this command to start the timeline server is deprecated. 1>&2
+  @echo Instead use the timelineserver command for it. 1>&2
+>>>>>>> 3a15878... YARN-1982. Renamed the daemon name to be TimelineServer instead of History Server and deprecated the old usage. Contributed by Zhijie Shen.
   set CLASSPATH=%CLASSPATH%;%YARN_CONF_DIR%\ahs-config\log4j.properties
   set CLASS=org.apache.hadoop.yarn.server.applicationhistoryservice.ApplicationHistoryServer
   set YARN_OPTS=%YARN_OPTS% %HADOOP_HISTORYSERVER_OPTS%
   if defined YARN_HISTORYSERVER_HEAPSIZE (
     set JAVA_HEAP_MAX=-Xmx%YARN_HISTORYSERVER_HEAPSIZE%m
+  )
+  goto :eof
+
+:timelineserver
+  set CLASSPATH=%CLASSPATH%;%YARN_CONF_DIR%\timelineserver-config\log4j.properties
+  set CLASS=org.apache.hadoop.yarn.server.applicationhistoryservice.ApplicationHistoryServer
+  set YARN_OPTS=%YARN_OPTS% %HADOOP_TIMELINESERVER_OPTS%
+  if defined YARN_TIMELINESERVER_HEAPSIZE (
+    set JAVA_HEAP_MAX=-Xmx%YARN_TIMELINESERVER_HEAPSIZE%m
   )
   goto :eof
 
@@ -300,6 +331,10 @@ goto :eof
   @echo        where COMMAND is one of:
   @echo   resourcemanager      run the ResourceManager
   @echo   nodemanager          run a nodemanager on each slave
+<<<<<<< HEAD
+=======
+  @echo   timelineserver       run the timeline server
+>>>>>>> 3a15878... YARN-1982. Renamed the daemon name to be TimelineServer instead of History Server and deprecated the old usage. Contributed by Zhijie Shen.
   @echo   rmadmin              admin tools
   @echo   version              print the version
   @echo   jar ^<jar^>          run a jar file
