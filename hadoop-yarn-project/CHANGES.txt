@@ -8,6 +8,10 @@ Release 2.4.1 - UNRELEASED
 
   IMPROVEMENTS
 
+    YARN-1962. Changed Timeline Service client configuration to be off by default
+    given the non-readiness of the feature yet. (Mohammad Kamrul Islam via
+    vinodkv)
+
   OPTIMIZATIONS
 
   BUG FIXES
