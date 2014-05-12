@@ -38,3 +38,5 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
     HADOOP-10508. RefreshCallQueue fails when authorization is enabled.
     (Chris Li via wheat9)
 
+    HDFS-6370. Web UI fails to display in intranet under IE. (wheat9)
+
