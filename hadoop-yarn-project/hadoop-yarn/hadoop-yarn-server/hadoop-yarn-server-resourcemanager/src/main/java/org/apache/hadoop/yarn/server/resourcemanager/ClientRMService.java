@@ -196,10 +196,13 @@ public class ClientRMService extends AbstractService implements
       }
       refreshServiceAcls(conf, RMPolicyProvider.getInstance());
     }
-    
+
     this.server.start();
-    clientBindAddress = conf.updateConnectAddr(YarnConfiguration.RM_ADDRESS,
-                                               server.getListenerAddress());
+    clientBindAddress = RPCUtil.updateConnectAddr(conf,
+        YarnConfiguration.RM_ADDRESS,
+        YarnConfiguration.DEFAULT_RM_ADDRESS,
+        server.getListenerAddress());
+
     super.serviceStart();
   }
 

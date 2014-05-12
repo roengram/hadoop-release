@@ -998,6 +998,11 @@ public class MRAppMaster extends CompositeService {
     public void computeIsLastAMRetry() {
       isLastAMRetry = appAttemptID.getAttemptId() >= maxAppAttempts;
     }
+
+    @Override
+    public String getNMHostname() {
+      return nmHost;
+    }
   }
 
   @SuppressWarnings("unchecked")

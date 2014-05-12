@@ -191,7 +191,9 @@ public class AdminService extends CompositeService implements
                                 server.getListenerAddress().getPort()));
     }    
     
-    conf.updateConnectAddr(YarnConfiguration.RM_ADMIN_ADDRESS,
+    RPCUtil.updateConnectAddr(conf,
+        YarnConfiguration.RM_ADMIN_ADDRESS,
+        YarnConfiguration.DEFAULT_RM_ADMIN_ADDRESS,
         connectAddress);
   }
 

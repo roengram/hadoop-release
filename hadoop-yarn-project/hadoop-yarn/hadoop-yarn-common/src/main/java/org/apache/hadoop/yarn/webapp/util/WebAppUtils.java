@@ -35,6 +35,7 @@ import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.conf.HAUtil;
 import org.apache.hadoop.yarn.util.RMHAUtils;
+import org.apache.hadoop.yarn.ipc.RPCUtil;
 
 @Private
 @Evolving
@@ -74,14 +75,20 @@ public class WebAppUtils {
   public static String getRMWebAppURLWithScheme(Configuration conf) {
     return getHttpSchemePrefix(conf) + getRMWebAppURLWithoutScheme(conf);
   }
-  
+
   public static String getRMWebAppURLWithoutScheme(Configuration conf) {
     if (YarnConfiguration.useHttps(conf)) {
-      return conf.get(YarnConfiguration.RM_WEBAPP_HTTPS_ADDRESS,
-          YarnConfiguration.DEFAULT_RM_WEBAPP_HTTPS_ADDRESS);
+      return RPCUtil.getAddressAsString(conf,
+          YarnConfiguration.RM_WEBAPP_HTTPS_BIND_HOST,
+          conf.get(YarnConfiguration.RM_WEBAPP_HTTPS_ADDRESS,
+              YarnConfiguration.DEFAULT_RM_WEBAPP_HTTPS_ADDRESS),
+          YarnConfiguration.DEFAULT_RM_WEBAPP_HTTPS_PORT);
     }else {
-      return conf.get(YarnConfiguration.RM_WEBAPP_ADDRESS,
-          YarnConfiguration.DEFAULT_RM_WEBAPP_ADDRESS);
+      return RPCUtil.getAddressAsString(conf,
+          YarnConfiguration.RM_WEBAPP_BIND_HOST,
+          conf.get(YarnConfiguration.RM_WEBAPP_ADDRESS,
+              YarnConfiguration.DEFAULT_RM_WEBAPP_ADDRESS),
+          YarnConfiguration.DEFAULT_RM_WEBAPP_PORT);
     }
   }
 
@@ -114,7 +121,7 @@ public class WebAppUtils {
     }
     return addrs;
   }
-  
+
   public static String getProxyHostAndPort(Configuration conf) {
     String addr = conf.get(YarnConfiguration.PROXY_ADDRESS);
     if(addr == null || addr.isEmpty()) {

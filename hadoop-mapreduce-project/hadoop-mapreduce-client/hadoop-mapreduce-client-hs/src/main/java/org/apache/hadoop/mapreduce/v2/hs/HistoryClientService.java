@@ -140,9 +140,11 @@ public class HistoryClientService extends AbstractService {
     }
     
     server.start();
-    this.bindAddress = conf.updateConnectAddr(JHAdminConfig.MR_HISTORY_ADDRESS,
-                                              server.getListenerAddress());
-    LOG.info("Instantiated MRClientService at " + this.bindAddress);
+    this.bindAddress = RPCUtil.updateConnectAddr(conf,
+        JHAdminConfig.MR_HISTORY_ADDRESS,
+        JHAdminConfig.DEFAULT_MR_HISTORY_ADDRESS,
+        server.getListenerAddress());
+    LOG.info("Instantiated HistoryClientService at " + this.bindAddress);
 
     super.serviceStart();
   }

@@ -162,4 +162,61 @@ public class RPCUtil {
     return NetUtils.createSocketAddr(
         host, bindAddr.getPort(), hostProperty);
   }
+
+  /**
+   * Set the socket address a client can use to connect for the
+   * <code>property</code> property as a <code>host:port</code>. The
+   * listening port of the server address will be used with the hostname
+   * of the client address to construct the connect address. The wildcard
+   * address is replaced with the local host's address.
+   * 
+   * @param conf the configuration
+   * @param property property name for the connect address
+   * @param defaultValue default property for connect address
+   * @param serverAddr InetSocketAddress to be used as connect address
+   * @return InetSocketAddress for clients to connect
+   */
+  public static InetSocketAddress updateConnectAddr(
+      Configuration conf,
+      String property,
+      String defaultValue,
+      InetSocketAddress serverAddr) {
+
+    String connectHost = conf.getTrimmed(property, defaultValue).split(":")[0];
+    // Create connect address using client address hostname and server port.
+    return conf.updateConnectAddr(property, NetUtils.createSocketAddrForHost(
+        connectHost, serverAddr.getPort()));
+  }
+
+  /**
+   * Get the address to use for binding where bind hostname can be specified
+   * to override the hostname in the connect address. Port specified in the
+   * address will be used.
+   * 
+   * @param conf the configuration
+   * @param hostProperty bind host property name
+   * @param address connect address String
+   * @param defaultPort default value for port
+   * @return String representing bind address
+   */
+  public static String getAddressAsString(
+      Configuration conf,
+      String hostProperty,
+      String address,
+      int defaultPort) {
+
+    // If the bind-host setting exists then it overrides the hostname
+    // portion of the corresponding address.
+    String host = conf.getTrimmed(hostProperty);
+    if (host != null && !host.isEmpty()) {
+      if (address.contains(":")) {
+        address = host + ":" + address.split(":")[1];
+      }
+      else {
+        address = host + ":" + defaultPort;
+      }
+    }
+
+    return address;
+  }
 }

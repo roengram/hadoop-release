@@ -156,9 +156,10 @@ public class ApplicationMasterService extends AbstractService implements
     }
     
     this.server.start();
-    this.bindAddress =
-        conf.updateConnectAddr(YarnConfiguration.RM_SCHEDULER_ADDRESS,
-                               server.getListenerAddress());
+    this.bindAddress = RPCUtil.updateConnectAddr(conf,
+        YarnConfiguration.RM_SCHEDULER_ADDRESS,
+        YarnConfiguration.DEFAULT_RM_SCHEDULER_ADDRESS,
+        server.getListenerAddress());
     super.serviceStart();
   }
 

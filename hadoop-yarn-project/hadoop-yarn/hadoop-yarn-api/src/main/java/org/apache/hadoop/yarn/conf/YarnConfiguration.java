@@ -120,13 +120,13 @@ public class YarnConfiguration extends Configuration {
   public static final String RM_HOSTNAME = RM_PREFIX + "hostname";
 
   /** The address of the applications manager interface in the RM.*/
-  public static final String RM_ADDRESS = 
+  public static final String RM_ADDRESS =
     RM_PREFIX + "address";
   public static final int DEFAULT_RM_PORT = 8032;
   public static final String DEFAULT_RM_ADDRESS =
     "0.0.0.0:" + DEFAULT_RM_PORT;
 
-  /** The actual bind address or the RM.*/
+  /** The actual bind address for the RM.*/
   public static final String RM_BIND_HOST =
     RM_PREFIX + "bind-host";
 
@@ -196,16 +196,25 @@ public class YarnConfiguration extends Configuration {
   public static final String RM_WEBAPP_ADDRESS = 
     RM_PREFIX + "webapp.address";
 
+  /** The actual bind address of the RM web application.*/
+  public static final String RM_WEBAPP_BIND_HOST = 
+    RM_PREFIX + "webapp.bind-host";
+
   public static final int DEFAULT_RM_WEBAPP_PORT = 8088;
   public static final String DEFAULT_RM_WEBAPP_ADDRESS = "0.0.0.0:" +
     DEFAULT_RM_WEBAPP_PORT;
-  
+
   /** The https address of the RM web application.*/
   public static final String RM_WEBAPP_HTTPS_ADDRESS =
       RM_PREFIX + "webapp.https.address";
+  
+  /** The actual https bind address of the RM web application.*/
+  public static final String RM_WEBAPP_HTTPS_BIND_HOST =
+      RM_PREFIX + "webapp.https.bind-host";
+
   public static final boolean YARN_SSL_CLIENT_HTTPS_NEED_AUTH_DEFAULT = false;
   public static final String YARN_SSL_SERVER_RESOURCE_DEFAULT = "ssl-server.xml";
-  
+
   public static final int DEFAULT_RM_WEBAPP_HTTPS_PORT = 8090;
   public static final String DEFAULT_RM_WEBAPP_HTTPS_ADDRESS = "0.0.0.0:"
       + DEFAULT_RM_WEBAPP_HTTPS_PORT;
@@ -249,9 +258,10 @@ public class YarnConfiguration extends Configuration {
   public static final int DEFAULT_RM_ADMIN_PORT = 8033;
   public static final String DEFAULT_RM_ADMIN_ADDRESS = "0.0.0.0:" +
       DEFAULT_RM_ADMIN_PORT;
+
   public static final String RM_ADMIN_BIND_HOST =
     RM_PREFIX + "admin.bind-host";
-  
+
   /**Number of threads used to handle RM admin interface.*/
   public static final String RM_ADMIN_CLIENT_THREAD_COUNT =
     RM_PREFIX + "admin.client.thread-count";
@@ -534,7 +544,7 @@ public class YarnConfiguration extends Configuration {
       ApplicationConstants.Environment.HADOOP_HDFS_HOME.key(),
       ApplicationConstants.Environment.HADOOP_CONF_DIR.key(),
       ApplicationConstants.Environment.HADOOP_YARN_HOME.key()));
-  
+
   /** address of node manager IPC.*/
   public static final String NM_ADDRESS = NM_PREFIX + "address";
   public static final int DEFAULT_NM_PORT = 0;
@@ -591,7 +601,11 @@ public class YarnConfiguration extends Configuration {
   public static final int DEFAULT_NM_LOCALIZER_PORT = 8040;
   public static final String DEFAULT_NM_LOCALIZER_ADDRESS = "0.0.0.0:" +
     DEFAULT_NM_LOCALIZER_PORT;
-  
+
+  /** The actual bind address for the localizer IPC.*/
+  public static final String NM_LOCALIZER_BIND_HOST =
+    NM_PREFIX + "localizer.bind-host";
+
   /** Interval in between cache cleanups.*/
   public static final String NM_LOCALIZER_CACHE_CLEANUP_INTERVAL_MS =
     NM_PREFIX + "localizer.cache.cleanup.interval-ms";

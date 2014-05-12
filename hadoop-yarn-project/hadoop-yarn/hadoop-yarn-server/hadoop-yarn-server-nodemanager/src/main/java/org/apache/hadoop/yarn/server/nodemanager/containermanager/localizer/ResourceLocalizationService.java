@@ -80,6 +80,7 @@ import org.apache.hadoop.yarn.event.EventHandler;
 import org.apache.hadoop.yarn.exceptions.YarnRuntimeException;
 import org.apache.hadoop.yarn.factories.RecordFactory;
 import org.apache.hadoop.yarn.factory.providers.RecordFactoryProvider;
+import org.apache.hadoop.yarn.ipc.RPCUtil;
 import org.apache.hadoop.yarn.ipc.YarnRPC;
 import org.apache.hadoop.yarn.server.nodemanager.ContainerExecutor;
 import org.apache.hadoop.yarn.server.nodemanager.DeletionService;
@@ -238,7 +239,8 @@ public class ResourceLocalizationService extends CompositeService
       conf.getLong(YarnConfiguration.NM_LOCALIZER_CACHE_TARGET_SIZE_MB, YarnConfiguration.DEFAULT_NM_LOCALIZER_CACHE_TARGET_SIZE_MB) << 20;
     cacheCleanupPeriod =
       conf.getLong(YarnConfiguration.NM_LOCALIZER_CACHE_CLEANUP_INTERVAL_MS, YarnConfiguration.DEFAULT_NM_LOCALIZER_CACHE_CLEANUP_INTERVAL_MS);
-    localizationServerAddress = conf.getSocketAddr(
+    localizationServerAddress = RPCUtil.getSocketAddr(conf,
+        YarnConfiguration.NM_LOCALIZER_BIND_HOST,
         YarnConfiguration.NM_LOCALIZER_ADDRESS,
         YarnConfiguration.DEFAULT_NM_LOCALIZER_ADDRESS,
         YarnConfiguration.DEFAULT_NM_LOCALIZER_PORT);
@@ -260,9 +262,11 @@ public class ResourceLocalizationService extends CompositeService
         cacheCleanupPeriod, cacheCleanupPeriod, TimeUnit.MILLISECONDS);
     server = createServer();
     server.start();
-    localizationServerAddress =
-        getConfig().updateConnectAddr(YarnConfiguration.NM_LOCALIZER_ADDRESS,
-                                      server.getListenerAddress());
+    localizationServerAddress = RPCUtil.updateConnectAddr(
+        getConfig(),
+        YarnConfiguration.NM_LOCALIZER_ADDRESS,
+        YarnConfiguration.DEFAULT_NM_LOCALIZER_ADDRESS,
+        server.getListenerAddress());
     LOG.info("Localizer started on port " + server.getPort());
     super.serviceStart();
   }

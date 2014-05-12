@@ -180,8 +180,10 @@ public class ResourceTrackerService extends AbstractService implements
     }
 
     this.server.start();
-    conf.updateConnectAddr(YarnConfiguration.RM_RESOURCE_TRACKER_ADDRESS,
-                           server.getListenerAddress());
+    RPCUtil.updateConnectAddr(conf,
+        YarnConfiguration.RM_RESOURCE_TRACKER_ADDRESS,
+        YarnConfiguration.DEFAULT_RM_RESOURCE_TRACKER_ADDRESS,
+        server.getListenerAddress());
   }
 
   @Override
