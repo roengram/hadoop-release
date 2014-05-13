@@ -151,7 +151,7 @@ if "%1" == "--service" (
   )
 
   set yarncommands=resourcemanager nodemanager proxyserver rmadmin version jar ^
-     application applicationattempt container node logs daemonlog historyserver
+     application applicationattempt container node logs daemonlog timelineserver
   for %%i in ( %yarncommands% ) do (
     if %yarn-command% == %%i set yarncommand=true
   )
@@ -205,7 +205,7 @@ goto :eof
   set CLASS=org.apache.hadoop.yarn.client.cli.NodeCLI
   set YARN_OPTS=%YARN_OPTS% %YARN_CLIENT_OPTS%
   goto :eof
-:historyserver
+:timelineserver
   set CLASSPATH=%CLASSPATH%;%YARN_CONF_DIR%\ahs-config\log4j.properties
   set CLASS=org.apache.hadoop.yarn.server.applicationhistoryservice.ApplicationHistoryServer
   set YARN_OPTS=%YARN_OPTS% %HADOOP_HISTORYSERVER_OPTS%

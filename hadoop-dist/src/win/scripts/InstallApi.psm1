@@ -945,12 +945,12 @@ function InstallYarn(
 
     if( $yarnRole -eq $null )
     {
-        $yarnRole = "resourcemanager nodemanager historyserver"
+        $yarnRole = "resourcemanager nodemanager timelineserver"
     }
 
     $yarnRole = $yarnRole.Trim()
     ### Verify that yarnRoles are in the supported set
-    CheckRole $yarnRole @("resourcemanager","nodemanager","historyserver")
+    CheckRole $yarnRole @("resourcemanager","nodemanager","timelineserver")
 
     $HDP_INSTALL_PATH, $HDP_RESOURCES_DIR = Initialize-InstallationEnv $ScriptDir "hadoop-@version@.winpkg.log"
     Test-JavaHome
@@ -995,14 +995,6 @@ function InstallYarn(
             Write-Log "Creating service config ${hadoopInstallToBin}\$service.xml"
             $cmd = "$hadoopInstallToBin\yarn.cmd --service $service > `"$hadoopInstallToBin\$service.xml`""
             Invoke-CmdChk $cmd
-            if ( $service -eq "historyserver")
-            {
-                Write-Log "Renaming 'Apache Hadoop historyserver' to 'Apache Hadoop YARN TimelineServer'"
-                $cmd="$ENV:WINDIR\system32\sc.exe config $service DisplayName= " +'"Apache Hadoop YARN TimelineServer"'
-                Invoke-CmdChk $cmd
-                $cmd="$ENV:WINDIR\system32\sc.exe config $service start= disabled"
-                Invoke-CmdChk $cmd
-            }
         }
     }
     else
@@ -1037,7 +1029,7 @@ function UninstallYarn(
     ###
     ### Stop and delete services
     ###
-    foreach( $service in ("resourcemanager", "nodemanager", "historyserver"))
+    foreach( $service in ("resourcemanager", "nodemanager", "timelineserver"))
     {
         StopAndDeleteHadoopService $service
     }
@@ -2040,7 +2032,7 @@ function StopService(
     elseif ( $component -eq "yarn" )
     {
         ### Verify that roles are in the supported set
-        CheckRole $roles @("resourcemanager","nodemanager","historyserver")
+        CheckRole $roles @("resourcemanager","nodemanager","timelineserver")
 
         foreach ( $role in $roles -Split("\s+") )
         {
