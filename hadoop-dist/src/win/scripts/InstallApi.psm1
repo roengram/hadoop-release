@@ -995,6 +995,14 @@ function InstallYarn(
             Write-Log "Creating service config ${hadoopInstallToBin}\$service.xml"
             $cmd = "$hadoopInstallToBin\yarn.cmd --service $service > `"$hadoopInstallToBin\$service.xml`""
             Invoke-CmdChk $cmd
+            if ( $service -eq "timelineserver")
+            {
+                Write-Log "Renaming 'Apache Hadoop timelineserver' to 'Apache Hadoop YARN TimelineServer'"
+                $cmd="$ENV:WINDIR\system32\sc.exe config $service DisplayName= " +'"Apache Hadoop YARN TimelineServer"'
+                Invoke-CmdChk $cmd
+                $cmd="$ENV:WINDIR\system32\sc.exe config $service start= disabled"
+                Invoke-CmdChk $cmd
+            }
         }
     }
     else
