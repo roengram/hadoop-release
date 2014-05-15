@@ -48,3 +48,6 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
     BUG-17817. Initialization error during Hive MiniTez tests. (Arpit
     Agarwal)
 
+    BUG-17913. BlockManager#invalidateWork should print logs outside the lock.
+    (Ported by Arpit Agarwal from Apache branch-2.4).
+
