@@ -39,6 +39,7 @@ import org.apache.hadoop.ipc.ProtobufRpcEngine;
 import org.apache.hadoop.ipc.RPC;
 import org.apache.hadoop.ipc.RPC.Server;
 import org.apache.hadoop.ipc.StandbyException;
+import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.Groups;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -89,9 +90,6 @@ public class AdminService extends CompositeService implements
 
   private Server server;
 
-  // Address to use for connection.
-  private InetSocketAddress masterServiceAddress;
-
   // Address to use for binding. May be a wildcard address.
   private InetSocketAddress masterServiceBindAddress;
   private AccessControlList adminAcl;
@@ -115,11 +113,6 @@ public class AdminService extends CompositeService implements
         }
       }
     }
-
-    masterServiceAddress = conf.getSocketAddr(
-        YarnConfiguration.RM_ADMIN_ADDRESS,
-        YarnConfiguration.DEFAULT_RM_ADMIN_ADDRESS,
-        YarnConfiguration.DEFAULT_RM_ADMIN_PORT);
 
     masterServiceBindAddress = RPCUtil.getSocketAddr(
         conf,
@@ -180,8 +173,23 @@ public class AdminService extends CompositeService implements
     }
 
     this.server.start();
+
+    InetSocketAddress connectAddress;
+    String connectHost = conf.getTrimmed(YarnConfiguration.RM_ADMIN_ADDRESS);
+    if (connectHost == null || connectHost.isEmpty()) {
+      // Get hostname and port from the listening endpoint.
+      connectAddress = NetUtils.getConnectAddress(server);
+    } else {
+      // Combine the configured hostname with the port from the listening
+      // endpoint. This gets the correct port number if the configuration
+      // specifies an ephemeral port (port number 0).
+      connectAddress = NetUtils.getConnectAddress(
+          new InetSocketAddress(connectHost.split(":")[0],
+                                server.getListenerAddress().getPort()));
+    }    
+    
     conf.updateConnectAddr(YarnConfiguration.RM_ADMIN_ADDRESS,
-      masterServiceAddress);
+        connectAddress);
   }
 
   protected void stopServer() throws Exception {
