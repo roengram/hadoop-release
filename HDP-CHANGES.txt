@@ -54,3 +54,6 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
     BUG-17911. InvalidateBlocks is inconsistent in usage of DatanodeUuid and
     StorageID - Merge HDFS-6362 from Apache branch-2.4. (Arpit Agarwal)
 
+    HDFS-27. HDFS CLI with --config set to default config complains log file not
+    found error. (cnauroth)
+
