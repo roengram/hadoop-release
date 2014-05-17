@@ -48,3 +48,6 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
     BUG-17817. Initialization error during Hive MiniTez tests. (Arpit
     Agarwal)
 
+    HDFS-27. HDFS CLI with --config set to default config complains log file not
+    found error. (cnauroth)
+

@@ -24,9 +24,13 @@ if "%HADOOP_BIN_PATH:~-1%" == "\" (
   set HADOOP_BIN_PATH=%HADOOP_BIN_PATH:~0,-1%
 )
 
-@rem if we're being called by --service we need to use %2 otherwise use %1
-@rem for the command line so we log to the right file
-if "%2" == "" (
+@rem Determine log file name.
+@rem If we're being called by --service we need to use %2.
+@rem If we're being called with --config we need to use %3.
+@rem Otherwise use %1
+if "%1" == "--config" (
+  set HADOOP_LOGFILE=hadoop-%3-%computername%.log
+) else if "%2" == "" (
   set HADOOP_LOGFILE=hadoop-%1-%computername%.log
 ) else (
   set HADOOP_LOGFILE=hadoop-%2-%computername%.log
