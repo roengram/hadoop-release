@@ -31,6 +31,8 @@ Release 2.4.1 - UNRELEASED
     in AbstractDelegationTokenSecretManager. (Suresh Srinivas via Arpit
     Agarwal)
 
+    HADOOP-10612. NFS failed to refresh the user group id mapping table (brandonli)
+
 Release 2.4.0 - 2014-04-07 
 
   INCOMPATIBLE CHANGES
