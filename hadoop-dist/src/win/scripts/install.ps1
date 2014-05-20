@@ -214,7 +214,7 @@ function Main( $scriptDir )
             ${ENV:ASV_STORAGEACCOUNT_KEY} = ${ENV:ASV_STORAGEACCOUNT_KEY}.Replace("`"","")
         }
 
-        $coreConfigs["fs.defaultFS"] = "asv://${ENV:ASV_CONTAINERNAME}@${ENV:ASV_STORAGEACCOUNT}"
+        $coreConfigs["fs.defaultFS"] = "wasb://${ENV:ASV_CONTAINERNAME}@${ENV:ASV_STORAGEACCOUNT}"
         $coreConfigs["fs.azure.account.key.${ENV:ASV_STORAGEACCOUNT}"]="${ENV:ASV_STORAGEACCOUNT_KEY}"
         $coreConfigs["dfs.namenode.rpcaddress"] = "hdfs://${ENV:NAMENODE_HOST}:8020"
     }
