@@ -56,4 +56,8 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
 
     HDFS-27. HDFS CLI with --config set to default config complains log file not
     found error. (cnauroth)
+    
+    BUG-17583 [HADOOP-10562]. Namenode exits on exception without printing
+    stack trace in AbstractDelegationTokenSecretManager. (Merged from Apache
+    branch-2.4 by Arpit Agarwal)
 
