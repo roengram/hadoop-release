@@ -316,6 +316,9 @@ function Main( $scriptDir )
           $hdfsConfigs["dfs.namenode.https-address"] = "${ENV:NAMENODE_HOST}:50701"
           $hdfsConfigs["dfs.namenode.secondary.http-address"] = "${ENV:SECONDARY_NAMENODE_HOST}:50090"
       }
+      if ($ENV:DEFAULT_FS -eq "ASV"){
+          $hdfsConfigs["dfs.namenode.rpc-address"] = "${ENV:NAMENODE_HOST}:9000"
+      }
 
     Configure "Hdfs" $NodeInstallRoot $serviceCredential $hdfsConfigs
 
