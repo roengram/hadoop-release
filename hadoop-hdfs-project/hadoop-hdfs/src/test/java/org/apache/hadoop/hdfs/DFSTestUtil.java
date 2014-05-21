@@ -575,13 +575,31 @@ public class DFSTestUtil {
   }
 
   /**
-   * Wait for the given file to reach the given replication factor.
-   * @throws TimeoutException if we fail to sufficiently replicate the file
+   * Wait forever for the given file to reach the given replication factor.
+   * Assumes that the calling test has set an appropriate timeout.
+   */
+  public static void waitReplicationForever(FileSystem fs, Path fileName, short replFactor)
+      throws IOException, InterruptedException, TimeoutException {
+    waitReplication(fs, fileName, replFactor, Integer.MAX_VALUE);
+  }
+
+  /**
+   * Wait 40 seconds for the given file to reach the given replication factor.
    */
   public static void waitReplication(FileSystem fs, Path fileName, short replFactor)
       throws IOException, InterruptedException, TimeoutException {
-    boolean correctReplFactor;
     final int ATTEMPTS = 40;
+    waitReplication(fs, fileName, replFactor, ATTEMPTS);
+  }
+
+  /**
+   * Wait for the given file to reach the given replication factor.
+   * @throws TimeoutException if we fail to sufficiently replicate the file
+   */
+public static void waitReplication(FileSystem fs, Path fileName, short replFactor,
+                                     int attempts)
+      throws IOException, InterruptedException, TimeoutException {
+    boolean correctReplFactor;
     int count = 0;
 
     do {
@@ -605,9 +623,9 @@ public class DFSTestUtil {
         System.out.println("All blocks of file " + fileName
             + " verified to have replication factor " + replFactor);
       }
-    } while (!correctReplFactor && count < ATTEMPTS);
+    } while (!correctReplFactor && count < attempts);
 
-    if (count == ATTEMPTS) {
+    if (count == attempts) {
       throw new TimeoutException("Timed out waiting for " + fileName +
           " to reach " + replFactor + " replicas");
     }

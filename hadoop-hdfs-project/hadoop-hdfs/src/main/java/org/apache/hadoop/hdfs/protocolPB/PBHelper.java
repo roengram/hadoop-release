@@ -1602,6 +1602,8 @@ public class PBHelper {
       return StorageTypeProto.DISK;
     case SSD:
       return StorageTypeProto.SSD;
+    case ARCHIVAL:
+      return StorageTypeProto.ARCHIVAL;
     default:
       throw new IllegalStateException(
           "BUG: StorageType not found, type=" + type);
@@ -1630,6 +1632,8 @@ public class PBHelper {
         return StorageType.DISK;
       case SSD:
         return StorageType.SSD;
+      case ARCHIVAL:
+        return StorageType.ARCHIVAL;
       default:
         throw new IllegalStateException(
             "BUG: StorageTypeProto not found, type=" + type);

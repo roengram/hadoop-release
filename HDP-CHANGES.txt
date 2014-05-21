@@ -11,6 +11,8 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
     YARN-1982. Renamed the daemon name to be TimelineServer instead of History
     Server and deprecated the old usage. (Zhijie Shen via vinodkv)
 
+    BUG-17886. Support for cold storage tier for eBay. (Arpit Agarwal)
+
   BUG FIXES
 
     HDFS-5089. When a LayoutVersion support SNAPSHOT, it must support

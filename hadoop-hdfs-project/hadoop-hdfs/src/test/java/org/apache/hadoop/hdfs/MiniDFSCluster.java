@@ -1141,6 +1141,13 @@ public class MiniDFSCluster {
         simulatedCapacities, setupHostsFile, false, false, null);
   }
 
+  public synchronized void startDataNodesWithStorageType(
+      Configuration conf, int numDataNodes, StorageType storageType)
+      throws IOException {
+    startDataNodes(conf, numDataNodes, storageType, true, StartupOption.REGULAR,
+                   null, null, null, false, false, false, null);
+  }
+
   /**
    * @see MiniDFSCluster#startDataNodes(Configuration, int, boolean, StartupOption,
    * String[], String[], long[], boolean, boolean, boolean)

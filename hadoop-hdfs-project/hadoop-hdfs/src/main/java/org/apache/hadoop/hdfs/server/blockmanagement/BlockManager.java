@@ -1283,9 +1283,11 @@ public class BlockManager {
             } else {
               additionalReplRequired = 1; // Needed on a new rack
             }
+            BlockInfo blockInfo = blocksMap.getStoredBlock(block);
             work.add(new ReplicationWork(block, bc, srcNode,
                 containingNodes, liveReplicaNodes, additionalReplRequired,
-                priority));
+                priority,
+                blockInfo != null ? inferStorageTypeForNewReplica(blockInfo) : StorageType.DEFAULT));
           }
         }
       }
@@ -2508,6 +2510,30 @@ public class BlockManager {
   }
 
   /**
+   * Determine the StorageType for a new replica of a given block.
+   * If the block has any existing replica on a non-default storage type
+   * then we use that for the new replica, else we just use the default.
+   *
+   * This is a stopgap solution for enabling archival storage.
+   * Heterogeneous Storages will replace this with administrator-configurable
+   * Storage Policies for choosing the target storage for each replica.
+   *
+   * @param block
+   * @return
+   */
+  private StorageType inferStorageTypeForNewReplica(BlockInfo block) {
+
+    for (int i = 0; i < block.numNodes(); ++i) {
+      StorageType storageType = block.getStorageInfo(i).getStorageType();
+      if (storageType != StorageType.DEFAULT) {
+        return storageType;
+      }
+    }
+
+    return StorageType.DEFAULT;
+  }
+
+  /**
    * Process a single possibly misreplicated block. This adds it to the
    * appropriate queues if necessary, and returns a result code indicating
    * what happened with it.
@@ -3430,6 +3456,7 @@ public class BlockManager {
 
     private DatanodeStorageInfo targets[];
     private final int priority;
+    private final StorageType storageTypeHint;
 
     public ReplicationWork(Block block,
         BlockCollection bc,
@@ -3437,7 +3464,8 @@ public class BlockManager {
         List<DatanodeDescriptor> containingNodes,
         List<DatanodeStorageInfo> liveReplicaStorages,
         int additionalReplRequired,
-        int priority) {
+        int priority,
+        StorageType storageTypeHint) {
       this.block = block;
       this.bc = bc;
       this.srcNode = srcNode;
@@ -3446,13 +3474,14 @@ public class BlockManager {
       this.additionalReplRequired = additionalReplRequired;
       this.priority = priority;
       this.targets = null;
+      this.storageTypeHint = storageTypeHint;
     }
     
     private void chooseTargets(BlockPlacementPolicy blockplacement,
         Set<Node> excludedNodes) {
       targets = blockplacement.chooseTarget(bc.getName(),
           additionalReplRequired, srcNode, liveReplicaStorages, false,
-          excludedNodes, block.getNumBytes(), StorageType.DEFAULT);
+          excludedNodes, block.getNumBytes(), storageTypeHint);
     }
   }
 
