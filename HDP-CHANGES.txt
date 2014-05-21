@@ -16,6 +16,9 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
     BUG-18205 [HDFS-6441]. Balancer changes to support cold storage for
     eBay. (Benoy Antony (eBay) via Arpit Agarwal).
 
+    YARN-1938. Added kerberos login for the Timeline Server. (Zhijie Shen via
+    vinodkv)
+
   BUG FIXES
 
     HDFS-5089. When a LayoutVersion support SNAPSHOT, it must support
