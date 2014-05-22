@@ -82,6 +82,9 @@ Release 2.4.1 - UNRELEASED
     causing both RMs to be stuck in standby mode when automatic failover is
     enabled. (Karthik Kambatla and Xuan Gong via vinodkv)
 
+    YARN-2081. Fixed TestDistributedShell failure after YARN-1962. (Zhiguo Hong
+    via zjshen)
+
 Release 2.4.0 - 2014-04-07 
 
   INCOMPATIBLE CHANGES
