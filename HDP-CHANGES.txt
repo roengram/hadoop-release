@@ -61,3 +61,5 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
     stack trace in AbstractDelegationTokenSecretManager. (Merged from Apache
     branch-2.4 by Arpit Agarwal)
 
+    HDFS-6423. Diskspace quota usage should be updated when appending data to
+    partial block. (jing9)
