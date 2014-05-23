@@ -19,6 +19,9 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
     YARN-1938. Added kerberos login for the Timeline Server. (Zhijie Shen via
     vinodkv)
 
+    YARN-2049. Added delegation-token support for the Timeline Server. (Zhijie
+    Shen via vinodkv)
+
   BUG FIXES
 
     HDFS-5089. When a LayoutVersion support SNAPSHOT, it must support
