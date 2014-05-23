@@ -73,6 +73,7 @@ import org.apache.hadoop.hdfs.web.resources.HttpOpParam;
 import org.apache.hadoop.hdfs.web.resources.LengthParam;
 import org.apache.hadoop.hdfs.web.resources.ModificationTimeParam;
 import org.apache.hadoop.hdfs.web.resources.OffsetParam;
+import org.apache.hadoop.hdfs.web.resources.OldSnapshotNameParam;
 import org.apache.hadoop.hdfs.web.resources.OverwriteParam;
 import org.apache.hadoop.hdfs.web.resources.OwnerParam;
 import org.apache.hadoop.hdfs.web.resources.Param;
@@ -83,6 +84,7 @@ import org.apache.hadoop.hdfs.web.resources.RecursiveParam;
 import org.apache.hadoop.hdfs.web.resources.RenameOptionSetParam;
 import org.apache.hadoop.hdfs.web.resources.RenewerParam;
 import org.apache.hadoop.hdfs.web.resources.ReplicationParam;
+import org.apache.hadoop.hdfs.web.resources.SnapshotNameParam;
 import org.apache.hadoop.hdfs.web.resources.TokenArgumentParam;
 import org.apache.hadoop.hdfs.web.resources.UserParam;
 import org.apache.hadoop.io.Text;
@@ -94,7 +96,6 @@ import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.authentication.client.AuthenticationException;
-import org.apache.hadoop.security.token.SecretManager.InvalidToken;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.util.Progressable;
@@ -801,6 +802,33 @@ public class WebHdfsFileSystem extends FileSystem
     statistics.incrementWriteOps(1);
     final HttpOpParam.Op op = PutOpParam.Op.SETACL;
     run(op, p, new AclPermissionParam(aclSpec));
+  }
+
+  @Override
+  public Path createSnapshot(final Path path, final String snapshotName) 
+      throws IOException {
+    statistics.incrementWriteOps(1);
+    final HttpOpParam.Op op = PutOpParam.Op.CREATESNAPSHOT;
+    final Map<?, ?> json = run(op, path,
+        new SnapshotNameParam(snapshotName));
+    return new Path((String) json.get(Path.class.getSimpleName()));
+  }
+
+  @Override
+  public void deleteSnapshot(final Path path, final String snapshotName)
+      throws IOException {
+    statistics.incrementWriteOps(1);
+    final HttpOpParam.Op op = PutOpParam.Op.DELETESNAPSHOT;
+    run(op, path, new SnapshotNameParam(snapshotName));
+  }
+
+  @Override
+  public void renameSnapshot(final Path path, final String snapshotOldName,
+      final String snapshotNewName) throws IOException {
+    statistics.incrementWriteOps(1);
+    final HttpOpParam.Op op = PutOpParam.Op.RENAMESNAPSHOT;
+    run(op, path, new OldSnapshotNameParam(snapshotOldName),
+        new SnapshotNameParam(snapshotNewName));
   }
 
   @Override
