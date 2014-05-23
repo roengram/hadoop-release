@@ -25,6 +25,9 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
     YARN-1936. Added security support for the Timeline Client. (Zhijie Shen via
     vinodkv)
 
+    YARN-1937. Added owner-only ACLs support for Timeline Client and server.
+    (Zhijie Shen via vinodkv)
+
   BUG FIXES
 
     HDFS-5089. When a LayoutVersion support SNAPSHOT, it must support
