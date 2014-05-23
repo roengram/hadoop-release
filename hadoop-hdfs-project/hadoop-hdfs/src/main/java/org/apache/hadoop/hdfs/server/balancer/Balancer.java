@@ -43,6 +43,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -77,6 +78,7 @@ import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.net.NetworkTopology;
 import org.apache.hadoop.net.Node;
 import org.apache.hadoop.security.token.Token;
+import org.apache.hadoop.util.HostsFileReader;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.Time;
 import org.apache.hadoop.util.Tool;
@@ -198,11 +200,19 @@ public class Balancer {
       + "\n\t[-policy <policy>]\tthe balancing policy: "
       + BalancingPolicy.Node.INSTANCE.getName() + " or "
       + BalancingPolicy.Pool.INSTANCE.getName()
-      + "\n\t[-threshold <threshold>]\tPercentage of disk capacity";
+      + "\n\t[-threshold <threshold>]\tPercentage of disk capacity"
+      + "\n\t[-exclude <hosts-file>]\tExcludes the datanodes in hosts-file"
+      + "\n\t[-include <hosts-file>]\tIncludes only the datanodes in hosts-file";
   
   private final NameNodeConnector nnc;
   private final BalancingPolicy policy;
   private final double threshold;
+  // set of data nodes to be excluded or included.
+  private final Set<String> datanodeSet;
+  // boolean variable indicating whether a specific set of data nodes to be excluded.
+  // or included. True indicates exclusion and false indicates inclusion.
+  //If false, only the specified set of data nodes will be balanced.
+  private final boolean exclude;
   
   // all data node lists
   private final Collection<Source> overUtilizedDatanodes
@@ -859,6 +869,8 @@ public class Balancer {
   Balancer(NameNodeConnector theblockpool, Parameters p, Configuration conf) {
     this.threshold = p.threshold;
     this.policy = p.policy;
+    this.exclude = p.exclude;
+    this.datanodeSet = p.datanodes;
     this.nnc = theblockpool;
     cluster = NetworkTopology.getInstance(conf);
 
@@ -886,8 +898,12 @@ public class Balancer {
   private long initNodes(DatanodeInfo[] datanodes) {
     // compute average utilization
     for (DatanodeInfo datanode : datanodes) {
-      if (datanode.isDecommissioned() || datanode.isDecommissionInProgress()) {
-        continue; // ignore decommissioning or decommissioned nodes
+     // ignore decommissioning or decommissioned nodes or
+     // ignore nodes in exclude list or nodes not in the include list
+      if (datanode.isDecommissioned() || datanode.isDecommissionInProgress() ||
+          (exclude && datanodeSet.contains(datanode.getHostName())) || 
+          (!exclude && !datanodeSet.contains(datanode.getHostName()))) {
+        continue; 
       }
       policy.accumulateSpaces(datanode);
     }
@@ -900,8 +916,12 @@ public class Balancer {
      */  
     long overLoadedBytes = 0L, underLoadedBytes = 0L;
     for (DatanodeInfo datanode : DFSUtil.shuffle(datanodes)) {
-      if (datanode.isDecommissioned() || datanode.isDecommissionInProgress()) {
-        continue; // ignore decommissioning or decommissioned nodes
+      // ignore decommissioning or decommissioned nodes or
+      // ignore nodes in exclude list or nodes not in the include list
+      if (datanode.isDecommissioned() || datanode.isDecommissionInProgress() ||
+          (exclude && datanodeSet.contains(datanode.getHostName())) || 
+          (!exclude && !datanodeSet.contains(datanode.getHostName()))) {
+        continue; 
       }
       cluster.add(datanode);
       BalancerDatanode datanodeS;
@@ -1517,20 +1537,27 @@ public class Balancer {
 
   static class Parameters {
     static final Parameters DEFALUT = new Parameters(
-        BalancingPolicy.Node.INSTANCE, 10.0);
+        BalancingPolicy.Node.INSTANCE, 10.0, 
+        true, Collections.<String> emptySet());
 
     final BalancingPolicy policy;
     final double threshold;
+    Set<String> datanodes;
+    boolean exclude = true;
 
-    Parameters(BalancingPolicy policy, double threshold) {
+    Parameters(BalancingPolicy policy, double threshold, 
+        boolean exclude, Set<String> datanodes) {
       this.policy = policy;
       this.threshold = threshold;
+      this.datanodes = datanodes;
+      this.exclude = exclude;
     }
 
     @Override
     public String toString() {
       return Balancer.class.getSimpleName() + "." + getClass().getSimpleName()
-          + "[" + policy + ", threshold=" + threshold + "]";
+          + "[" + policy + ", threshold=" + threshold + 
+          ", number of datanodes="+ datanodes.size() +", exclude="+ exclude+ "]";
     }
   }
 
@@ -1569,6 +1596,8 @@ public class Balancer {
     static Parameters parse(String[] args) {
       BalancingPolicy policy = Parameters.DEFALUT.policy;
       double threshold = Parameters.DEFALUT.threshold;
+      Set<String> nodes = new HashSet<String>();
+      boolean exclude = true;
 
       if (args != null) {
         try {
@@ -1596,6 +1625,22 @@ public class Balancer {
                 System.err.println("Illegal policy name: " + args[i]);
                 throw e;
               }
+            } else if ("-exclude".equalsIgnoreCase(args[i])) {
+              exclude = true;
+              i++;
+              try {
+                HostsFileReader.readFileToSet("nodes", args[i], nodes);
+              } catch (IOException e) {
+                throw new IllegalArgumentException("Unable to open file: " + args[i]);
+              }
+            } else if ("-include".equalsIgnoreCase(args[i])) {
+              exclude = false;
+              i++;
+              try {
+                HostsFileReader.readFileToSet("nodes", args[i], nodes);
+              } catch (IOException e) {
+                throw new IllegalArgumentException("Unable to open file: " + args[i]);
+              }
             } else {
               throw new IllegalArgumentException("args = "
                   + Arrays.toString(args));
@@ -1607,7 +1652,7 @@ public class Balancer {
         }
       }
       
-      return new Parameters(policy, threshold);
+      return new Parameters(policy, threshold, exclude, nodes);
     }
 
     private static void printUsage(PrintStream out) {

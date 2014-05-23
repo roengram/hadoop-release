@@ -100,7 +100,7 @@ public class TestBalancerWithHANameNodes {
       final int r = Balancer.run(namenodes, Balancer.Parameters.DEFALUT, conf);
       assertEquals(Balancer.ReturnStatus.SUCCESS.code, r);
       TestBalancer.waitForBalancer(totalUsedSpace, totalCapacity, client,
-          cluster);
+          cluster, Balancer.Parameters.DEFALUT);
     } finally {
       cluster.shutdown();
     }

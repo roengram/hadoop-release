@@ -18,15 +18,21 @@
 package org.apache.hadoop.hdfs.server.balancer;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.TimeoutException;
 
 import org.apache.commons.logging.Log;
@@ -48,6 +54,7 @@ import org.apache.hadoop.hdfs.protocol.ExtendedBlock;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants.DatanodeReportType;
 import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.server.balancer.Balancer.Cli;
+import org.apache.hadoop.hdfs.server.datanode.DataNode;
 import org.apache.hadoop.hdfs.server.datanode.SimulatedFSDataset;
 import org.apache.hadoop.util.Time;
 import org.apache.hadoop.util.Tool;
@@ -263,11 +270,18 @@ public class TestBalancer {
    * @throws TimeoutException
    */
   static void waitForBalancer(long totalUsedSpace, long totalCapacity,
-      ClientProtocol client, MiniDFSCluster cluster)
+      ClientProtocol client, MiniDFSCluster cluster, Balancer.Parameters p)
   throws IOException, TimeoutException {
     long timeout = TIMEOUT;
     long failtime = (timeout <= 0L) ? Long.MAX_VALUE
         : Time.now() + timeout;
+    if (!p.datanodes.isEmpty()) {
+      if (p.exclude) {
+        totalCapacity -= p.datanodes.size() * CAPACITY;
+      }else {
+        totalCapacity = p.datanodes.size() * CAPACITY;
+      }
+    }
     final double avgUtilization = ((double)totalUsedSpace) / totalCapacity;
     boolean balanced;
     do {
@@ -278,6 +292,14 @@ public class TestBalancer {
       for (DatanodeInfo datanode : datanodeReport) {
         double nodeUtilization = ((double)datanode.getDfsUsed())
             / datanode.getCapacity();
+        if (p.exclude && p.datanodes.contains(datanode.getHostName())) {
+          assertTrue(nodeUtilization == 0);
+          continue;
+        }
+        if (!p.exclude && !p.datanodes.contains(datanode.getHostName())) {
+          assertTrue(nodeUtilization == 0);
+          continue;
+        }
         if (Math.abs(avgUtilization - nodeUtilization) > BALANCE_ALLOWED_VARIANCE) {
           balanced = false;
           if (Time.now() > failtime) {
@@ -307,6 +329,13 @@ public class TestBalancer {
     }
     return b.append("]").toString();
   }
+  
+  private void doTest(Configuration conf, long[] capacities, String[] racks, 
+      long newCapacity, String newRack, boolean useTool) throws Exception {
+    doTest(conf, capacities, racks, newCapacity, 
+        newRack, true, null, Collections.<String> emptySet(), useTool);
+  }
+  
   /** This test start a cluster with specified number of nodes, 
    * and fills it to be 30% full (with a single file replicated identically
    * to all datanodes);
@@ -317,12 +346,18 @@ public class TestBalancer {
    * @param racks - array of racks for original nodes in cluster
    * @param newCapacity - new node's capacity
    * @param newRack - new node's rack
+   * @param exclude - exclude nodes specified in the data nodes list.
+   * @param hostnames - specify the host names for additional data nodes to be started.
+   * If null, data nodes are started with default names.
+   * @param datanodes - list of data nodes to be included or excluded.
+   * This should be a subset of host names.
    * @param useTool - if true run test via Cli with command-line argument 
    *   parsing, etc.   Otherwise invoke balancer API directly.
    * @throws Exception
    */
   private void doTest(Configuration conf, long[] capacities, String[] racks, 
-      long newCapacity, String newRack, boolean useTool) throws Exception {
+      long newCapacity, String newRack, boolean exclude, String[] hostnames, 
+      Set<String> datanodes, boolean useTool) throws Exception {
     LOG.info("capacities = " +  long2String(capacities)); 
     LOG.info("racks      = " +  Arrays.asList(racks)); 
     LOG.info("newCapacity= " +  newCapacity); 
@@ -346,42 +381,93 @@ public class TestBalancer {
       long totalUsedSpace = totalCapacity*3/10;
       createFile(cluster, filePath, totalUsedSpace / numOfDatanodes,
           (short) numOfDatanodes, 0);
-      // start up an empty node with the same capacity and on the same rack
-      cluster.startDataNodes(conf, 1, true, null,
-          new String[]{newRack}, new long[]{newCapacity});
-
-      totalCapacity += newCapacity;
+      
+      //if running a test with "include list", include original nodes as well
+      if (!datanodes.isEmpty() && !exclude) {
+        for (DataNode dn: cluster.getDataNodes())
+          datanodes.add(dn.getDatanodeId().getHostName());
+      }
+      
+      if (hostnames == null) {
+        // start up an empty node with the same capacity and on the same rack 
+        cluster.startDataNodes(conf, 1, true, null,
+            new String[]{newRack}, null,new long[]{newCapacity});
+        totalCapacity += newCapacity;
+      } else {
+        // start up nodes with the specified host names 
+        String[] newRacks = new String[hostnames.length];
+        long[] newCapacities = new long[hostnames.length];
+        for (int i=0; i < hostnames.length; i++){
+          newRacks[i] = newRack;
+          newCapacities[i] = newCapacity; 
+        }
+        cluster.startDataNodes(conf, hostnames.length, true, null,
+            newRacks, hostnames, newCapacities);
+        totalCapacity += newCapacity*hostnames.length;
+      }
 
       // run balancer and validate results
+      Balancer.Parameters p = Balancer.Parameters.DEFALUT;
+      if (!datanodes.isEmpty()) {
+        p = new Balancer.Parameters(
+            Balancer.Parameters.DEFALUT.policy, 
+            Balancer.Parameters.DEFALUT.threshold,
+            exclude, datanodes);
+      }
       if (useTool) {
-        runBalancerCli(conf, totalUsedSpace, totalCapacity);
+        runBalancerCli(conf, totalUsedSpace, totalCapacity, p);
       } else {
-        runBalancer(conf, totalUsedSpace, totalCapacity);
+        runBalancer(conf, totalUsedSpace, totalCapacity, p);
       }
     } finally {
       cluster.shutdown();
     }
   }
-
+  
   private void runBalancer(Configuration conf,
       long totalUsedSpace, long totalCapacity) throws Exception {
+    runBalancer(conf, totalUsedSpace, totalCapacity, Balancer.Parameters.DEFALUT);
+  }
+
+  private void runBalancer(Configuration conf,
+      long totalUsedSpace, long totalCapacity, Balancer.Parameters p) throws Exception {
     waitForHeartBeat(totalUsedSpace, totalCapacity, client, cluster);
 
     // start rebalancing
     Collection<URI> namenodes = DFSUtil.getNsServiceRpcUris(conf);
-    final int r = Balancer.run(namenodes, Balancer.Parameters.DEFALUT, conf);
+    final int r = Balancer.run(namenodes, p, conf);
     assertEquals(Balancer.ReturnStatus.SUCCESS.code, r);
 
     waitForHeartBeat(totalUsedSpace, totalCapacity, client, cluster);
     LOG.info("Rebalancing with default ctor.");
-    waitForBalancer(totalUsedSpace, totalCapacity, client, cluster);
+    waitForBalancer(totalUsedSpace, totalCapacity, 
+        client, cluster, p);
   }
   
   private void runBalancerCli(Configuration conf,
-      long totalUsedSpace, long totalCapacity) throws Exception {
+      long totalUsedSpace, long totalCapacity, Balancer.Parameters p) throws Exception {
     waitForHeartBeat(totalUsedSpace, totalCapacity, client, cluster);
+    File ignoreHostsFile = new File ("hosts-file");
+    PrintWriter pw = new PrintWriter(ignoreHostsFile);
+    
+    String[] args = null;
+    
+    if (!p.datanodes.isEmpty()) {
+      for (String ignoreHost: p.datanodes){
+        pw.write(ignoreHost + "\n");
+      }
+      pw.close();
 
-    final String[] args = { "-policy", "datanode" };
+      String includeOrExclude = "-exclude";
+      if (!p.exclude) {
+        includeOrExclude = "-include";
+      }
+      args = new String [] { "-policy", "datanode" , 
+          includeOrExclude , "hosts-file" };
+    }else { 
+      args = new String [] { "-policy", "datanode"};
+    }
+    
     final Tool tool = new Cli();    
     tool.setConf(conf);
     final int r = tool.run(args); // start rebalancing
@@ -389,7 +475,11 @@ public class TestBalancer {
     assertEquals("Tools should exit 0 on success", 0, r);
     waitForHeartBeat(totalUsedSpace, totalCapacity, client, cluster);
     LOG.info("Rebalancing with default ctor.");
-    waitForBalancer(totalUsedSpace, totalCapacity, client, cluster);
+    waitForBalancer(totalUsedSpace, totalCapacity, 
+        client, cluster, p);
+    if (ignoreHostsFile.exists()){
+      ignoreHostsFile.delete();
+    }
   }
   
   /** one-node cluster test*/
@@ -517,6 +607,72 @@ public class TestBalancer {
     initConf(conf);
     
     oneNodeTest(conf, true);
+  }
+  
+  /**
+   * Test a cluster with even distribution, 
+   * then three nodes are added to the cluster,
+   * runs balancer with two of the nodes in the exclude list
+   */
+  @Test(timeout=100000)
+  public void testBalancerWithExcludeList() throws Exception {
+    final Configuration conf = new HdfsConfiguration();
+    initConf(conf);
+    Set<String> excludeHosts = new HashSet<String>();
+    excludeHosts.add( "datanodeY");
+    excludeHosts.add( "datanodeZ");
+    doTest(conf, new long[]{CAPACITY, CAPACITY}, new String[]{RACK0, RACK1},
+        CAPACITY, RACK2, true, new String[] {"datanodeX", "datanodeY", "datanodeZ" }, 
+        excludeHosts, false);
+  }
+  
+  /**
+   * Test a cluster with even distribution, 
+   * then three nodes are added to the cluster,
+   * runs balancer with two of the nodes in the exclude list
+   */
+  @Test(timeout=100000)
+  public void testBalancerCliWithExcludeList() throws Exception {
+    final Configuration conf = new HdfsConfiguration();
+    initConf(conf);
+    Set<String> excludeHosts = new HashSet<String>();
+    excludeHosts.add( "datanodeY");
+    excludeHosts.add( "datanodeZ");
+    doTest(conf, new long[]{CAPACITY, CAPACITY}, new String[]{RACK0, RACK1},
+        CAPACITY, RACK2, true, new String[] {"datanodeX", "datanodeY", "datanodeZ" }, 
+        excludeHosts, true);
+  }
+  
+  /**
+   * Test a cluster with even distribution, 
+   * then three nodes are added to the cluster,
+   * runs balancer with two of the nodes in the include list
+   */
+  @Test(timeout=100000)
+  public void testBalancerWithIncludeList() throws Exception {
+    final Configuration conf = new HdfsConfiguration();
+    initConf(conf);
+    Set<String> includeHosts = new HashSet<String>();
+    includeHosts.add( "datanodeY");
+    doTest(conf, new long[]{CAPACITY, CAPACITY}, new String[]{RACK0, RACK1},
+        CAPACITY, RACK2, false, new String[] {"datanodeX", "datanodeY", "datanodeZ" }, 
+        includeHosts, false);
+  }
+  
+  /** 
+   * Test a cluster with even distribution, 
+   * then three nodes are added to the cluster,
+   * runs balancer with two of the nodes in the include list
+   */
+  @Test(timeout=100000)
+  public void testBalancerCliWithIncludeList() throws Exception {
+    final Configuration conf = new HdfsConfiguration();
+    initConf(conf);
+    Set<String> includeHosts = new HashSet<String>();
+    includeHosts.add( "datanodeY");
+    doTest(conf, new long[]{CAPACITY, CAPACITY}, new String[]{RACK0, RACK1},
+        CAPACITY, RACK2, false, new String[] {"datanodeX", "datanodeY", "datanodeZ" }, 
+        includeHosts, true);
   }
   
   /**
