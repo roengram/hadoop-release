@@ -31,6 +31,9 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
     YARN-2059. Added admin ACLs support to Timeline Server. (Zhijie Shen via
     vinodkv)
 
+    YARN-2071. Modified levelDB store permissions to be readable only by the
+    server user. (Zhijie Shen via vinodkv)
+
   BUG FIXES
 
     HDFS-5089. When a LayoutVersion support SNAPSHOT, it must support
