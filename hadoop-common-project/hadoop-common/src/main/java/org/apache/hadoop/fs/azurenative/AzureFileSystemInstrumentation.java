@@ -297,6 +297,6 @@ public final class AzureFileSystemInstrumentation implements MetricsSource {
         currentBlockDownloadLatency.getCurrentAverage());
     averageBlockUploadLatencyMs.set(
         currentBlockUploadLatency.getCurrentAverage());
-    registry.snapshot(collector.addRecord(registry.info()), all);
+    registry.snapshot(collector.addRecord(registry.info()), true);
   }
 }
