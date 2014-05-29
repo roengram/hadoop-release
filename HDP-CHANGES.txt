@@ -98,3 +98,6 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
     (eBay) via Arpit Agarwal).
 
     HADOOP-10630. Possible race condition in RetryInvocationHandler. (jing9)
+
+    HDFS-6462. NFS: fsstat request fails with the secure hdfs (brandonli)
+
