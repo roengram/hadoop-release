@@ -97,3 +97,4 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
     HDFS-6364. Incorrect check for unknown datanode in Balancer. (Benoy Antony
     (eBay) via Arpit Agarwal).
 
+    HADOOP-10630. Possible race condition in RetryInvocationHandler. (jing9)
