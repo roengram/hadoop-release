@@ -13,30 +13,35 @@ import org.apache.hadoop.metrics2.lib.*;
  * of the Hadoop cluster with Azure Storage.
  */
 @Metrics(about="Metrics for WASB", context="azureFileSystem")
-final class AzureFileSystemInstrumentation implements MetricsSource {
-  static final String WASB_WEB_RESPONSES = "wasb_web_responses";
-  static final String WASB_BYTES_WRITTEN =
+public final class AzureFileSystemInstrumentation implements MetricsSource {
+  
+  public static final String METRIC_TAG_FILESYSTEM_ID = "wasbFileSystemId";
+  public static final String METRIC_TAG_ACCOUNT_NAME = "accountName";
+  public static final String METRIC_TAG_CONTAINTER_NAME = "containerName";
+  
+  public static final String WASB_WEB_RESPONSES = "wasb_web_responses";
+  public static final String WASB_BYTES_WRITTEN =
       "wasb_bytes_written_last_second";
-  static final String WASB_BYTES_READ =
+  public static final String WASB_BYTES_READ =
       "wasb_bytes_read_last_second";
-  static final String WASB_RAW_BYTES_UPLOADED =
+  public static final String WASB_RAW_BYTES_UPLOADED =
       "wasb_raw_bytes_uploaded";
-  static final String WASB_RAW_BYTES_DOWNLOADED =
+  public static final String WASB_RAW_BYTES_DOWNLOADED =
       "wasb_raw_bytes_downloaded";
-  static final String WASB_FILES_CREATED = "wasb_files_created";
-  static final String WASB_FILES_DELETED = "wasb_files_deleted";
-  static final String WASB_DIRECTORIES_CREATED = "wasb_directories_created";
-  static final String WASB_DIRECTORIES_DELETED = "wasb_directories_deleted";
-  static final String WASB_UPLOAD_RATE =
+  public static final String WASB_FILES_CREATED = "wasb_files_created";
+  public static final String WASB_FILES_DELETED = "wasb_files_deleted";
+  public static final String WASB_DIRECTORIES_CREATED = "wasb_directories_created";
+  public static final String WASB_DIRECTORIES_DELETED = "wasb_directories_deleted";
+  public static final String WASB_UPLOAD_RATE =
       "wasb_maximum_upload_bytes_per_second";
-  static final String WASB_DOWNLOAD_RATE =
+  public static final String WASB_DOWNLOAD_RATE =
       "wasb_maximum_download_bytes_per_second";
-  static final String WASB_UPLOAD_LATENCY =
+  public static final String WASB_UPLOAD_LATENCY =
       "wasb_average_block_upload_latency_ms";
-  static final String WASB_DOWNLOAD_LATENCY =
+  public static final String WASB_DOWNLOAD_LATENCY =
       "wasb_average_block_download_latency_ms";
-  static final String WASB_CLIENT_ERRORS = "wasb_client_errors";
-  static final String WASB_SERVER_ERRORS = "wasb_server_errors";
+  public static final String WASB_CLIENT_ERRORS = "wasb_client_errors";
+  public static final String WASB_SERVER_ERRORS = "wasb_server_errors";
 
   /**
    * Config key for how big the rolling window size for latency metrics should
