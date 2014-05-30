@@ -2288,4 +2288,13 @@ class AzureNativeFileSystemStore implements NativeFileSystemStore {
   public void close() {
     bandwidthGaugeUpdater.close();
   }
+  
+  @Override
+  protected void finalize() throws Throwable {
+    LOG.debug("finalize() called.");
+    close();
+    super.finalize();
+  }
+
+  
 }
