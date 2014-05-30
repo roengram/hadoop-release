@@ -30,6 +30,11 @@ if not defined HADOOP_LIBEXEC_DIR (
   set HADOOP_LIBEXEC_DIR=%DEFAULT_LIBEXEC_DIR%
 )
 
+if not defined HADOOP_LOGFILE (
+  set HADOOP_LOGFILE=mapred.log
+)
+set HADOOP_OPTS=%HADOOP_OPTS% -Dhadoop.log.file=%HADOOP_LOGFILE%
+
 if exist %HADOOP_LIBEXEC_DIR%\hadoop-config.cmd (
   call %HADOOP_LIBEXEC_DIR%\hadoop-config.cmd %*
 ) else if exist %HADOOP_COMMON_HOME%\libexec\hadoop-config.cmd (
