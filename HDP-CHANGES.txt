@@ -1,4 +1,5 @@
 Changes only in Hortonworks github and not in apache and hence not covered by CHANGES.txt.
+The changes also include jiras that are yet to become available in later apache release.
 
   INCOMPATIBLE CHANGES
 
@@ -101,3 +102,4 @@ Changes only in Hortonworks github and not in apache and hence not covered by CH
 
     HDFS-6462. NFS: fsstat request fails with the secure hdfs (brandonli)
 
+/bin/bash: :1: command not found
