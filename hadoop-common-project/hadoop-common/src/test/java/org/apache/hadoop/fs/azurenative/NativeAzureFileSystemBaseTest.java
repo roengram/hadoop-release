@@ -122,7 +122,7 @@ public abstract class NativeAzureFileSystemBaseTest {
   @Test
   public void testFilePermissions() throws Exception {
     Path testFile = new Path("permissionTestFile");
-    FsPermission permission = FsPermission.createImmutable((short) 644);
+    FsPermission permission = FsPermission.createImmutable((short)0644);
     createEmptyFile(testFile, permission);
     FileStatus ret = fs.getFileStatus(testFile);
     assertEqualsIgnoreStickyBit(permission, ret.getPermission());
@@ -132,30 +132,57 @@ public abstract class NativeAzureFileSystemBaseTest {
   @Test
   public void testFolderPermissions() throws Exception {
     Path testFolder = new Path("permissionTestFolder");
-    FsPermission permission = FsPermission.createImmutable((short) 644);
+    FsPermission permission = FsPermission.createImmutable((short)0644);
     fs.mkdirs(testFolder, permission);
     FileStatus ret = fs.getFileStatus(testFolder);
     assertEqualsIgnoreStickyBit(permission, ret.getPermission());
     fs.delete(testFolder, true);
   }
 
-  @Test
-  public void testDeepFileCreation() throws Exception {
-    Path testFile = new Path("deep/file/creation/test");
-    FsPermission permission = FsPermission.createImmutable((short) 644);
+  void testDeepFileCreationBase(String testFilePath, String firstDirPath, String middleDirPath, 
+          short permissionShort, short umaskedPermissionShort) throws Exception  {    
+    Path testFile = new Path(testFilePath);
+    Path firstDir = new Path(firstDirPath);
+    Path middleDir = new Path(middleDirPath);    
+    FsPermission permission = FsPermission.createImmutable(permissionShort);  
+    FsPermission umaskedPermission = FsPermission.createImmutable(umaskedPermissionShort); 
+      
     createEmptyFile(testFile, permission);
+    FsPermission rootPerm = fs.getFileStatus(firstDir.getParent()).getPermission();
+    FsPermission inheritPerm = FsPermission.createImmutable((short)(rootPerm.toShort() | 0300));
     assertTrue(fs.exists(testFile));
-    assertTrue(fs.exists(new Path("deep")));
-    assertTrue(fs.exists(new Path("deep/file/creation")));
-    FileStatus ret = fs.getFileStatus(new Path("deep/file"));
-    assertTrue(ret.isDirectory());
-    assertEqualsIgnoreStickyBit(permission, ret.getPermission());
-    assertTrue(fs.delete(new Path("deep"), true));
+    assertTrue(fs.exists(firstDir));
+    assertTrue(fs.exists(middleDir));
+    // verify that the indirectly created directory inherited its permissions from the root directory
+    FileStatus directoryStatus = fs.getFileStatus(middleDir);
+    assertTrue(directoryStatus.isDirectory());
+    assertEqualsIgnoreStickyBit(inheritPerm, directoryStatus.getPermission());
+    // verify that the file itself has the permissions as specified
+    FileStatus fileStatus = fs.getFileStatus(testFile);
+    assertFalse(fileStatus.isDirectory());
+    assertEqualsIgnoreStickyBit(umaskedPermission, fileStatus.getPermission());    
+    assertTrue(fs.delete(firstDir, true));
     assertFalse(fs.exists(testFile));
 
     // An alternative test scenario would've been to delete the file first,
     // and then check for the existence of the upper folders still. But that
     // doesn't actually work as expected right now.
+  }
+  
+  @Test
+  public void testDeepFileCreation() throws Exception {
+    // normal permissions in user home
+    testDeepFileCreationBase("deep/file/creation/test", "deep", "deep/file/creation", (short)0644, (short)0644);
+    // extra permissions in user home. umask will change the actual permissions.
+    testDeepFileCreationBase("deep/file/creation/test", "deep", "deep/file/creation", (short)0777, (short)0755);
+    // normal permissions in root    
+    testDeepFileCreationBase("/deep/file/creation/test", "/deep", "/deep/file/creation", (short)0644, (short)0644);
+    // less permissions in root
+    testDeepFileCreationBase("/deep/file/creation/test", "/deep", "/deep/file/creation", (short)0700, (short)0700);
+    // one indirectly created directory in root
+    testDeepFileCreationBase("/deep/file", "/deep", "/deep", (short)0644, (short)0644);
+    // one indirectly created directory in user home
+    testDeepFileCreationBase("deep/file", "deep", "deep", (short)0644, (short)0644);
   }
 
   private static enum RenameVariation {

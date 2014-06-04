@@ -596,7 +596,15 @@ public class NativeAzureFileSystem extends FileSystem {
         store.updateFolderLastModifiedTime(parentKey);
       } else {
         // Make sure that the parent folder exists.
-        mkdirs(parentFolder, permission);
+        // Create it using inherited permissions from the first existing directory going up the path
+        Path firstExisting = parentFolder.getParent();
+        FileMetadata metadata = store.retrieveMetadata(pathToKey(firstExisting));
+        while(metadata == null) {
+          // Guaranteed to terminate properly because we will eventually hit root, which will return non-null metadata
+          firstExisting = firstExisting.getParent();
+          metadata = store.retrieveMetadata(pathToKey(firstExisting));
+        }
+        mkdirs(parentFolder, metadata.getPermissionStatus().getPermission(), true);
       }
     }
 
@@ -929,6 +937,7 @@ public class NativeAzureFileSystem extends FileSystem {
   private static enum UMaskApplyMode {
     NewFile,
     NewDirectory,
+    NewDirectoryNoUmask,
     ChangeExistingFile,
     ChangeExistingDirectory,
   }
@@ -936,8 +945,8 @@ public class NativeAzureFileSystem extends FileSystem {
   /**
    * Applies the applicable UMASK's on the given permission.
    * @param permission The permission to mask.
-   * @param applyDefaultUmask Whether to also apply the default umask.
-   * @return The masked persmission.
+   * @param applyMode The mode to be used to determine how to apply the umask
+   * @return The masked permission.
    */
   private FsPermission applyUMask(final FsPermission permission,
       final UMaskApplyMode applyMode) {
@@ -970,6 +979,10 @@ public class NativeAzureFileSystem extends FileSystem {
 
   @Override
   public boolean mkdirs(Path f, FsPermission permission) throws IOException {
+      return mkdirs(f, permission, false);
+  }
+  
+  boolean mkdirs(Path f, FsPermission permission, boolean noUmask) throws IOException {
     if (LOG.isDebugEnabled()){
       LOG.debug("Creating directory: " + f.toString());
     }
@@ -980,9 +993,16 @@ public class NativeAzureFileSystem extends FileSystem {
     }
     
     Path absolutePath = makeAbsolute(f);
-    PermissionStatus permissionStatus = createPermissionStatus(
-        applyUMask(permission, UMaskApplyMode.NewDirectory));
-    
+    PermissionStatus permissionStatus = null;
+    if(noUmask) {
+      // ensure owner still has wx permissions at the minimum
+      permissionStatus = createPermissionStatus(
+          applyUMask(FsPermission.createImmutable((short)(permission.toShort() | 0300)), 
+              UMaskApplyMode.NewDirectoryNoUmask));
+    } else {
+      permissionStatus = createPermissionStatus(
+          applyUMask(permission, UMaskApplyMode.NewDirectory));        
+    }    
     ArrayList<String> keysToCreateAsFolder = new ArrayList<String>();
     ArrayList<String> keysToUpdateAsFolder = new ArrayList<String>();
     boolean childCreated = false;
