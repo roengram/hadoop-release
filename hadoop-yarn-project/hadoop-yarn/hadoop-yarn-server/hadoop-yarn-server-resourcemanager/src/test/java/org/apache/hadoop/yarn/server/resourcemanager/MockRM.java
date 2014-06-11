@@ -71,6 +71,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.rmnode.RMNodeEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.rmnode.RMNodeEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.rmnode.RMNodeImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.rmnode.RMNodeStartedEvent;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.AbstractYarnScheduler;
 import org.apache.hadoop.yarn.server.resourcemanager.security.ClientToAMTokenSecretManagerInRM;
 import org.apache.hadoop.yarn.server.resourcemanager.security.NMTokenSecretManagerInRM;
 import org.apache.hadoop.yarn.server.resourcemanager.security.RMContainerTokenSecretManager;
@@ -553,5 +554,17 @@ public class MockRM extends ResourceManager {
         client.getApplicationReport(GetApplicationReportRequest
             .newInstance(appId));
     return response.getApplicationReport();
+  }
+
+  // Explicitly reset queue metrics for testing.
+  @SuppressWarnings("static-access")
+  public void clearQueueMetrics(RMApp app) {
+    ((AbstractYarnScheduler)getResourceScheduler())
+      .getSchedulerApplications().get(app.getApplicationId()).getQueue()
+      .getMetrics().clearQueueMetrics();
+  }
+  
+  public RMActiveServices getRMActiveService() {
+    return activeServices;
   }
 }
