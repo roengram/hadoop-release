@@ -8,6 +8,9 @@ import org.apache.commons.httpclient.URIException;
 import org.apache.commons.httpclient.util.URIUtil;
 import org.apache.commons.io.output.ByteArrayOutputStream;
 
+
+
+
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import com.microsoft.windowsazure.storage.*;
@@ -96,8 +99,6 @@ public class MockStorageInterface extends StorageInterface {
     return container;
   }
 
- 
-
   class MockCloudBlobContainerWrapper extends CloudBlobContainerWrapper {
     private boolean created = false;
     private HashMap<String, String> metadata;
@@ -158,6 +159,12 @@ public class MockStorageInterface extends StorageInterface {
     public CloudBlockBlobWrapper getBlockBlobReference(String relativePath)
         throws URISyntaxException, StorageException {
       return new MockCloudBlockBlobWrapper(new URI(fullUriString(relativePath, false)), null, 0);
+    }
+    
+    @Override
+    public CloudPageBlobWrapper getPageBlobReference(String blobAddressUri)
+        throws URISyntaxException, StorageException {
+      return new MockCloudPageBlobWrapper(new URI(blobAddressUri), null, 0);
     }
     
     //helper to create full URIs for directory and blob. 
@@ -239,10 +246,17 @@ public class MockStorageInterface extends StorageInterface {
           fullPrefix, includeMetadata)) {
         int indexOfSlash = current.getKey().indexOf('/', fullPrefix.length());
         if (useFlatBlobListing || indexOfSlash < 0) {
+          if (current.isPageBlob()) {
+            ret.add(new MockCloudPageBlobWrapper(
+                new URI(current.getKey()),
+                current.getMetadata(),
+                current.getContentLength()));
+          } else {
           ret.add(new MockCloudBlockBlobWrapper(
               new URI(current.getKey()),
               current.getMetadata(),
               current.getContentLength()));
+          }
         } else {
           String directoryName = current.getKey().substring(0, indexOfSlash);
           if (!addedDirectories.contains(directoryName)) {
@@ -259,17 +273,15 @@ public class MockStorageInterface extends StorageInterface {
     public StorageUri getStorageUri() {
       throw new NotImplementedException();
     }
-    
-    
   }
   
-  class MockCloudBlockBlobWrapper extends CloudBlockBlobWrapper {
-    private URI uri;
-    private HashMap<String, String> metadata =
+  abstract class MockCloudBlobWrapper implements CloudBlobWrapper {
+    protected final URI uri;
+    protected HashMap<String, String> metadata =
         new HashMap<String, String>();
-    private BlobProperties properties;
+    protected BlobProperties properties;
 
-    public MockCloudBlockBlobWrapper(URI uri, HashMap<String, String> metadata,
+    protected MockCloudBlobWrapper(URI uri, HashMap<String, String> metadata,
         int length) {
       this.uri = uri;
       this.metadata = metadata;
@@ -279,7 +291,7 @@ public class MockStorageInterface extends StorageInterface {
           Calendar.getInstance(TimeZone.getTimeZone("UTC")).getTime());
     }
 
-    private void refreshProperties(boolean getMetadata) {
+    protected void refreshProperties(boolean getMetadata) {
       if (backingStore.exists(uri.toString())) {
         byte[] content = backingStore.getContent(uri.toString());
         properties = new BlobProperties();
@@ -320,7 +332,7 @@ public class MockStorageInterface extends StorageInterface {
     }
 
     @Override
-    public void startCopyFromBlob(CloudBlockBlobWrapper sourceBlob,
+    public void startCopyFromBlob(CloudBlobWrapper sourceBlob,
         OperationContext opContext) throws StorageException, URISyntaxException {
       backingStore.copy(sourceBlob.getUri().toString(), uri.toString());
       //TODO: set the backingStore.properties.CopyState and 
@@ -360,33 +372,74 @@ public class MockStorageInterface extends StorageInterface {
     }
 
     @Override
-    public OutputStream openOutputStream(BlobRequestOptions options,
-        OperationContext opContext) throws StorageException {
-      return backingStore.upload(uri.toString(), metadata);
-    }
-
-    @Override
-    public void upload(InputStream sourceStream, OperationContext opContext)
-        throws StorageException, IOException {
-      ByteArrayOutputStream allContent = new ByteArrayOutputStream();
-      allContent.write(sourceStream);
-      backingStore.setContent(uri.toString(), allContent.toByteArray(),
-          metadata);
-      refreshProperties(false);
-      allContent.close();
-    }
-
-    @Override
     public void uploadMetadata(OperationContext opContext)
         throws StorageException {
-      backingStore.setContent(uri.toString(),
-          backingStore.getContent(uri.toString()), metadata);
+      backingStore.setMetadata(uri.toString(), metadata);
+    }
+    
+    @Override
+    public void downloadRange(long offset, long length, OutputStream os,
+        BlobRequestOptions options, OperationContext opContext)
+        throws StorageException {
+      throw new NotImplementedException();
+    }
+  }
+
+  class MockCloudBlockBlobWrapper extends MockCloudBlobWrapper
+    implements CloudBlockBlobWrapper {
+    public MockCloudBlockBlobWrapper(URI uri, HashMap<String, String> metadata,
+        int length) {
+      super(uri, metadata, length);
     }
 
     @Override
-    public void uploadProperties(OperationContext opContext)
-        throws StorageException {
-      refreshProperties(false);
+    public OutputStream openOutputStream(BlobRequestOptions options,
+        OperationContext opContext) throws StorageException {
+      return backingStore.uploadBlockBlob(uri.toString(), metadata);
+    }
+
+    @Override
+    public void setStreamMinimumReadSizeInBytes(int minimumReadSizeBytes) {  
+    }
+
+    @Override
+    public void setWriteBlockSizeInBytes(int writeBlockSizeBytes) {  
+    }
+
+    @Override
+    public StorageUri getStorageUri() {
+      return null;
+    }
+    
+    @Override 
+    public void uploadProperties(OperationContext context) {
+    }
+  }
+
+  class MockCloudPageBlobWrapper extends MockCloudBlobWrapper
+    implements CloudPageBlobWrapper {
+    public MockCloudPageBlobWrapper(URI uri, HashMap<String, String> metadata,
+        int length) {
+      super(uri, metadata, length);
+    }
+
+    @Override
+    public void create(long length, BlobRequestOptions options,
+        OperationContext opContext) throws StorageException {
+      throw new NotImplementedException();
+    }
+
+    @Override
+    public void uploadPages(InputStream sourceStream, long offset, long length,
+        BlobRequestOptions options, OperationContext opContext)
+        throws StorageException, IOException {
+      throw new NotImplementedException();
+    }
+
+    @Override
+    public ArrayList<PageRange> downloadPageRanges(BlobRequestOptions options,
+        OperationContext opContext) throws StorageException {
+      throw new NotImplementedException();
     }
     
     @Override
@@ -402,6 +455,11 @@ public class MockStorageInterface extends StorageInterface {
         throw new NotImplementedException();
     }
 
-   
+    @Override
+    public void uploadProperties(OperationContext opContext)
+        throws StorageException {
+      // TODO Auto-generated method stub
+      
+    }
   }
 }

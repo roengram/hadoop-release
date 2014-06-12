@@ -3,9 +3,7 @@ package org.apache.hadoop.fs.azurenative;
 import static org.junit.Assert.*;
 import static org.junit.Assume.assumeNotNull;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.util.Arrays;
 
 import org.apache.hadoop.fs.azure.AzureException;
@@ -79,7 +77,7 @@ public class TestAzureConcurrentOutOfBandIo {
     public void run () {
       byte[] dataBlockWrite= new byte[UPLOAD_BLOCK_SIZE];
       
-      DataOutputStream outputStream = null;
+      OutputStream outputStream = null;
       
       try {
         for (int i = 0; !done; i++) {
@@ -120,7 +118,7 @@ public class TestAzureConcurrentOutOfBandIo {
    // Write five 4 MB blocks to the blob. To ensure there is data in the blob before
    // reading.  This eliminates the race between the reader and writer threads.
    //
-   DataOutputStream outputStream = testAccount.getStore().storefile(
+   OutputStream outputStream = testAccount.getStore().storefile(
        "WASB_String.txt",
        new PermissionStatus("", "", FsPermission.getDefault()));
    Arrays.fill(dataBlockWrite, (byte) 255);
@@ -140,7 +138,7 @@ public class TestAzureConcurrentOutOfBandIo {
    
    for (int i = 0; i < 5; i++) {
      try {
-        inputStream = testAccount.getStore().retrieve("WASB_String.txt", 0);
+        inputStream = testAccount.getStore().retrieve("WASB_String.txt");
         count = 0;
         int c = 0;
     

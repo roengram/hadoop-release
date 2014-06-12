@@ -22,7 +22,7 @@ import org.junit.*;
  */
 public abstract class NativeAzureFileSystemBaseTest {
 
-  protected FileSystem fs;
+  private FileSystem fs;
   private AzureBlobStorageTestAccount testAccount;
   private final long modifiedTimeErrorMargin = 5 * 1000; // Give it +/-5 seconds
 
@@ -229,8 +229,7 @@ public abstract class NativeAzureFileSystemBaseTest {
       assertFalse(fs.rename(originalFile, destinationFile)); // Parent directory
       // doesn't exist
       assertTrue(fs.mkdirs(destinationFile.getParent()));
-      boolean result = fs.rename(originalFile, destinationFile);
-      assertTrue(result);
+      assertTrue(fs.rename(originalFile, destinationFile));
       assertTrue(fs.exists(destinationFile));
       assertFalse(fs.exists(originalFile));
       fs.delete(destinationFile.getParent(), true);
@@ -242,8 +241,7 @@ public abstract class NativeAzureFileSystemBaseTest {
     Path testFile = new Path("deep/file/rename/test");
     FsPermission permission = FsPermission.createImmutable((short)644);
     createEmptyFile(testFile, permission);
-    boolean renameResult = fs.rename(new Path("deep/file"), new Path("deep/renamed"));
-    assertTrue(renameResult);
+    assertTrue(fs.rename(new Path("deep/file"), new Path("deep/renamed")));
     assertFalse(fs.exists(testFile));
     FileStatus newStatus = fs.getFileStatus(new Path("deep/renamed/rename/test"));
     assertNotNull(newStatus);
@@ -402,12 +400,7 @@ public abstract class NativeAzureFileSystemBaseTest {
     assertEquals("supergroup", newStatus.getGroup());
     assertEquals(UserGroupInformation.getCurrentUser().getShortUserName(),
         newStatus.getOwner());
-
-    // Don't check the file length for page blobs. Only block blobs
-    // provide the actual length of bytes written.
-    if (!(this instanceof TestNativeAzureFSPageBlobLive)) {
-      assertEquals(1, newStatus.getLen());
-    }
+    assertEquals(1, newStatus.getLen());
   }
 
   @Test
@@ -433,12 +426,7 @@ public abstract class NativeAzureFileSystemBaseTest {
     assertNotNull(newStatus);
     assertEquals("newUser", newStatus.getOwner());
     assertEquals("supergroup", newStatus.getGroup());
-
-    // File length is only reported to be the size of bytes written to the file for block blobs.
-    // So only check it for block blobs, not page blobs.
-    if (!(this instanceof TestNativeAzureFSPageBlobLive)) {
-      assertEquals(1, newStatus.getLen());
-    }
+    assertEquals(1, newStatus.getLen());
     fs.setOwner(newFile, null, "newGroup");
     newStatus = fs.getFileStatus(newFile);
     assertNotNull(newStatus);
@@ -519,24 +507,14 @@ public abstract class NativeAzureFileSystemBaseTest {
     testModifiedTime(destFolder);
   }
 
-  /**
-   * Verify we can get file status of a directory with various forms of
-   * the directory file name, including the nonstandard but legal form
-   * ending in "/.". Check that we're getting status for a directory.
-   */
   @Test
   public void testListSlash() throws Exception {
     Path testFolder = new Path("/testFolder");
     Path testFile = new Path(testFolder, "testFile");
     assertTrue(fs.mkdirs(testFolder));
     assertTrue(fs.createNewFile(testFile));
-    FileStatus status;
-    status = fs.getFileStatus(new Path("/testFolder"));
-    assertTrue(status.isDirectory());
-    status = fs.getFileStatus(new Path("/testFolder/"));
-    assertTrue(status.isDirectory());
-    status = fs.getFileStatus(new Path("/testFolder/."));
-    assertTrue(status.isDirectory());
+    FileStatus status = fs.getFileStatus(new Path("/testFolder/."));
+    assertNotNull(status);
   }
 
   @Test
@@ -548,6 +526,42 @@ public abstract class NativeAzureFileSystemBaseTest {
     String[] rawPageBlobDirs =
         conf.getStrings(AzureNativeFileSystemStore.KEY_PAGE_BLOB_DIRECTORIES);
     assertTrue(rawPageBlobDirs == null);
+  }
+
+  // Check that isPageBlobKey works as expected. This assumes that
+  // in the test configuration, the supported page blob directories
+  // only includes "pageBlobs".
+  @Test
+  public void testIsPageBlobKey() {
+
+    // only run for the live file system
+    if (this instanceof TestNativeAzureFileSystemMocked) {
+      return;
+    }
+    AzureNativeFileSystemStore store = ((NativeAzureFileSystem) fs).getStore();
+
+
+    // Use literal strings so it's easier to understand the tests.
+    // In case the constant changes, we want to know about it so we can update this test.
+    assertEquals(AzureBlobStorageTestAccount.PAGE_BLOB_DIRECTORY, "pageBlobs");
+
+    // URI prefix for test environment.
+    String uriPrefix = "file:///";
+
+    // negative tests
+    String[] negativeKeys = { "", "/", "bar", "bar/", "bar/pageBlobs", "bar/pageBlobs/foo",
+        "bar/pageBlobs/foo/", "/pageBlobs/", "/pageBlobs", "pageBlobs", "pageBlobsxyz/" };
+    for (String s : negativeKeys) {
+      assertFalse(store.isPageBlobKey(s));
+      assertFalse(store.isPageBlobKey(uriPrefix + s));
+    }
+
+    // positive tests
+    String[] positiveKeys = { "pageBlobs/", "pageBlobs/foo/", "pageBlobs/foo/bar/" };
+    for (String s : positiveKeys) {
+      assertTrue(store.isPageBlobKey(s));
+      assertTrue(store.isPageBlobKey(uriPrefix + s));
+    }
   }
 
   private boolean testModifiedTime(Path testPath, long time) throws Exception {

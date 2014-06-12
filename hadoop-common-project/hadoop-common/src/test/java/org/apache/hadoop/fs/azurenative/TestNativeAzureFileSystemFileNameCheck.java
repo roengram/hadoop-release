@@ -104,7 +104,7 @@ public class TestNativeAzureFileSystemFileNameCheck {
     backingStore.setContent(
         AzureBlobStorageTestAccount.toMockUri("testFolder1/testFolder2/test2:2"),
         new byte[] { 1, 2 },
-        new HashMap<String, String>());
+        new HashMap<String, String>(), false, 0);
     assertTrue(runWasbFsck(testFolder1));    
   }  
   

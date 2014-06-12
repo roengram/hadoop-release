@@ -2,13 +2,16 @@ package org.apache.hadoop.fs.azurenative;
 
 import static org.apache.hadoop.test.MetricsAsserts.*;
 import static org.apache.hadoop.fs.azurenative.AzureFileSystemInstrumentation.*;
+import static org.mockito.Matchers.*;
+import static org.mockito.Mockito.*;
 
+import org.mockito.ArgumentCaptor;
 public final class AzureMetricsTestUtil {
   public static long getLongGaugeValue(AzureFileSystemInstrumentation instrumentation,
       String gaugeName) {
-    return getLongGauge(gaugeName, getMetrics(instrumentation));
+	  return getLongGauge(gaugeName, getMetrics(instrumentation));
   }
-
+  
   /**
    * Gets the current value of the given counter.
    */
@@ -16,6 +19,7 @@ public final class AzureMetricsTestUtil {
       String counterName) {
     return getLongCounter(counterName, getMetrics(instrumentation));
   }
+
 
   /**
    * Gets the current value of the wasb_bytes_written_last_second counter.

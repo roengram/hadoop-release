@@ -44,6 +44,7 @@ public final class AzureBlobStorageTestAccount {
 
   private static final String KEY_DISABLE_THROTTLING = "fs.azure.disable.bandwidth.throttling";
   private static final String KEY_READ_TOLERATE_CONCURRENT_APPEND = "fs.azure.io.read.tolerate.concurrent.append";
+  public static final String DEFAULT_PAGE_BLOB_DIRECTORY = "pageBlobs";
 
   private CloudStorageAccount account;
   private CloudBlobContainer container;
@@ -51,6 +52,7 @@ public final class AzureBlobStorageTestAccount {
   private NativeAzureFileSystem fs;
   private AzureNativeFileSystemStore storage;
   private MockStorageInterface mockStorage;
+  private String pageBlobDirectory;
   private static final ConcurrentLinkedQueue<MetricsRecord> allMetrics =
       new ConcurrentLinkedQueue<MetricsRecord>();
   private static boolean metricsConfigSaved = false;
@@ -118,6 +120,14 @@ public final class AzureBlobStorageTestAccount {
 
   public static String toMockUri(Path path) {
     return toMockUri(path.toUri().getRawPath().substring(1)); // Remove the first /
+  }
+
+  public static Path pageBlobPath() {
+    return new Path("/" + DEFAULT_PAGE_BLOB_DIRECTORY);
+  }
+
+  public static Path pageBlobPath(String fileName) {
+    return new Path(pageBlobPath(), fileName);
   }
 
   public Number getLatestMetricValue(String metricName, Number defaultValue)
@@ -206,6 +216,7 @@ public final class AzureBlobStorageTestAccount {
 
   public static AzureBlobStorageTestAccount createMock(Configuration conf) throws Exception {
     saveMetricsConfigFile();
+    configurePageBlobDir(conf);
     AzureNativeFileSystemStore store = new AzureNativeFileSystemStore();
     MockStorageInterface mockStorage = new MockStorageInterface();
     store.setAzureStorageInteractionLayer(mockStorage);
@@ -215,6 +226,19 @@ public final class AzureBlobStorageTestAccount {
     AzureBlobStorageTestAccount testAcct =
         new AzureBlobStorageTestAccount(fs, mockStorage);
     return testAcct;
+  }
+
+  /**
+   * Set the page blob directories configuration to the default if it is not
+   * already set. Some tests may set it differently (e.g. the page blob
+   * tests in TestNativeAzureFSPageBlobLive).
+   * @param conf The configuration to conditionally update.
+   */
+  private static void configurePageBlobDir(Configuration conf) {
+    if (conf.get(AzureNativeFileSystemStore.KEY_PAGE_BLOB_DIRECTORIES) == null) {
+      conf.set(AzureNativeFileSystemStore.KEY_PAGE_BLOB_DIRECTORIES,
+          "/" + DEFAULT_PAGE_BLOB_DIRECTORY);
+    }
   }
 
   /**
@@ -297,7 +321,7 @@ public final class AzureBlobStorageTestAccount {
 
     AzureFileSystemInstrumentation instrumentation =
         DefaultMetricsSystem.instance().register(sourceName,
-            sourceDesc, new AzureFileSystemInstrumentation(conf));
+                sourceDesc, new AzureFileSystemInstrumentation(conf));
 
     AzureFileSystemMetricsSystem.registerSource(
         sourceName, sourceDesc,instrumentation);
@@ -375,7 +399,7 @@ public final class AzureBlobStorageTestAccount {
     StorageCredentials credentials;
     if (accountKey == null && allowAnonymous) {
       credentials = StorageCredentialsAnonymous.ANONYMOUS;
-    } 
+    }
     else {
       credentials = new StorageCredentialsAccountAndKey(
           accountName.split("\\.")[0],
@@ -383,17 +407,17 @@ public final class AzureBlobStorageTestAccount {
     }
     if (credentials == null) {
       return null;
-    } 
+    }
     else {
       return new CloudStorageAccount(credentials);
     }
   }
 
-  private static Configuration createTestConfiguration() {
+  public static Configuration createTestConfiguration() {
     return createTestConfiguration(null);
   }
 
-  protected static Configuration createTestConfiguration(Configuration conf) {
+  private static Configuration createTestConfiguration(Configuration conf) {
     if (conf == null) {
       conf = new Configuration();
     }
@@ -401,12 +425,12 @@ public final class AzureBlobStorageTestAccount {
     return conf;
   }
 
-  static CloudStorageAccount createTestAccount() 
+  static CloudStorageAccount createTestAccount()
       throws URISyntaxException, KeyProviderException
   {
     return createTestAccount(createTestConfiguration());
   }
-  
+
   static CloudStorageAccount createTestAccount(Configuration conf)
       throws URISyntaxException, KeyProviderException {
     String testAccountName = conf.get(TEST_ACCOUNT_NAME_PROPERTY_NAME);
@@ -435,6 +459,7 @@ public final class AzureBlobStorageTestAccount {
     NativeAzureFileSystem fs = null;
     CloudBlobContainer container = null;
     Configuration conf = createTestConfiguration(initialConfiguration);
+    configurePageBlobDir(conf);
     CloudStorageAccount account = createTestAccount(conf);
     if (account == null) {
       return null;
@@ -565,7 +590,7 @@ public final class AzureBlobStorageTestAccount {
     //
     CloudBlobContainer container =
         blobClient.getContainerReference(containerName);
-            
+
     container.createIfNotExists();
 
     // Create a new shared access policy.
@@ -812,5 +837,13 @@ public final class AzureBlobStorageTestAccount {
     @Override
     public void flush() {
     }
+  }
+
+  public void setPageBlobDirectory(String directory) {
+    this.pageBlobDirectory = directory;
+  }
+
+  public String getPageBlobDirectory() {
+    return pageBlobDirectory;
   }
 }

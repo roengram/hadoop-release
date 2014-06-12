@@ -6,14 +6,14 @@ import static org.junit.Assert.*;
 import java.util.*;
 
 import org.apache.hadoop.conf.*;
-import org.apache.hadoop.metrics2.lib.*;
 
 import org.junit.*;
 
 public class TestBandwidthGaugeUpdater {
   @Test
   public void testSingleThreaded() throws Exception {
-    AzureFileSystemInstrumentation instrumentation = createInstrumentation();
+    AzureFileSystemInstrumentation instrumentation =
+        new AzureFileSystemInstrumentation(new Configuration());
     BandwidthGaugeUpdater updater =
         new BandwidthGaugeUpdater(instrumentation, 1000, true);
     updater.triggerUpdate(true);
@@ -34,7 +34,8 @@ public class TestBandwidthGaugeUpdater {
 
   @Test
   public void testMultiThreaded() throws Exception {
-    AzureFileSystemInstrumentation instrumentation = createInstrumentation();
+    final AzureFileSystemInstrumentation instrumentation =
+        new AzureFileSystemInstrumentation(new Configuration());
     final BandwidthGaugeUpdater updater =
         new BandwidthGaugeUpdater(instrumentation, 1000, true);
     Thread[] threads = new Thread[10];
@@ -56,14 +57,5 @@ public class TestBandwidthGaugeUpdater {
     updater.triggerUpdate(false);
     assertEquals(10 * threads.length, getCurrentBytesRead(instrumentation));
     updater.close();
-  }
-
-  private AzureFileSystemInstrumentation createInstrumentation() {
-    AzureFileSystemInstrumentation instrumentation =
-        new AzureFileSystemInstrumentation(new Configuration());
-    // Need to let the Metrics2 system build up the source so that
-    // the fields are properly initialized.
-    MetricsAnnotations.makeSource(instrumentation);
-    return instrumentation;
   }
 }

@@ -94,7 +94,7 @@ public class TestWindowsAzureTableSinkSetup {
     CloudStorageAccount testAccount = AzureBlobStorageTestAccount.createTestAccount();
     Assume.assumeNotNull(testAccount);
     String accountName = testAccount.getCredentials().getAccountName();
-    Configuration conf = AzureBlobStorageTestAccount.createTestConfiguration(null);
+    Configuration conf = AzureBlobStorageTestAccount.createTestConfiguration();
     String fullKey = AzureNativeFileSystemStore.getAccountKeyFromConfiguration(accountName + ".blob.core.windows.net", conf);
     
     Assume.assumeNotNull(testAccount);

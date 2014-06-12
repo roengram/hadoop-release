@@ -4,8 +4,6 @@ import java.io.*;
 import java.net.*;
 import java.util.*;
 
-import org.apache.hadoop.fs.azurenative.StorageInterfaceImpl.CloudBlockBlobWrapperImpl;
-
 import com.microsoft.windowsazure.storage.*;
 import com.microsoft.windowsazure.storage.blob.*;
 
@@ -100,7 +98,6 @@ abstract class StorageInterface {
   public abstract CloudBlobContainerWrapper getContainerReference(String name) 
       throws URISyntaxException, StorageException;
 
-  
   /**
    * A thin wrapper over the {@link CloudBlobDirectory} class that simply redirects calls
    * to the real object except in unit tests.
@@ -264,16 +261,31 @@ abstract class StorageInterface {
      * @throws URISyntaxException
      *             If URI syntax exception occurred.            
      */
-    public abstract CloudBlockBlobWrapper getBlockBlobReference(String relativePath)
+    public abstract CloudBlobWrapper getBlockBlobReference(String relativePath)
+        throws URISyntaxException, StorageException;
+    
+    /**
+     * Returns a wrapper for a CloudPageBlob.
+     *
+     * @param relativePath
+     *            A <code>String</code> that represents the name of the blob, relative to the container 
+     *
+     * @throws StorageException
+     *             If a storage service error occurred.
+     * 
+     * @throws URISyntaxException
+     *             If URI syntax exception occurred.            
+     */
+    public abstract CloudBlobWrapper getPageBlobReference(String relativePath)
         throws URISyntaxException, StorageException;
   }
 
   /**
-   * A thin wrapper over the {@link CloudBlockBlob} class that simply redirects calls
+   * A thin wrapper over the {@link CloudBlob} class that simply redirects calls
    * to the real object except in unit tests.
    */
-  public abstract static class CloudBlockBlobWrapper
-      implements ListBlobItem {
+  public abstract static interface CloudBlobWrapper
+      extends ListBlobItem {
     /**
      * Returns the URI for this blob.
      * 
@@ -312,7 +324,7 @@ abstract class StorageInterface {
      * @throws URISyntaxException
      * 
      */
-    public abstract void startCopyFromBlob(CloudBlockBlobWrapper sourceBlob,
+    public abstract void startCopyFromBlob(CloudBlobWrapper sourceBlob,
         OperationContext opContext)
         throws StorageException, URISyntaxException;
 
@@ -322,6 +334,57 @@ abstract class StorageInterface {
      * @return A {@link CopyState} object that represents the copy state of the blob.
      */
     public abstract CopyState getCopyState();
+    
+    /**
+     * Downloads a range of bytes from the blob to the given byte buffer, using the specified request options and
+     * operation context.
+     *
+     * @param offset
+     *            The byte offset to use as the starting point for the source.
+     * @param length
+     *            The number of bytes to read.
+     * @param buffer
+     *            The byte buffer, as an array of bytes, to which the blob bytes are downloaded.
+     * @param bufferOffset
+     *            The byte offset to use as the starting point for the target.
+     * @param options
+     *            A {@link BlobRequestOptions} object that specifies any additional options for the request. Specifying
+     *            <code>null</code> will use the default request options from the associated service client (
+     *            {@link CloudBlobClient}).
+     * @param opContext
+     *            An {@link OperationContext} object that represents the context for the current operation. This object
+     *            is used to track requests to the storage service, and to provide additional runtime information about
+     *            the operation.
+     *
+     * @throws StorageException
+     *             If a storage service error occurred.
+     */
+    public abstract void downloadRange(final long offset, final long length,
+        final OutputStream outStream, final BlobRequestOptions options,
+        final OperationContext opContext)
+            throws StorageException, IOException;
+    
+    /**
+     * Sets the minimum read block size to use with this Blob.
+     * 
+     * @param minimumReadSizeBytes
+     *            The maximum block size, in bytes, for reading from a block blob while using a {@link BlobInputStream}
+     *            object, ranging from 512 bytes to 64 MB, inclusive.
+     */
+    public abstract void setStreamMinimumReadSizeInBytes(int minimumReadSizeBytes);
+
+    /**
+     * Sets the write block size to use with this Blob.
+     * 
+     * @param writeBlockSizeBytes
+     *            The maximum block size, in bytes, for writing to a block blob while using a {@link BlobOutputStream}
+     *            object, ranging from 1 MB to 4 MB, inclusive.
+     * 
+     * @throws IllegalArgumentException
+     *             If <code>writeBlockSizeInBytes</code> is less than 1 MB or greater than 4 MB.
+     */
+    public abstract void setWriteBlockSizeInBytes(int writeBlockSizeBytes);
+
     
     /**
      * Deletes the blob using the specified operation context.
@@ -403,6 +466,31 @@ abstract class StorageInterface {
         OperationContext opContext) throws StorageException;
 
     /**
+     * Uploads the blob's metadata to the storage service using the specified lease ID, request options, and operation
+     * context.
+     *
+     * @param opContext
+     *            An {@link OperationContext} object that represents the context for the current operation. This object
+     *            is used to track requests to the storage service, and to provide additional runtime information about
+     *            the operation.
+     *
+     * @throws StorageException
+     *             If a storage service error occurred.
+     */
+    public abstract void uploadMetadata(OperationContext opContext)
+        throws StorageException;
+    
+    public abstract void uploadProperties(OperationContext opContext)
+            throws StorageException;
+  }
+
+  /**
+   * A thin wrapper over the {@link CloudBlockBlob} class that simply redirects calls
+   * to the real object except in unit tests.
+   */
+  public abstract static interface CloudBlockBlobWrapper
+      extends CloudBlobWrapper {
+    /**
      * Creates and opens an output stream to write data to the block blob using the specified 
      * operation context.
      * 
@@ -419,67 +507,93 @@ abstract class StorageInterface {
     public abstract OutputStream openOutputStream(
         BlobRequestOptions options,
         OperationContext opContext) throws StorageException;
+  }
+
+  /**
+   * A thin wrapper over the {@link CloudPageBlob} class that simply redirects calls
+   * to the real object except in unit tests.
+   */
+  public abstract static interface CloudPageBlobWrapper
+      extends CloudBlobWrapper {
+    /**
+     * Creates a page blob using the specified request options and operation context.
+     *
+     * @param length
+     *            The size, in bytes, of the page blob.
+     * @param options
+     *            A {@link BlobRequestOptions} object that specifies any additional options for the request. Specifying
+     *            <code>null</code> will use the default request options from the associated service client (
+     *            {@link CloudBlobClient}).
+     * @param opContext
+     *            An {@link OperationContext} object that represents the context for the current operation. This object
+     *            is used to track requests to the storage service, and to provide additional runtime information about
+     *            the operation.
+     *
+     * @throws IllegalArgumentException
+     *             If the length is not a multiple of 512.
+     *
+     * @throws StorageException
+     *             If a storage service error occurred.
+     */
+    public abstract void create(final long length, BlobRequestOptions options,
+            OperationContext opContext) throws StorageException;
+    
 
     /**
-     * Uploads the source stream data to the blob, using the specified operation context.
+     * Uploads a range of contiguous pages, up to 4 MB in size, at the specified offset in the page blob, using the
+     * specified lease ID, request options, and operation context.
      * 
      * @param sourceStream
-     *            An <code>InputStream</code> object that represents the input stream to write to the block blob.
+     *            An <code>InputStream</code> object that represents the input stream to write to the page blob.
+     * @param offset
+     *            The offset, in number of bytes, at which to begin writing the data. This value must be a multiple of
+     *            512.
+     * @param length
+     *            The length, in bytes, of the data to write. This value must be a multiple of 512.
+     * @param options
+     *            A {@link BlobRequestOptions} object that specifies any additional options for the request. Specifying
+     *            <code>null</code> will use the default request options from the associated service client (
+     *            {@link CloudBlobClient}).
      * @param opContext
      *            An {@link OperationContext} object that represents the context for the current operation. This object
      *            is used to track requests to the storage service, and to provide additional runtime information about
      *            the operation.
      * 
+     * @throws IllegalArgumentException
+     *             If the offset or length are not multiples of 512, or if the length is greater than 4 MB.
      * @throws IOException
-     *             If an I/O error occurred.
+     *             If an I/O exception occurred.
      * @throws StorageException
      *             If a storage service error occurred.
      */
-    public abstract void upload(InputStream sourceStream,
+    public abstract void uploadPages(final InputStream sourceStream, final long offset,
+        final long length, BlobRequestOptions options,
         OperationContext opContext) throws StorageException, IOException;
 
     /**
-     * Uploads the blob's metadata to the storage service using the specified lease ID, request options, and operation
-     * context.
+     * Returns a collection of page ranges and their starting and ending byte offsets using the specified request
+     * options and operation context.
      *
+     * @param options
+     *            A {@link BlobRequestOptions} object that specifies any additional options for the request. Specifying
+     *            <code>null</code> will use the default request options from the associated service client (
+     *            {@link CloudBlobClient}).
      * @param opContext
      *            An {@link OperationContext} object that represents the context for the current operation. This object
      *            is used to track requests to the storage service, and to provide additional runtime information about
      *            the operation.
      *
+     * @return An <code>ArrayList</code> object that represents the set of page ranges and their starting and ending
+     *         byte offsets.
+     *
      * @throws StorageException
      *             If a storage service error occurred.
      */
+
+    public abstract ArrayList<PageRange> downloadPageRanges(BlobRequestOptions options,
+            OperationContext opContext) throws StorageException;
+    
     public abstract void uploadMetadata(OperationContext opContext)
-        throws StorageException;
-
-    public abstract void uploadProperties(OperationContext opContext)
-        throws StorageException;
-
-
-    
-    /**
-     * Sets the minimum read block size to use with this Blob.
-     * 
-     * @param minimumReadSizeBytes
-     *            The maximum block size, in bytes, for reading from a block blob while using a {@link BlobInputStream}
-     *            object, ranging from 512 bytes to 64 MB, inclusive.
-     */
-    public abstract void setStreamMinimumReadSizeInBytes(int minimumReadSizeBytes);
-
-    /**
-     * Sets the write block size to use with this Blob.
-     * 
-     * @param writeBlockSizeBytes
-     *            The maximum block size, in bytes, for writing to a block blob while using a {@link BlobOutputStream}
-     *            object, ranging from 1 MB to 4 MB, inclusive.
-     * 
-     * @throws IllegalArgumentException
-     *             If <code>writeBlockSizeInBytes</code> is less than 1 MB or greater than 4 MB.
-     */
-    public abstract void setWriteBlockSizeInBytes(int writeBlockSizeBytes);
-
-    
-    
+        throws StorageException; 
   }
 }

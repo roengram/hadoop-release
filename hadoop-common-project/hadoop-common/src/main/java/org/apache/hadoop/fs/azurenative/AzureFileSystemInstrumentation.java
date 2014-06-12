@@ -1,11 +1,13 @@
 package org.apache.hadoop.fs.azurenative;
 
 import java.util.*;
+import java.util.concurrent.atomic.*;
 
 import org.apache.hadoop.conf.*;
 import org.apache.hadoop.metrics2.*;
 import org.apache.hadoop.metrics2.annotation.*;
 import org.apache.hadoop.metrics2.lib.*;
+import org.apache.hadoop.metrics2.MetricsCollector;
 
 /**
  * A metrics source for the WASB file system to track all the metrics we care
@@ -14,11 +16,11 @@ import org.apache.hadoop.metrics2.lib.*;
  */
 @Metrics(about="Metrics for WASB", context="azureFileSystem")
 public final class AzureFileSystemInstrumentation implements MetricsSource {
-  
+
   public static final String METRIC_TAG_FILESYSTEM_ID = "wasbFileSystemId";
   public static final String METRIC_TAG_ACCOUNT_NAME = "accountName";
   public static final String METRIC_TAG_CONTAINTER_NAME = "containerName";
-  
+
   public static final String WASB_WEB_RESPONSES = "wasb_web_responses";
   public static final String WASB_BYTES_WRITTEN =
       "wasb_bytes_written_last_second";
@@ -52,40 +54,76 @@ public final class AzureFileSystemInstrumentation implements MetricsSource {
   private final MetricsRegistry registry =
       new MetricsRegistry("azureFileSystem")
       .setContext("azureFileSystem");
-
-  @Metric({ WASB_WEB_RESPONSES, "Total number of web responses obtained from Azure Storage" })
-  MutableCounterLong numberOfWebResponses;
-  @Metric({ WASB_FILES_CREATED, "Total number of files created through the WASB file system." })
-  MutableCounterLong numberOfFilesCreated;
-  @Metric({ WASB_FILES_DELETED, "Total number of files deleted through the WASB file system." })
-  MutableCounterLong numberOfFilesDeleted;
-  @Metric({ WASB_DIRECTORIES_CREATED, "Total number of directories created through the WASB file system." })
-  MutableCounterLong numberOfDirectoriesCreated;
-  @Metric({ WASB_DIRECTORIES_DELETED, "Total number of directories deleted through the WASB file system." })
-  MutableCounterLong numberOfDirectoriesDeleted;
-  @Metric({ WASB_BYTES_WRITTEN, "Total number of bytes written to Azure Storage during the last second." })
-  MutableGaugeLong bytesWrittenInLastSecond;
-  @Metric({ WASB_BYTES_READ, "Total number of bytes read from Azure Storage during the last second." })
-  MutableGaugeLong bytesReadInLastSecond;
-  @Metric({ WASB_UPLOAD_RATE, "The maximum upload rate encountered to Azure Storage in bytes/second." })
-  MutableGaugeLong maximumUploadBytesPerSecond;
-  @Metric({ WASB_DOWNLOAD_RATE, "The maximum download rate encountered to Azure Storage in bytes/second." })
-  MutableGaugeLong maximumDownloadBytesPerSecond;
-  @Metric({ WASB_RAW_BYTES_UPLOADED, "Total number of raw bytes (including overhead) uploaded to Azure Storage." })
-  MutableCounterLong rawBytesUploaded;
-  @Metric({ WASB_RAW_BYTES_DOWNLOADED, "Total number of raw bytes (including overhead) downloaded from Azure Storage." })
-  MutableCounterLong rawBytesDownloaded;
-  @Metric({ WASB_CLIENT_ERRORS, "Total number of client-side errors by WASB (excluding 404)." })
-  MutableCounterLong clientErrors;
-  @Metric({ WASB_SERVER_ERRORS, "Total number of server-caused errors by WASB." })
-  MutableCounterLong serverErrors;
-  @Metric({ WASB_UPLOAD_LATENCY, "The average latency in milliseconds of uploading a single block." +
-  		" The average latency is calculated over a rolling window." })
-  MutableGaugeLong averageBlockUploadLatencyMs;
-  @Metric({ WASB_DOWNLOAD_LATENCY, "The average latency in milliseconds of downloading a single block." +
-      " The average latency is calculated over a rolling window." })
-  MutableGaugeLong averageBlockDownloadLatencyMs;
-
+  private final MutableCounterLong numberOfWebResponses =
+      registry.newCounter(
+          WASB_WEB_RESPONSES,
+          "Total number of web responses obtained from Azure Storage",
+          0L);
+  private AtomicLong inMemoryNumberOfWebResponses = new AtomicLong(0);
+  private final MutableCounterLong numberOfFilesCreated =
+      registry.newCounter(
+          WASB_FILES_CREATED,
+          "Total number of files created through the WASB file system.",
+          0L);
+  private final MutableCounterLong numberOfFilesDeleted =
+      registry.newCounter(
+          WASB_FILES_DELETED,
+          "Total number of files deleted through the WASB file system.",
+          0L);
+  private final MutableCounterLong numberOfDirectoriesCreated =
+      registry.newCounter(
+          WASB_DIRECTORIES_CREATED,
+          "Total number of directories created through the WASB file system.",
+          0L);
+  private final MutableCounterLong numberOfDirectoriesDeleted =
+      registry.newCounter(
+          WASB_DIRECTORIES_DELETED,
+          "Total number of directories deleted through the WASB file system.",
+          0L);
+  private final MutableGaugeLong bytesWrittenInLastSecond =
+      registry.newGauge(
+          WASB_BYTES_WRITTEN,
+          "Total number of bytes written to Azure Storage during the last second.",
+          0L);
+  private final MutableGaugeLong bytesReadInLastSecond =
+      registry.newGauge(
+          WASB_BYTES_READ,
+          "Total number of bytes read from Azure Storage during the last second.",
+          0L);
+  private final MutableGaugeLong maximumUploadBytesPerSecond =
+      registry.newGauge(
+          WASB_UPLOAD_RATE,
+          "The maximum upload rate encountered to Azure Storage in bytes/second.",
+          0L);
+  private final MutableGaugeLong maximumDownloadBytesPerSecond =
+      registry.newGauge(
+          WASB_DOWNLOAD_RATE,
+          "The maximum download rate encountered to Azure Storage in bytes/second.",
+          0L);
+  private final MutableCounterLong rawBytesUploaded =
+      registry.newCounter(
+          WASB_RAW_BYTES_UPLOADED,
+          "Total number of raw bytes (including overhead) uploaded to Azure" +
+          " Storage.",
+          0L);
+  private final MutableCounterLong rawBytesDownloaded =
+      registry.newCounter(
+          WASB_RAW_BYTES_DOWNLOADED,
+          "Total number of raw bytes (including overhead) downloaded from Azure" +
+          " Storage.",
+          0L);
+  private final MutableCounterLong clientErrors =
+      registry.newCounter(
+          WASB_CLIENT_ERRORS,
+          "Total number of client-side errors by WASB (excluding 404).",
+          0L);
+  private final MutableCounterLong serverErrors =
+      registry.newCounter(
+          WASB_SERVER_ERRORS,
+          "Total number of server-caused errors by WASB.",
+          0L);
+  private final MutableGaugeLong averageBlockUploadLatencyMs;
+  private final MutableGaugeLong averageBlockDownloadLatencyMs;
   private long currentMaximumUploadBytesPerSecond;
   private long currentMaximumDownloadBytesPerSecond;
   private static final int DEFAULT_LATENCY_ROLLING_AVERAGE_WINDOW =
@@ -102,6 +140,20 @@ public final class AzureFileSystemInstrumentation implements MetricsSource {
     final int rollingWindowSizeInSeconds =
         conf.getInt(KEY_ROLLING_WINDOW_SIZE,
             DEFAULT_LATENCY_ROLLING_AVERAGE_WINDOW);
+    averageBlockUploadLatencyMs =
+        registry.newGauge(
+            WASB_UPLOAD_LATENCY,
+            String.format("The average latency in milliseconds of uploading a single block" +
+            ". The average latency is calculated over a %d-second rolling" +
+            " window.", rollingWindowSizeInSeconds),
+            0L);
+    averageBlockDownloadLatencyMs =
+        registry.newGauge(
+            WASB_DOWNLOAD_LATENCY,
+            String.format("The average latency in milliseconds of downloading a single block" +
+            ". The average latency is calculated over a %d-second rolling" +
+            " window.", rollingWindowSizeInSeconds),
+            0L);
     currentBlockUploadLatency =
         new RollingWindowAverage(rollingWindowSizeInSeconds * 1000);
     currentBlockDownloadLatency =
@@ -113,6 +165,13 @@ public final class AzureFileSystemInstrumentation implements MetricsSource {
    */
   public UUID getFileSystemInstanceId() {
     return fileSystemInstanceId;
+  }
+
+  /**
+   * Get the metrics registry information.
+   */
+  public MetricsInfo getMetricsRegistryInfo() {
+	  return registry.info();
   }
 
   /**
@@ -142,6 +201,15 @@ public final class AzureFileSystemInstrumentation implements MetricsSource {
    */
   public void webResponse() {
     numberOfWebResponses.incr();
+    inMemoryNumberOfWebResponses.incrementAndGet();
+  }
+
+  /**
+   * Gets the current number of web responses obtained from Azure Storage.
+   * @return The number of web responses.
+   */
+  public long getCurrentWebResponses() {
+    return inMemoryNumberOfWebResponses.get();
   }
 
   /**
@@ -288,7 +356,6 @@ public final class AzureFileSystemInstrumentation implements MetricsSource {
    */
   public long getCurrentMaximumDownloadBandwidth() {
     return currentMaximumDownloadBytesPerSecond;
-
   }
 
   @Override

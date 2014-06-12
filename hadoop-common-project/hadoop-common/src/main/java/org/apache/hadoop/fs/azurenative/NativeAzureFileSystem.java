@@ -23,12 +23,14 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.*;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.BufferedFSInputStream;
+import org.apache.hadoop.fs.CreateFlag;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FSInputStream;
@@ -44,7 +46,6 @@ import org.apache.hadoop.util.Progressable;
 
 import com.microsoft.windowsazure.storage.core.*;
 
-
 /**
  * <p>
  * A {@link FileSystem} for reading and writing files stored on <a
@@ -54,6 +55,10 @@ import com.microsoft.windowsazure.storage.core.*;
  * </p>
  */
 public class NativeAzureFileSystem extends FileSystem {
+  private static final String TRAILING_PERIOD_PLACEHOLDER = "[[.]]";
+  private static final Pattern TRAILING_PERIOD_PLACEHOLDER_PATTERN =
+      Pattern.compile("\\[\\[\\.\\]\\](?=$|/)");
+  private static final Pattern TRAILING_PERIOD_PATTERN = Pattern.compile("\\.(?=$|/)");
 
   @Override
   public String getScheme() {
@@ -104,6 +109,10 @@ public class NativeAzureFileSystem extends FileSystem {
       "fs.azure.block.location.impersonatedhost";
   private static final String AZURE_BLOCK_LOCATION_HOST_DEFAULT =
       "localhost";
+  static final String AZURE_RINGBUFFER_CAPACITY_PROPERTY_NAME =
+      "fs.azure.ring.buffer.capacity";
+  static final String AZURE_OUTPUT_STREAM_BUFFER_SIZE_PROPERTY_NAME =
+      "fs.azure.output.stream.buffer.size";
 
   private class NativeAzureFsInputStream extends FSInputStream {
     private InputStream in;
@@ -184,9 +193,10 @@ public class NativeAzureFileSystem extends FileSystem {
 
     @Override
     public synchronized void seek(long pos) throws IOException {
-      in.close();
-      in = store.retrieve(key, pos);
-      this.pos = pos;
+     in.close();
+     in = store.retrieve(key);
+     this.pos = in.skip(pos);
+     LOG.debug(String.format ("Seek to position %d. Bytes skipped %d", pos, this.pos));
     }
 
     @Override
@@ -469,12 +479,12 @@ public class NativeAzureFileSystem extends FileSystem {
     this.workingDir = new Path("/user", UserGroupInformation.getCurrentUser()
         .getShortUserName()).makeQualified(getUri(), getWorkingDirectory());
     this.blockSize = conf.getLong(AZURE_BLOCK_SIZE_PROPERTY_NAME, MAX_AZURE_BLOCK_SIZE);
-    
+
     if(LOG.isDebugEnabled()){
       LOG.debug("NativeAzureFileSystem. Initializing.");
       LOG.debug("  blockSize  = " + conf.getLong(AZURE_BLOCK_SIZE_PROPERTY_NAME, MAX_AZURE_BLOCK_SIZE));
     }
-    
+
   }
 
   private NativeFileSystemStore createDefaultStore(Configuration conf) {
@@ -486,9 +496,27 @@ public class NativeAzureFileSystem extends FileSystem {
     return actualStore;
   }
 
-  // Note: The logic for this method is confusing as to whether it strips the
-  // last slash or not (it adds it in the beginning, then strips it at the end).
-  // We should revisit that.
+  /**
+   * Azure Storage doesn't allow the blob names to end in a period,
+   * so encode this here to work around that limitation.
+   */
+  private static String encodeTrailingPeriod(String toEncode) {
+    Matcher matcher = TRAILING_PERIOD_PATTERN.matcher(toEncode);
+    return matcher.replaceAll(TRAILING_PERIOD_PLACEHOLDER);
+  }
+
+  /**
+   * Reverse the encoding done by encodeTrailingPeriod().
+   */
+  private static String decodeTrailingPeriod(String toDecode) {
+    Matcher matcher = TRAILING_PERIOD_PLACEHOLDER_PATTERN.matcher(toDecode);
+    return matcher.replaceAll(".");
+  }
+
+  /**
+   * Convert the path to a key. By convention, any leading or trailing slash is
+   * removed, except for the special case of a single slash.
+   */
   private String pathToKey(Path path) {
     // Convert the path to a URI to parse the scheme, the authority, and the
     // path from the path object.
@@ -512,6 +540,8 @@ public class NativeAzureFileSystem extends FileSystem {
 
     String key = null;
     key = newPath.toUri().getPath();
+    key = removeTrailingSlash(key);
+    key = encodeTrailingPeriod(key);
     if (key.length() == 1) {
       return key;
     } else {
@@ -519,11 +549,23 @@ public class NativeAzureFileSystem extends FileSystem {
     }
   }
 
+  // Remove any trailing slash except for the case of a single slash.
+  private static String removeTrailingSlash(String key) {
+    if (key.length() == 0 || key.length() == 1) {
+      return key;
+    }
+    if (key.charAt(key.length() - 1) == '/') {
+      return key.substring(0, key.length() - 1);
+    } else {
+      return key;
+    }
+  }
+
   private static Path keyToPath(String key) {
     if (key.equals("/")) {
       return new Path("/"); // container
     }
-    return new Path("/" + key);
+    return new Path("/" + decodeTrailingPeriod(key));
   }
 
   private Path makeAbsolute(Path path) {
@@ -563,6 +605,49 @@ public class NativeAzureFileSystem extends FileSystem {
   public FSDataOutputStream create(Path f, FsPermission permission,
       boolean overwrite, int bufferSize, short replication, long blockSize,
       Progressable progress) throws IOException {
+    return create(f, permission, overwrite, true,
+        bufferSize, replication, blockSize, progress);
+  }
+
+  @Override
+  public FSDataOutputStream createNonRecursive(Path f, FsPermission permission,
+      boolean overwrite, int bufferSize, short replication, long blockSize,
+      Progressable progress) throws IOException {
+    return create(f, permission, overwrite, false,
+        bufferSize, replication, blockSize, progress);
+  }
+
+  @Override
+  public FSDataOutputStream createNonRecursive(Path f, FsPermission permission,
+      EnumSet<CreateFlag> flags, int bufferSize, short replication, long blockSize,
+      Progressable progress) throws IOException {
+
+    // Check if file should be appended or overwritten. Assume that the file
+    // is overwritten on if the CREATE and OVERWRITE create flags are set. Note
+    // that any other combinations of create flags will result in an open new or
+    // open with append.
+    final EnumSet<CreateFlag> createflags =
+        EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE);
+    boolean overwrite = flags.containsAll(createflags);
+
+    // Delegate the create non-recursive call.
+    return this.createNonRecursive(f, permission, overwrite,
+        bufferSize, replication, blockSize, progress);
+  }
+
+  @Override
+  public FSDataOutputStream createNonRecursive(Path f,
+      boolean overwrite, int bufferSize, short replication, long blockSize,
+      Progressable progress) throws IOException {
+    return this.createNonRecursive(f, FsPermission.getFileDefault(),
+        overwrite, bufferSize, replication, blockSize, progress);
+  }
+
+
+  private FSDataOutputStream create(Path f, FsPermission permission,
+      boolean overwrite, boolean createParent, int bufferSize,
+      short replication, long blockSize, Progressable progress)
+          throws IOException {
 
     if (LOG.isDebugEnabled()){
       LOG.debug("Creating file: " + f.toString());
@@ -572,7 +657,7 @@ public class NativeAzureFileSystem extends FileSystem {
       throw new IOException(
           "Cannot create file "+ f + " through WASB that has colons in the name");
     }
-    
+
     Path absolutePath = makeAbsolute(f);
     String key = pathToKey(absolutePath);
 
@@ -608,38 +693,45 @@ public class NativeAzureFileSystem extends FileSystem {
       }
     }
 
-    // Open the output blob stream based on the encoded key.
-    //
-    String keyEncoded = encodeKey(key);
-
     // Mask the permission first (with the default permission mask as well).
     FsPermission masked = applyUMask(permission, UMaskApplyMode.NewFile);
     PermissionStatus permissionStatus = createPermissionStatus(masked);
 
-    // First create a blob at the real key, pointing back to the temporary file
-    // This accomplishes a few things:
-    // 1. Makes sure we can create a file there.
-    // 2. Makes it visible to other concurrent threads/processes/nodes what we're
-    //    doing.
-    // 3. Makes it easier to restore/cleanup data in the event of us crashing.
-    //
-    store.storeEmptyLinkFile(key, keyEncoded, permissionStatus);
+    OutputStream bufOutStream;
+    if (store.isPageBlobKey(key)) {
+      // Store page blobs directly in-place without renames.
+      //
+      bufOutStream = store.storefile(key, permissionStatus);
+    } else {
+      // This is a block blob, so open the output blob stream based on the
+      // encoded key.
+      //
+      String keyEncoded = encodeKey(key);
 
-    // The key is encoded to point to a common container at the storage server.
-    // This reduces the number of splits on the server side when load balancing.
-    // Ingress to Azure storage can take advantage of earlier splits. We remove
-    // the root path to the key and prefix a random GUID to the tail (or leaf
-    // filename) of the key. Keys are thus broadly and randomly distributed over
-    // a single container to ease load balancing on the storage server. When the
-    // blob is committed it is renamed to its earlier key. Uncommitted blocks
-    // are not cleaned up and we leave it to Azure storage to garbage collect
-    // these
-    // blocks.
-    //
-    OutputStream bufOutStream = new NativeAzureFsOutputStream(
-        store.storefile(keyEncoded, permissionStatus),
-        key,
-        keyEncoded);
+      // First create a blob at the real key, pointing back to the temporary file
+      // This accomplishes a few things:
+      // 1. Makes sure we can create a file there.
+      // 2. Makes it visible to other concurrent threads/processes/nodes what we're
+      //    doing.
+      // 3. Makes it easier to restore/cleanup data in the event of us crashing.
+      //
+      store.storeEmptyLinkFile(key, keyEncoded, permissionStatus);
+
+      // The key is encoded to point to a common container at the storage server.
+      // This reduces the number of splits on the server side when load balancing.
+      // Ingress to Azure storage can take advantage of earlier splits. We remove
+      // the root path to the key and prefix a random GUID to the tail (or leaf
+      // filename) of the key. Keys are thus broadly and randomly distributed over
+      // a single container to ease load balancing on the storage server. When the
+      // blob is committed it is renamed to its earlier key. Uncommitted blocks
+      // are not cleaned up and we leave it to Azure storage to garbage collect
+      // these blocks.
+      //
+      bufOutStream = new NativeAzureFsOutputStream (
+          store.storefile(keyEncoded,  permissionStatus),
+          key,
+          keyEncoded);
+    }
 
     // Construct the data output stream from the buffered output stream.
     //
@@ -720,23 +812,23 @@ public class NativeAzureFileSystem extends FileSystem {
       // The path specifies a folder. Recursively delete all entries under the
       // folder.
       Path parentPath = absolutePath.getParent();
-    	if (parentPath.getParent() != null) {
-    		String parentKey = pathToKey(parentPath);
-    		FileMetadata parentMetadata = store.retrieveMetadata(parentKey);
+      	if (parentPath.getParent() != null) {
+      		String parentKey = pathToKey(parentPath);
+      		FileMetadata parentMetadata = store.retrieveMetadata(parentKey);
 
-    		if (parentMetadata.getBlobMaterialization() ==
-    				BlobMaterialization.Implicit) {
-    			if (LOG.isDebugEnabled()) {
-    				LOG.debug("Found an implicit parent directory while trying to" +
-    						" delete the directory " + f + ". Creating the directory blob for" +
-    						" it in " + parentKey + ".");
-    			}
-    			store.storeEmptyFolder(parentKey,
-    					createPermissionStatus(FsPermission.getDefault()));
-    		}
-    	}
-    
-      //List all the blobs in the current folder.
+      		if (parentMetadata.getBlobMaterialization() ==
+      				BlobMaterialization.Implicit) {
+      			if (LOG.isDebugEnabled()) {
+      				LOG.debug("Found an implicit parent directory while trying to" +
+      						" delete the directory " + f + ". Creating the directory blob for" +
+      						" it in " + parentKey + ".");
+      			}
+      			store.storeEmptyFolder(parentKey,
+      					createPermissionStatus(FsPermission.getDefault()));
+      		}
+      	}
+
+      // List all the blobs in the current folder.
       //
       String priorLastKey = null;
       PartialListing listing = store.listAll(key, AZURE_LIST_ALL, 1, priorLastKey);
@@ -981,7 +1073,7 @@ public class NativeAzureFileSystem extends FileSystem {
   public boolean mkdirs(Path f, FsPermission permission) throws IOException {
       return mkdirs(f, permission, false);
   }
-  
+
   boolean mkdirs(Path f, FsPermission permission, boolean noUmask) throws IOException {
     if (LOG.isDebugEnabled()){
       LOG.debug("Creating directory: " + f.toString());
@@ -991,18 +1083,18 @@ public class NativeAzureFileSystem extends FileSystem {
       throw new IOException(
           "Cannot create directory "+ f + " through WASB that has colons in the name");
     }
-    
+
     Path absolutePath = makeAbsolute(f);
     PermissionStatus permissionStatus = null;
     if(noUmask) {
       // ensure owner still has wx permissions at the minimum
       permissionStatus = createPermissionStatus(
-          applyUMask(FsPermission.createImmutable((short)(permission.toShort() | 0300)), 
+          applyUMask(FsPermission.createImmutable((short)(permission.toShort() | 0300)),
               UMaskApplyMode.NewDirectoryNoUmask));
     } else {
       permissionStatus = createPermissionStatus(
-          applyUMask(permission, UMaskApplyMode.NewDirectory));        
-    }    
+          applyUMask(permission, UMaskApplyMode.NewDirectory));
+    }
     ArrayList<String> keysToCreateAsFolder = new ArrayList<String>();
     ArrayList<String> keysToUpdateAsFolder = new ArrayList<String>();
     boolean childCreated = false;
@@ -1015,7 +1107,7 @@ public class NativeAzureFileSystem extends FileSystem {
       if (currentMetadata != null && !currentMetadata.isDir()) {
         throw new IOException("Cannot create directory " + f + " because " +
             current + " is an existing file.");
-      } else if (currentMetadata == null || (currentMetadata.isDir() && currentMetadata.getBlobMaterialization() == BlobMaterialization.Implicit)) {
+      } else if (currentMetadata == null) {
         keysToCreateAsFolder.add(currentKey);
         childCreated = true;
       } else {
@@ -1030,16 +1122,6 @@ public class NativeAzureFileSystem extends FileSystem {
 
     for (String currentKey : keysToCreateAsFolder) {
       store.storeEmptyFolder(currentKey, permissionStatus);
-    }
-
-    // Take the time after finishing mkdirs as the modified time, and update all
-    // the existing directories' modified time to it uniformly.
-    final Calendar lastModifiedCalendar = Calendar
-        .getInstance(Utility.LOCALE_US);
-    lastModifiedCalendar.setTimeZone(Utility.UTC_ZONE);
-    Date lastModified = lastModifiedCalendar.getTime();
-    for (String key : keysToUpdateAsFolder) {
-      store.updateFolderLastModifiedTime(key, lastModified);
     }
 
     instrumentation.directoryCreated();
@@ -1074,19 +1156,19 @@ public class NativeAzureFileSystem extends FileSystem {
     if (LOG.isDebugEnabled()) {
       LOG.debug("Moving " + src + " to " + dst);
     }
-    
+
     if (containsColon(dst)) {
       throw new IOException(
           "Cannot rename to file "+ dst + " through WASB that has colons in the name");
     }
-    
+
     String srcKey = pathToKey(makeAbsolute(src));
 
     if (srcKey.length() == 0) {
       // Cannot rename root of file system
       return false;
     }
-    
+
     // Figure out the final destination
     Path absoluteDst = makeAbsolute(dst);
     String dstKey = pathToKey(absoluteDst);
@@ -1174,7 +1256,6 @@ public class NativeAzureFileSystem extends FileSystem {
 
     // Update both source and destination parent folder last modified time.
     //
-    
     Path srcParent = makeAbsolute(keyToPath(srcKey)).getParent();
     if (srcParent != null && srcParent.getParent() != null) { // not root
       String srcParentKey = pathToKey(srcParent);
@@ -1182,27 +1263,26 @@ public class NativeAzureFileSystem extends FileSystem {
       // ensure the srcParent is a materialized folder
       FileMetadata srcParentMetadata = store.retrieveMetadata(srcParentKey);
       if( srcParentMetadata.isDir() &&
-      	  srcParentMetadata.getBlobMaterialization() == BlobMaterialization.Implicit){
-      	store.storeEmptyFolder(srcParentKey, createPermissionStatus(FsPermission.getDefault()));
+          srcParentMetadata.getBlobMaterialization() == BlobMaterialization.Implicit){
+        store.storeEmptyFolder(srcParentKey, createPermissionStatus(FsPermission.getDefault()));
       }
-      
+
       store.updateFolderLastModifiedTime(srcParentKey);
     }
-    
+
     Path destParent = makeAbsolute(keyToPath(dstKey)).getParent();
     if (destParent != null && destParent.getParent() != null) { // not root
       String dstParentKey = pathToKey(destParent);
-      
+
       // ensure the dstParent is a materialized folder
       FileMetadata dstParentMetadata = store.retrieveMetadata(dstParentKey);
       if( dstParentMetadata.isDir() &&
-      	  dstParentMetadata.getBlobMaterialization() == BlobMaterialization.Implicit){
-      	store.storeEmptyFolder(dstParentKey, createPermissionStatus(FsPermission.getDefault()));
+          dstParentMetadata.getBlobMaterialization() == BlobMaterialization.Implicit){
+        store.storeEmptyFolder(dstParentKey, createPermissionStatus(FsPermission.getDefault()));
       }
-      
+
       store.updateFolderLastModifiedTime(dstParentKey);
     }
-    
 
     if (LOG.isDebugEnabled()) {
       LOG.debug("Renamed " + src + " to " + dst + " successfully.");
@@ -1323,11 +1403,11 @@ public class NativeAzureFileSystem extends FileSystem {
     // metrics out.
 
     long startTime = System.currentTimeMillis();
-    
+
     AzureFileSystemMetricsSystem.fileSystemClosed();
-    
+
     if (LOG.isDebugEnabled()) {
-        LOG.debug("Submitting metrics when file system closed took " 
+        LOG.debug("Submitting metrics when file system closed took "
                 + (System.currentTimeMillis() - startTime) + " ms.");
     }
   }
@@ -1386,12 +1466,12 @@ public class NativeAzureFileSystem extends FileSystem {
   }
 
   /**
-   * Check if a path has colons in its name 
-   */  
+   * Check if a path has colons in its name
+   */
   private boolean containsColon(Path p) {
     return p.toUri().getPath().toString().contains(":");
   }
-  
+
   /**
    * Implements recover and delete (-move and -delete) behaviors for
    * handling dangling files (blobs whose upload was interrupted).
@@ -1457,6 +1537,7 @@ public class NativeAzureFileSystem extends FileSystem {
    * of the upload and left them there.
    * If any are found, we delete them.
    * @param root The root path to consider.
+   * @param destination The destination path to move any recovered files to.
    * @throws IOException
    */
   public void deleteFilesWithDanglingTempData(Path root) throws IOException {

@@ -6,6 +6,7 @@ import java.util.*;
 import org.apache.hadoop.fs.*;
 import org.apache.hadoop.fs.azure.AzureException;
 import org.apache.hadoop.metrics2.*;
+import org.apache.hadoop.metrics2.lib.*;
 import org.junit.*;
 
 import static org.apache.hadoop.test.MetricsAsserts.*;
@@ -15,10 +16,11 @@ import static org.junit.Assert.*;
 import static org.junit.Assume.*;
 
 import org.hamcrest.*;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Matchers;
 
 import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.*;
-
 
 public class TestAzureFileSystemInstrumentation {
   private FileSystem fs;
@@ -63,6 +65,7 @@ public class TestAzureFileSystemInstrumentation {
         new TagExistsMatcher("wasbFileSystemId")
         ));
   }
+  
 
   @Test
   public void testMetricsOnMkdirList() throws Exception {
@@ -95,6 +98,12 @@ public class TestAzureFileSystemInstrumentation {
     return azureStore.getBandwidthGaugeUpdater();
   }
 
+  private static byte[] nonZeroByteArray(int size) {
+    byte[] data = new byte[size];
+    Arrays.fill(data, (byte)5);
+    return data;
+  }
+
   @Test
   public void testMetricsOnFileCreateRead() throws Exception {
     long base = getBaseWebResponses();
@@ -111,7 +120,7 @@ public class TestAzureFileSystemInstrumentation {
     // Create a file
     Date start = new Date();
     OutputStream outputStream = fs.create(filePath);
-    outputStream.write(new byte[FILE_SIZE]);
+    outputStream.write(nonZeroByteArray(FILE_SIZE));
     outputStream.close();
     long uploadDurationMs = new Date().getTime() - start.getTime();
     
@@ -398,7 +407,7 @@ public class TestAzureFileSystemInstrumentation {
    * Gets the current value of the wasb_web_responses counter.
    */
   private long getCurrentWebResponses() {
-    return AzureMetricsTestUtil.getCurrentWebResponses(getInstrumentation());
+	    return AzureMetricsTestUtil.getCurrentWebResponses(getInstrumentation());
   }
 
   /**
@@ -435,7 +444,7 @@ public class TestAzureFileSystemInstrumentation {
         justOperation >= inclusiveLowerLimit &&
         justOperation <= inclusiveUpperLimit);
     return currentResponses;
-  }
+  }  
 
   /**
    * Gets the metrics for the file system object.
@@ -496,6 +505,34 @@ public class TestAzureFileSystemInstrumentation {
     @Override
     public void describeTo(Description desc) {
       desc.appendText("Has tag " + tagName);
+    }
+  }
+
+  /**
+   * A matcher class for asserting that a long value is in a
+   * given range.
+   */
+  private static class InRange extends BaseMatcher<Long> {
+    private final long inclusiveLowerLimit;
+    private final long inclusiveUpperLimit;
+    private long obtained;
+
+    public InRange(long inclusiveLowerLimit, long inclusiveUpperLimit) {
+      this.inclusiveLowerLimit = inclusiveLowerLimit;
+      this.inclusiveUpperLimit = inclusiveUpperLimit;
+    }
+
+    @Override
+    public boolean matches(Object number) {
+      obtained = (Long)number;
+      return obtained >= inclusiveLowerLimit &&
+          obtained <= inclusiveUpperLimit;
+    }
+
+    @Override
+    public void describeTo(Description description) {
+      description.appendText("Between " + inclusiveLowerLimit +
+          " and " + inclusiveUpperLimit + " inclusively");
     }
   }
 }

@@ -46,8 +46,10 @@ interface NativeFileSystemStore {
   DataInputStream retrieve(String key) throws IOException;
 
   DataInputStream retrieve(String key, long byteRangeStart) throws IOException;
-  
+
   DataOutputStream storefile(String key, PermissionStatus permissionStatus) throws AzureException;
+
+  boolean isPageBlobKey(String key);
 
   void storeEmptyLinkFile(String key, String tempBlobKey,
       PermissionStatus permissionStatus) throws AzureException;
@@ -70,17 +72,16 @@ interface NativeFileSystemStore {
 
   void rename(String srcKey, String dstKey) throws IOException;
 
-
   /**
    * Delete all keys with the given prefix. Used for testing.
-   * 
+   *
    * @throws IOException
    */
   void purge(String prefix) throws IOException;
 
   /**
    * Diagnostic method to dump state to the console.
-   * 
+   *
    * @throws IOException
    */
   void dump() throws IOException;

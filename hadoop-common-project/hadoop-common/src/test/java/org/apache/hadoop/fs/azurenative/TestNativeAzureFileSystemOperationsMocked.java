@@ -9,6 +9,17 @@ public class TestNativeAzureFileSystemOperationsMocked extends
   private static final String TEST_ROOT_DIR =
     "/tmp/TestNativeAzureFileSystemOperationsMocked";
 
+  // TODO added during manual merge -- verify correctness
+  public TestNativeAzureFileSystemOperationsMocked (){
+    super(TEST_ROOT_DIR);
+  }
+
+  // TODO added during manual merge -- verify correctness
+  @Override
+  public void setUp() throws Exception {
+    fSys = AzureBlobStorageTestAccount.createMock().getFileSystem();
+  }
+
   @Override
   protected FileSystem createFileSystem() throws Exception {
     return AzureBlobStorageTestAccount.createMock().getFileSystem();
@@ -46,4 +57,12 @@ public class TestNativeAzureFileSystemOperationsMocked extends
       return new Path(fSys.getWorkingDirectory(), TEST_ROOT_DIR);
     }
   }
+
+//  Removed during manual merge
+// TODO delete if not needed
+//
+//  @Override
+//  protected FileSystem createFileSystem() throws Exception {
+//	throw new UnsupportedOperationException();
+//  }
 }

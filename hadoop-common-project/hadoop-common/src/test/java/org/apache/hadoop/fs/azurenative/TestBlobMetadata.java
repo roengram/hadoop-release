@@ -211,7 +211,7 @@ public class TestBlobMetadata {
     backingStore.setContent(
         AzureBlobStorageTestAccount.toMockUri(selfishFile),
         new byte[] { },
-        metadata);
+        metadata, false, 0);
     FsPermission justMe = new FsPermission(
         FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE);
     FileStatus retrievedStatus = fs.getFileStatus(selfishFile);
