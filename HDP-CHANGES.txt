@@ -123,3 +123,6 @@ The changes also include jiras that are yet to become available in later apache 
 
     HDFS-6340. DN can't finalize upgrade. (Rahul Singhal via Arpit Agarwal)
 
+    HDFS-6527. Edit log corruption due to defered INode removal. (kihwal and
+    jing9 via jing9) 
+
