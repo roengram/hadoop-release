@@ -102,4 +102,3 @@ The changes also include jiras that are yet to become available in later apache 
 
     HDFS-6462. NFS: fsstat request fails with the secure hdfs (brandonli)
 
-/bin/bash: :1: command not found
