@@ -34,6 +34,9 @@ Release 1.3.0 - unreleased
     in AbstractDelegationTokenSecretManager. (Suresh Srinivas via
     Arpit Agarwal)
 
+    MAPREDUCE-4366. mapred metrics shows negative count of waiting maps and 
+    reduces. (sandyr via tucu)
+
 Release 1.2.2 - unreleased
 
   INCOMPATIBLE CHANGES
