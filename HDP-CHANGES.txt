@@ -102,3 +102,6 @@ The changes also include jiras that are yet to become available in later apache 
 
     HDFS-6462. NFS: fsstat request fails with the secure hdfs (brandonli)
 
+    HDFS-6527. Edit log corruption due to defered INode removal. (Kihwal Lee
+    via jing9)
+
