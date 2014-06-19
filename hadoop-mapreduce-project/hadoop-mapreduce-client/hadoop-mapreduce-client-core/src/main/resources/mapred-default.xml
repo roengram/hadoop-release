@@ -269,6 +269,17 @@
 </property>
 
 <property>
+  <name>mapreduce.job.reducer.preempt.delay.sec</name>
+  <value>0</value>
+  <description>The threshold in terms of seconds after which an unsatisfied mapper 
+  request triggers reducer preemption to free space. Default 0 implies that the 
+  reduces should be preempted immediately after allocation if there is currently no
+  room for newly allocated mappers.
+>>>>>>> a29b1c2... MAPREDUCE-5844. Add a configurable delay to reducer-preemption. (Maysam Yabandeh via kasha)
+  </description>
+</property>
+
+<property>
   <name>mapreduce.jobtracker.jobhistory.block.size</name>
   <value>3145728</value>
   <description>The block size of the job history file. Since the job recovery
