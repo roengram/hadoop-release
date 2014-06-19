@@ -249,7 +249,7 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
     List<ContainerStatus> containerStatuses = getContainerStatuses();
     RegisterNodeManagerRequest request =
         RegisterNodeManagerRequest.newInstance(nodeId, httpPort, totalResource,
-          nodeManagerVersionId, containerStatuses);
+            nodeManagerVersionId, containerStatuses, getRunningApplications());
     if (containerStatuses != null) {
       LOG.info("Registering with RM using finished containers :"
           + containerStatuses);
@@ -307,7 +307,13 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
     ((ContainerManagerImpl) this.context.getContainerManager())
       .setBlockNewContainerRequests(false);
   }
-
+  
+  private List<ApplicationId> getRunningApplications() {
+    List<ApplicationId> runningApplications = new ArrayList<ApplicationId>();
+    runningApplications.addAll(this.context.getApplications().keySet());
+    return runningApplications;
+  }
+  
   private List<ApplicationId> createKeepAliveApplicationList() {
     if (!tokenKeepAliveEnabled) {
       return Collections.emptyList();

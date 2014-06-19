@@ -101,15 +101,22 @@ public class MockNM {
   }
 
   public RegisterNodeManagerResponse registerNode() throws Exception {
-    return registerNode(null);
+    return registerNode(null, null);
+  }
+  
+  public RegisterNodeManagerResponse registerNode(
+      List<ApplicationId> runningApplications) throws Exception {
+    return registerNode(null, runningApplications);
   }
 
   public RegisterNodeManagerResponse registerNode(
-      List<ContainerStatus> containerStatus) throws Exception{
+      List<ContainerStatus> containerStatus,
+      List<ApplicationId> runningApplications) throws Exception {
     RegisterNodeManagerRequest req = Records.newRecord(
         RegisterNodeManagerRequest.class);
     req.setNodeId(nodeId);
     req.setHttpPort(httpPort);
+    req.setRunningApplications(runningApplications);
     Resource resource = BuilderUtils.newResource(memory, vCores);
     req.setResource(resource);
     req.setContainerStatuses(containerStatus);

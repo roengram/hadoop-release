@@ -32,7 +32,6 @@ import org.apache.hadoop.service.AbstractService;
 import org.apache.hadoop.util.VersionUtil;
 import org.apache.hadoop.yarn.api.records.ApplicationAttemptId;
 import org.apache.hadoop.yarn.api.records.Container;
-import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ContainerState;
 import org.apache.hadoop.yarn.api.records.ContainerStatus;
 import org.apache.hadoop.yarn.api.records.NodeId;
@@ -61,6 +60,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.rmnode.RMNodeEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.rmnode.RMNodeEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.rmnode.RMNodeImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.rmnode.RMNodeReconnectEvent;
+import org.apache.hadoop.yarn.server.resourcemanager.rmnode.RMNodeStartedEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.rmnode.RMNodeStatusEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.security.NMTokenSecretManagerInRM;
 import org.apache.hadoop.yarn.server.resourcemanager.security.RMContainerTokenSecretManager;
@@ -244,13 +244,6 @@ public class ResourceTrackerService extends AbstractService implements
     Resource capability = request.getResource();
     String nodeManagerVersion = request.getNMVersion();
 
-    if (!request.getContainerStatuses().isEmpty()) {
-      LOG.info("received container statuses on node manager register :"
-          + request.getContainerStatuses());
-      for (ContainerStatus containerStatus : request.getContainerStatuses()) {
-        handleContainerStatus(containerStatus);
-      }
-    }
     RegisterNodeManagerResponse response = recordFactory
         .newRecordInstance(RegisterNodeManagerResponse.class);
 
@@ -309,7 +302,7 @@ public class ResourceTrackerService extends AbstractService implements
     RMNode oldNode = this.rmContext.getRMNodes().putIfAbsent(nodeId, rmNode);
     if (oldNode == null) {
       this.rmContext.getDispatcher().getEventHandler().handle(
-          new RMNodeEvent(nodeId, RMNodeEventType.STARTED));
+          new RMNodeStartedEvent(nodeId, request.getRunningApplications()));
     } else {
       LOG.info("Reconnect from the node at: " + host);
       this.nmLivelinessMonitor.unregister(nodeId);
@@ -320,6 +313,16 @@ public class ResourceTrackerService extends AbstractService implements
     // present for any running application.
     this.nmTokenSecretManager.removeNodeKey(nodeId);
     this.nmLivelinessMonitor.register(nodeId);
+    
+    // Handle received container status, this should be processed after new
+    // RMNode inserted
+    if (!request.getContainerStatuses().isEmpty()) {
+      LOG.info("received container statuses on node manager register :"
+          + request.getContainerStatuses());
+      for (ContainerStatus status : request.getContainerStatuses()) {
+        handleContainerStatus(status);
+      }
+    }
 
     String message =
         "NodeManager from node " + host + "(cmPort: " + cmPort + " httpPort: "

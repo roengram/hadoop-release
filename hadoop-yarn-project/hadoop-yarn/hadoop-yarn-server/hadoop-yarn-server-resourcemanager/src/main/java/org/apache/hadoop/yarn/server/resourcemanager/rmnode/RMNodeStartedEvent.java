@@ -16,33 +16,24 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.yarn.server.resourcemanager.rmapp;
+package org.apache.hadoop.yarn.server.resourcemanager.rmnode;
 
-public enum RMAppEventType {
-  // Source: ClientRMService
-  START,
-  RECOVER,
-  KILL,
-  MOVE, // Move app to a new queue
+import java.util.List;
 
-  // Source: Scheduler and RMAppManager
-  APP_REJECTED,
+import org.apache.hadoop.yarn.api.records.ApplicationId;
+import org.apache.hadoop.yarn.api.records.NodeId;
 
-  // Source: Scheduler
-  APP_ACCEPTED,
+public class RMNodeStartedEvent extends RMNodeEvent {
 
-  // Source: RMAppAttempt
-  ATTEMPT_REGISTERED,
-  ATTEMPT_UNREGISTERED,
-  ATTEMPT_FINISHED, // Will send the final state
-  ATTEMPT_FAILED,
-  ATTEMPT_KILLED,
-  NODE_UPDATE,
-  
-  // Source: Container and ResourceTracker
-  APP_RUNNING_ON_NODE,
+  private List<ApplicationId> runningApplications;
 
-  // Source: RMStateStore
-  APP_NEW_SAVED,
-  APP_UPDATE_SAVED,
+  public RMNodeStartedEvent(NodeId nodeId,
+      List<ApplicationId> runningApplications) {
+    super(nodeId, RMNodeEventType.STARTED);
+    this.runningApplications = runningApplications;
+  }
+
+  public List<ApplicationId> getRunningApplications() {
+    return runningApplications;
+  }
 }

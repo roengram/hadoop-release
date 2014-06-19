@@ -54,6 +54,8 @@ import org.apache.hadoop.yarn.server.resourcemanager.ClusterMetrics;
 import org.apache.hadoop.yarn.server.resourcemanager.NodesListManagerEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.NodesListManagerEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.RMContext;
+import org.apache.hadoop.yarn.server.resourcemanager.rmapp.RMApp;
+import org.apache.hadoop.yarn.server.resourcemanager.rmapp.RMAppRunningOnNodeEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.event.NodeAddedSchedulerEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.event.NodeRemovedSchedulerEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.event.NodeUpdateSchedulerEvent;
@@ -460,12 +462,7 @@ public class RMNodeImpl implements RMNode, EventHandler<RMNodeEvent> {
     @Override
     public void transition(RMNodeImpl rmNode, RMNodeEvent event) {
       // Inform the scheduler
-
-      rmNode.context.getDispatcher().getEventHandler().handle(
-          new NodeAddedSchedulerEvent(rmNode));
-      rmNode.context.getDispatcher().getEventHandler().handle(
-          new NodesListManagerEvent(
-              NodesListManagerEventType.NODE_USABLE, rmNode));
+      RMNodeStartedEvent startEvent = (RMNodeStartedEvent) event;
  
       String host = rmNode.nodeId.getHost();
       if (rmNode.context.getInactiveRMNodes().containsKey(host)) {
@@ -477,6 +474,36 @@ public class RMNodeImpl implements RMNode, EventHandler<RMNodeEvent> {
         // Increment activeNodes explicitly because this is a new node.
         ClusterMetrics.getMetrics().incrNumActiveNodes();
       }
+      
+      if (null != startEvent.getRunningApplications()) {
+        for (ApplicationId appId : startEvent.getRunningApplications()) {
+          handleRunningAppOnNode(rmNode, rmNode.context, appId, rmNode.nodeId);
+        }
+      }
+      
+      rmNode.context.getDispatcher().getEventHandler().handle(
+          new NodeAddedSchedulerEvent(rmNode));
+      rmNode.context.getDispatcher().getEventHandler().handle(
+          new NodesListManagerEvent(
+              NodesListManagerEventType.NODE_USABLE, rmNode));
+    }
+    
+    void handleRunningAppOnNode(RMNodeImpl rmNode, RMContext context,
+        ApplicationId appId, NodeId nodeId) {
+      RMApp app = context.getRMApps().get(appId);
+
+      // if we failed getting app by appId, maybe something wrong happened, just
+      // add the app to the finishedApplications list so that the app can be
+      // cleaned up on the NM
+      if (null == app) {
+        LOG.warn("Cannot get RMApp by appId=" + appId
+            + ", just added it to finishedApplications list for cleanup");
+        rmNode.finishedApplications.add(appId);
+        return;
+      }
+
+      context.getDispatcher().getEventHandler()
+          .handle(new RMAppRunningOnNodeEvent(appId, nodeId));
     }
   }
   
@@ -512,7 +539,7 @@ public class RMNodeImpl implements RMNode, EventHandler<RMNodeEvent> {
         }
         rmNode.context.getRMNodes().put(newNode.getNodeID(), newNode);
         rmNode.context.getDispatcher().getEventHandler().handle(
-            new RMNodeEvent(newNode.getNodeID(), RMNodeEventType.STARTED));
+            new RMNodeStartedEvent(newNode.getNodeID(), null));
       }
       rmNode.context.getDispatcher().getEventHandler().handle(
           new NodesListManagerEvent(

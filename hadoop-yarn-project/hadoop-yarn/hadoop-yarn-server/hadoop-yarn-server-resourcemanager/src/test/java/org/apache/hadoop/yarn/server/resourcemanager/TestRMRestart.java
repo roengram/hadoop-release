@@ -100,7 +100,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 public class TestRMRestart {
-
   private final static File TEMP_DIR = new File(System.getProperty(
     "test.build.data", "/tmp"), "decommision");
   private File hostFile = new File(TEMP_DIR + File.separator + "hostFile.txt");
@@ -309,7 +308,7 @@ public class TestRMRestart {
             .getCurrentAppAttempt().getAppAttemptId(), 1),
             ContainerState.COMPLETE, "Killed AM container", 143);
     containerStatuses.add(containerStatus);
-    nm1.registerNode(containerStatuses);
+    nm1.registerNode(containerStatuses, null);
     nm2.registerNode();
     
     rm2.waitForState(loadedApp1.getApplicationId(), RMAppState.ACCEPTED);
@@ -392,7 +391,7 @@ public class TestRMRestart {
     // completed apps are not removed immediately after app finish
     // And finished app is also loaded back.
     Assert.assertEquals(4, rmAppState.size());
- }
+  }
 
   @Test (timeout = 60000)
   public void testRMRestartAppRunningAMFailed() throws Exception {
@@ -517,7 +516,7 @@ public class TestRMRestart {
             BuilderUtils.newContainerId(am2.getApplicationAttemptId(), 1),
             ContainerState.COMPLETE, "Killed AM container", 143);
     containerStatuses.add(containerStatus);
-    nm1.registerNode(containerStatuses);
+    nm1.registerNode(containerStatuses, null);
     rm2.waitForState(am2.getApplicationAttemptId(), RMAppAttemptState.FAILED);
     launchAM(rmApp, rm2, nm1);
     Assert.assertEquals(3, rmApp.getAppAttempts().size());
@@ -1677,7 +1676,7 @@ public class TestRMRestart {
             .getCurrentAppAttempt().getAppAttemptId(), 1),
             ContainerState.COMPLETE, "Killed AM container", 143);
     containerStatuses.add(containerStatus);
-    nm1.registerNode(containerStatuses);
+    nm1.registerNode(containerStatuses, null);
     while (loadedApp1.getAppAttempts().size() != 2) {
       Thread.sleep(200);
     }
@@ -1806,7 +1805,7 @@ public class TestRMRestart {
                 ContainerId.newInstance(am0.getApplicationAttemptId(), 1);
             status.add(ContainerStatus.newInstance(amContainer,
               ContainerState.COMPLETE, "AM container exit", 143));
-            nm1.registerNode(status);
+            nm1.registerNode(status, null);
           }
         };
       }
