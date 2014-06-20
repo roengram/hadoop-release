@@ -348,7 +348,7 @@ function Main( $scriptDir )
         $destroyData = $true
     }
 
-    $skipNamenodeFormat = (CheckDataDirectories $NodeInstallRoot $destroyData $throwerror)
+    $skipNamenodeFormat = (CheckDataDirectories $hadoopInstallDir $destroyData $throwerror)
 
     if ( ($skipNamenodeFormat -ne $true) -and ($ENV:IS_NAMENODE -eq "yes") )
     {

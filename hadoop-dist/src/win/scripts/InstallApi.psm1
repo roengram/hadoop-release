@@ -68,7 +68,9 @@ function FindXmlPropertyValue(
         $xml.ReleasePath
     }
 
-    $value
+    $value = $value -Replace("file:///",$null)
+    return $value
+
 }
 
 ### Helper routing that converts a $null object to nothing. Otherwise, iterating over
