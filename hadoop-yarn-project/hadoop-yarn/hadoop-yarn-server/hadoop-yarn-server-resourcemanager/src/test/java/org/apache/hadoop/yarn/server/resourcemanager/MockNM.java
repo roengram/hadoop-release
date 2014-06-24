@@ -88,7 +88,7 @@ public class MockNM {
     return httpPort;
   }
   
-  void setResourceTrackerService(ResourceTrackerService resourceTracker) {
+  public void setResourceTrackerService(ResourceTrackerService resourceTracker) {
     this.resourceTracker = resourceTracker;
   }
 

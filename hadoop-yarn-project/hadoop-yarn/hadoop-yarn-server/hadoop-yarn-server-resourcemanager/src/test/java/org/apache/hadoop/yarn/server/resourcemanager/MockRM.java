@@ -48,6 +48,7 @@ import org.apache.hadoop.yarn.api.records.ApplicationSubmissionContext;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ContainerLaunchContext;
 import org.apache.hadoop.yarn.api.records.ContainerState;
+import org.apache.hadoop.yarn.api.records.ContainerStatus;
 import org.apache.hadoop.yarn.api.records.FinalApplicationStatus;
 import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.api.records.NodeState;
@@ -146,6 +147,34 @@ public class MockRM extends ResourceManager {
       nm.nodeHeartbeat(true);
       Thread.sleep(200);
     }
+  }
+
+  public void waitForContainerToComplete(RMAppAttempt attempt,
+      ContainerStatus completedContainer) throws InterruptedException {
+    while (true) {
+      List<ContainerStatus> containers = attempt.getJustFinishedContainers();
+      System.out.println("Received completed containers " + containers);
+      for (ContainerStatus container : containers) {
+        if (container.getContainerId().equals(
+          completedContainer.getContainerId())) {
+          return;
+        }
+      }
+      Thread.sleep(200);
+    }
+  }
+
+  public MockAM waitForNewAMToLaunchAndRegister(ApplicationId appId, int attemptSize,
+      MockNM nm) throws Exception {
+    RMApp app = getRMContext().getRMApps().get(appId);
+    Assert.assertNotNull(app);
+    while (app.getAppAttempts().size() != attemptSize) {
+      System.out.println("Application " + appId
+          + " is waiting for AM to restart. Current has "
+          + app.getAppAttempts().size() + " attempts.");
+      Thread.sleep(200);
+    }
+    return launchAndRegisterAM(app, this, nm);
   }
 
   public void waitForState(MockNM nm, ContainerId containerId,
@@ -533,6 +562,7 @@ public class MockRM extends ResourceManager {
       throws Exception {
     rm.waitForState(app.getApplicationId(), RMAppState.ACCEPTED);
     RMAppAttempt attempt = app.getCurrentAppAttempt();
+    System.out.println("Launch AM " + attempt.getAppAttemptId());
     nm.nodeHeartbeat(true);
     MockAM am = rm.sendAMLaunched(attempt.getAppAttemptId());
     rm.waitForState(attempt.getAppAttemptId(), RMAppAttemptState.LAUNCHED);
