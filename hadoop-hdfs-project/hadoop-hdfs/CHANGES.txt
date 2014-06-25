@@ -1,5 +1,20 @@
 Hadoop HDFS Change Log
 
+Release 2.5.0 - UNRELEASED
+
+  INCOMPATIBLE CHANGES
+
+  NEW FEATURES
+
+  IMPROVEMENTS
+
+    HDFS-6595. Allow the maximum threads for balancing on datanodes to be
+    configurable. (Benoy Antony via szetszwo)
+
+  OPTIMIZATIONS
+
+  BUG FIXES 
+
 Release 2.4.1 - UNRELEASED
 
   INCOMPATIBLE CHANGES
