@@ -176,25 +176,10 @@ public class AdminService extends CompositeService implements
     }
 
     this.server.start();
-
-    InetSocketAddress connectAddress;
-    String connectHost = conf.getTrimmed(YarnConfiguration.RM_ADMIN_ADDRESS);
-    if (connectHost == null || connectHost.isEmpty()) {
-      // Get hostname and port from the listening endpoint.
-      connectAddress = NetUtils.getConnectAddress(server);
-    } else {
-      // Combine the configured hostname with the port from the listening
-      // endpoint. This gets the correct port number if the configuration
-      // specifies an ephemeral port (port number 0).
-      connectAddress = NetUtils.getConnectAddress(
-          new InetSocketAddress(connectHost.split(":")[0],
-                                server.getListenerAddress().getPort()));
-    }    
-    
     RPCUtil.updateConnectAddr(conf,
         YarnConfiguration.RM_ADMIN_ADDRESS,
         YarnConfiguration.DEFAULT_RM_ADMIN_ADDRESS,
-        connectAddress);
+        server.getListenerAddress());
   }
 
   protected void stopServer() throws Exception {
