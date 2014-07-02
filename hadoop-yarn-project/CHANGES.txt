@@ -7,6 +7,10 @@ Release 2.5.0 - UNRELEASED
   NEW FEATURES
 
   IMPROVEMENTS
+	
+	YARN-2022 Preempting an Application Master container can be kept as least priority
+	when multiple applications are marked for preemption by 
+	ProportionalCapacityPreemptionPolicy (Sunil G via mayank)
 
   OPTIMIZATIONS
 
