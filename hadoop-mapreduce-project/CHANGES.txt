@@ -93,7 +93,17 @@ Release 2.5.0 - UNRELEASED
     MAPREDUCE-5924. Changed TaskAttemptImpl to ignore TA_COMMIT_PENDING event
     at COMMIT_PENDING state. (Zhijie Shen via jianhe)
 
+<<<<<<< HEAD
 Release 2.4.1 - UNRELEASED
+=======
+    MAPREDUCE-5939. StartTime showing up as the epoch time in JHS UI after
+    upgrade (Chen He via jlowe)
+
+    MAPREDUCE-5900. Changed to the interpret container preemption exit code as a
+    task attempt killing event. (Mayank Bansal via zjshen)
+
+Release 2.4.1 - 2014-06-23 
+>>>>>>> 55e0ac7... MAPREDUCE-5900. Changed to the interpret container preemption exit code as a task attempt killing event. Contributed by Mayank Bansal.
 
   INCOMPATIBLE CHANGES
 
