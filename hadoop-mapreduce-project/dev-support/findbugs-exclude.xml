@@ -470,8 +470,8 @@
    <Match>
      <Class name="org.apache.hadoop.mapreduce.v2.app.rm.RMContainerAllocator" />
      <Or>
-      <Field name="mapResourceRequest" />
-      <Field name="reduceResourceRequest" />
+      <Field name="mapResourceReqt" />
+      <Field name="reduceResourceReqt" />
       <Field name="maxReduceRampupLimit" />
       <Field name="reduceSlowStart" />
      </Or>
