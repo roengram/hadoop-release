@@ -327,6 +327,9 @@ function Main( $scriptDir )
       if ($ENV:DEFAULT_FS -eq "ASV"){
           $hdfsConfigs["dfs.namenode.rpc-address"] = "${ENV:NAMENODE_HOST}:9000"
       }
+      if ($ENV:ONEBOX -eq "yes"){
+          $hdfsConfigs["dfs.permissions.enabled"] = "false"
+      }      
 
     Configure "Hdfs" $NodeInstallRoot $serviceCredential $hdfsConfigs
 
