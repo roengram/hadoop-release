@@ -201,4 +201,10 @@ public interface RMAppAttempt extends EventHandler<RMAppAttemptEvent> {
    * scheduler.
    */
   boolean isPreempted();
+  
+  /**
+   * Get metrics from the {@link RMAppAttempt}
+   * @return metrics
+   */
+  RMAppAttemptMetrics getRMAppAttemptMetrics();
 }
