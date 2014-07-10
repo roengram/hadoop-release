@@ -126,3 +126,6 @@ The changes also include jiras that are yet to become available in later apache 
     HDFS-6527. Edit log corruption due to defered INode removal. (kihwal and
     jing9 via jing9) 
 
+    HDFS-6618. FSNamesystem#delete drops the FSN lock between removing INodes
+    from the tree and deleting them from the inode map (kihwal via cmccabe)
+
