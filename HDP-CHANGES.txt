@@ -129,3 +129,5 @@ The changes also include jiras that are yet to become available in later apache 
     HDFS-6618. FSNamesystem#delete drops the FSN lock between removing INodes
     from the tree and deleting them from the inode map (kihwal via cmccabe)
 
+    HDFS-6647. Edit log corruption when pipeline recovery occurs for deleted 
+    file present in snapshot (kihwal)
