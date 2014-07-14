@@ -104,3 +104,6 @@ The changes also include jiras that are yet to become available in later apache 
 
     HDFS-6563. NameNode cannot save fsimage in certain circumstances when
     snapshots are in use. (atm)
+
+    HDFS-6604. The short-circuit cache doesn't correctly time out replicas that
+    haven't been used in a while (cmccabe)
