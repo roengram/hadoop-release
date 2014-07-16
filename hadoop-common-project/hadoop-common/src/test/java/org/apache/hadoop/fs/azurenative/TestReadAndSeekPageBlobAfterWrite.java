@@ -28,6 +28,7 @@ import java.util.Arrays;
 import java.util.Random;
 
 import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.azure.AzureException;
@@ -50,7 +51,8 @@ public class TestReadAndSeekPageBlobAfterWrite {
 
   // Size of data on page (excluding header)
   private static final int PAGE_DATA_SIZE = PAGE_SIZE - PageBlobFormatHelpers.PAGE_HEADER_SIZE;
-  private static final int MAX_PAGES = 100; // maximum number of pages we'll test
+  private static final int MAX_BYTES = (10000000 / PAGE_SIZE) * PAGE_SIZE; // maximum bytes in a file that we'll test
+  private static final int MAX_PAGES = MAX_BYTES / PAGE_SIZE; // maximum number of pages we'll test
   private Random rand = new Random();
 
   // A key with a prefix under /pageBlobs, which for the test file system will
@@ -120,7 +122,10 @@ public class TestReadAndSeekPageBlobAfterWrite {
         (2 * PDS) - 1, (2 * PDS), (2 * PDS) + 1, (2 * PDS) + 2, (2 * PDS) + 3,
 
         // near tenth physical page boundary
-        (10 * PDS) - 1, (10 * PDS), (10 * PDS) + 1, (10 * PDS) + 2, (10 * PDS) + 3
+        (10 * PDS) - 1, (10 * PDS), (10 * PDS) + 1, (10 * PDS) + 2, (10 * PDS) + 3,
+
+        // test one big size, >> 4MB (an internal buffer size in the code)
+        MAX_BYTES
     };
 
     for (int i : dataSizes) {
@@ -222,5 +227,41 @@ public class TestReadAndSeekPageBlobAfterWrite {
         Arrays.copyOfRange(randomData, seekPosition, seekPosition + recordSize + 1);
     assertEquals(recordSize, bytesRead);
     assertTrue(comparePrefix(originalRecordData, b, recordSize));
+  }
+
+  // Test many small flushed writes interspersed with periodic hflush calls.
+  // For manual testing, increase NUM_WRITES to a large number.
+  // The goal for a long-running manual test is to make sure that it finishes
+  // and the close() call does not time out. It also facilitates debugging into
+  // hflush/hsync.
+  @Test
+  public void testManySmallWritesWithHFlush() throws IOException {
+    final int NUM_WRITES = 50;
+    final int RECORD_LENGTH = 100;
+    final int SYNC_INTERVAL = 20;
+    FSDataOutputStream output = fs.create(PATH);
+    try {
+      for (int i = 0; i < NUM_WRITES; i++) {
+        output.write(randomData, i * RECORD_LENGTH, RECORD_LENGTH);
+        output.flush();
+        if ((i % SYNC_INTERVAL) == 0) {
+          output.hflush();
+        }
+      }
+    } finally {
+      output.close();
+    }
+
+    // Read the data back and check it.
+    FSDataInputStream stream = fs.open(PATH);
+    int SIZE = NUM_WRITES * RECORD_LENGTH;
+    byte[] b = new byte[SIZE];
+    try {
+      stream.seek(0);
+      stream.read(b, 0, SIZE);
+      verifyReadRandomData(b, SIZE, 0, SIZE);
+    } finally {
+      stream.close();
+    }
   }
 }

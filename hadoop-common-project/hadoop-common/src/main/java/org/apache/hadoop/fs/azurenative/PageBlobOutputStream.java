@@ -1,11 +1,19 @@
 package org.apache.hadoop.fs.azurenative;
 
 import java.io.*;
+import java.nio.BufferOverflowException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.*;
 
 import org.apache.hadoop.fs.Syncable;
 import org.apache.hadoop.fs.azurenative.StorageInterface.*;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 
 import com.microsoft.windowsazure.storage.OperationContext;
 import com.microsoft.windowsazure.storage.StorageException;
@@ -43,7 +51,7 @@ final class PageBlobOutputStream extends OutputStream implements Syncable {
    * Capacity of the IO queue (threads would have to block if it's filled).
    * Note: Threads do not block if it is filled but are rejected and throws.
    *       with an  RejectedExecutionException as such.
-   * TODO: Temporary fix is to use an unbounded LinkedBlockingQueeu. The real
+   * TODO: Temporary fix is to use an unbounded LinkedBlockingQueue. The real
    *       fix should perform internal hsync when queue is approaching capacity.
    */
   private static final int OUTSTANDING_IO_CAPACITY = 150;
@@ -83,8 +91,10 @@ final class PageBlobOutputStream extends OutputStream implements Syncable {
    */
   private final ThreadPoolExecutor ioThreadPool;
 
+  public static final Log LOG = LogFactory.getLog(AzureNativeFileSystemStore.class);
+
   /**
-   * Constructs an output stream over the given page blog.
+   * Constructs an output stream over the given page blob.
    *
    * @param blob the blob that this stream is associated with.
    * @param opContext an object used to track the execution of the operation
@@ -97,7 +107,7 @@ final class PageBlobOutputStream extends OutputStream implements Syncable {
     this.opContext = opContext;
     // this.ioQueue = new ArrayBlockingQueue<Runnable>(OUTSTANDING_IO_CAPACITY);
     this.ioQueue = new LinkedBlockingQueue<Runnable>();
-    
+
     // As explained above: the IO writes are not designed for parallelism,
     // so we only have one thread in this thread pool.
     this.ioThreadPool = new ThreadPoolExecutor(1, 1, 2, TimeUnit.SECONDS,
@@ -120,18 +130,44 @@ final class PageBlobOutputStream extends OutputStream implements Syncable {
    */
   @Override
   public void close() throws IOException {
+    log("Closing page blob output stream.");
+
     flush();
     checkStreamState();
     ioThreadPool.shutdown();
     try {
+      log("Before awaitTermination");
+      log(ioThreadPool.toString());
       if (!ioThreadPool.awaitTermination(10, TimeUnit.MINUTES)) {
+        log("Timed out after 10 minutes");
+        logAllStackTraces();
+        log(ioThreadPool.toString());
         throw new IOException("Timed out waiting for IO requests to finish");
       }
+      log("After awaitTermination");
     } catch (InterruptedException e) {
     }
 
-    // (Clever trick shamelessly copied from Azure SDK)
     this.lastError = new IOException("Stream is already closed.");
+  }
+
+  // Shorthand for logging, and to allow easy switching to INFO level
+  // for unit testing.
+  private void log(String s) {
+    LOG.debug(s);
+  }
+
+  // Log the stacks of all threads.
+  private void logAllStackTraces() {
+    Map liveThreads = Thread.getAllStackTraces();
+    for (Iterator i = liveThreads.keySet().iterator(); i.hasNext(); ) {
+      Thread key = (Thread) i.next();
+      log("Thread " + key.getName());
+        StackTraceElement[] trace = (StackTraceElement[])liveThreads.get(key);
+        for (int j = 0; j < trace.length; j++) {
+          log("\tat " + trace[j]);
+        }
+    }
   }
 
   /**
@@ -240,15 +276,18 @@ final class PageBlobOutputStream extends OutputStream implements Syncable {
      * offset.
      */
     private void writePayloadToServer(byte[] rawPayload) {
-      final ByteArrayInputStream wrapperStream = 
+      final ByteArrayInputStream wrapperStream =
                   new ByteArrayInputStream(rawPayload);
       try {
-        blob.uploadPages(wrapperStream, currentBlobOffset, rawPayload.length, 
+        blob.uploadPages(wrapperStream, currentBlobOffset, rawPayload.length,
             withMD5Checking(), PageBlobOutputStream.this.opContext);
       } catch (IOException ex) {
         lastError = ex;
       } catch (StorageException ex) {
        lastError = new IOException(ex);
+      }
+      if (lastError != null) {
+        log("Caught error in PageBlobOutputStream#writePayloadToServer()");
       }
     }
   }
@@ -264,7 +303,8 @@ final class PageBlobOutputStream extends OutputStream implements Syncable {
   /**
    * Flushes this output stream and forces any buffered output bytes to be
    * written out. If any data remains in the buffer it is committed to the
-   * service.
+   * service. Data is queued for writing but not forced out to the service
+   * before the call returns.
    */
   @Override
   public void flush() throws IOException {
@@ -353,46 +393,55 @@ final class PageBlobOutputStream extends OutputStream implements Syncable {
       offset += nextWrite;
       length -= nextWrite;
 
+      if (outBuffer.size() > MAX_DATA_BYTES_PER_REQUEST) {
+        throw new RuntimeException("Internal error: maximum write size " +
+            Integer.toString(MAX_DATA_BYTES_PER_REQUEST) + "exceeded.");
+      }
+
       if (outBuffer.size() == MAX_DATA_BYTES_PER_REQUEST) {
         flushIOBuffers();
       }
     }
   }
 
-  // TODO: Right now we treat hsync and hflush as the same.
-  // hflush and hsync is the same. hsync invokes hflush. hflush
-  // guarantees that flushed data become visible to new readers.
-  // It is not guaranteed that data has been flushed to persistent
-  // store on the datanode. So using hflush may lose some data
-  // if the datanode failures happen. hsync is designed to guarantee
-  // that all data writes to the storage are completed but is not
-  // implemented now.
-  
+  // Force all data in the output stream to be written to Azure storage.
+  // Wait to return until this is complete.
   @Override
   public void hsync() throws IOException {
-    // Sync deprecated in favor of hflush.
+    LOG.debug("Entering PageBlobOutputStream#hsync().");
   	flush();
+    LOG.debug(ioThreadPool.toString());
   	Runnable[] ioQueueSnapshot = ioQueue.toArray(new Runnable[0]);
+  	LOG.debug("IO queue snapshot length: " + ioQueueSnapshot.length);
   	if (ioQueueSnapshot.length == 0) {
   	  return;
   	}
   	WriteRequest lastRequest =
-  				(WriteRequest) ioQueueSnapshot[ioQueueSnapshot.length - 1];
+  	  (WriteRequest) ioQueueSnapshot[ioQueueSnapshot.length - 1];
   	try {
   		lastRequest.waitTillDone();
   	} catch (InterruptedException e) {
+
   	  // Yield, we've been interrupted.
   	}
+    LOG.debug("Leaving PageBlobOutputStream#hsync().");
   }
-  
+
   @Override
+
   public void hflush() throws IOException {
-    flush();
+    LOG.debug("PageBlobOutputStream#hflush()");
+
+    // HBase relies on hflush() to force data to storage, so call hsync,
+    // which does that.
+    hsync();
   }
-  
+
   @Deprecated
   public void sync() throws IOException {
+
     // Sync has been deprecated in favor of hflush.
+    LOG.debug("PageBlobOutputStream#sync()");
     hflush();
   }
 

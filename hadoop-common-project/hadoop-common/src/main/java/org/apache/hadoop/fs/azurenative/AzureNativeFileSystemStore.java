@@ -1212,10 +1212,7 @@ class AzureNativeFileSystemStore implements NativeFileSystemStore {
       // Create the output stream for the Azure blob.
       //
       OutputStream outputStream = openOutputStream(blob);
-
-      // Return to caller with DataOutput stream.
-      //
-      DataOutputStream dataOutStream = new DataOutputStream(outputStream);
+      DataOutputStream dataOutStream = new SyncableDataOutputStream(outputStream);
       return dataOutStream;
     } catch (Exception e) {
       // Caught exception while attempting to open the blob output stream.
