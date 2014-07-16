@@ -275,7 +275,7 @@ function Main( $scriptDir )
     ###
     Write-Log "Modifying hadoop-env.cmd to support Namenode GC"
     $file =  "$hadoopInstallDir\etc\hadoop\hadoop-env.cmd"
-    $line = "`nset HADOOP_NAMENODE_OPTS=-Xloggc:%HADOOP_LOG_DIR%/gc-namenode.log -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintGCDateStamps %HADOOP_NAMENODE_OPTS%"
+    $line = "`set HADOOP_NAMENODE_OPTS=-Xloggc:%HADOOP_LOG_DIR%/gc-namenode.log -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintGCDateStamps %HADOOP_NAMENODE_OPTS%"
     Add-Content $file $line
 
     ###
