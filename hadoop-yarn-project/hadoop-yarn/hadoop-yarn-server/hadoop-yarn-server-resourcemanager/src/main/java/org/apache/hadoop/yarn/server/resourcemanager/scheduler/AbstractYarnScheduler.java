@@ -27,6 +27,7 @@ import org.apache.hadoop.yarn.api.records.ApplicationAttemptId;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.ResourceRequest;
 import org.apache.hadoop.yarn.exceptions.YarnException;
 import org.apache.hadoop.yarn.server.resourcemanager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.rmapp.RMApp;
@@ -73,5 +74,34 @@ public abstract class AbstractYarnScheduler implements ResourceScheduler {
       throws YarnException {
     throw new YarnException(getClass().getSimpleName()
         + " does not support moving apps between queues");
+  }
+  
+  private SchedulerApplicationAttempt getApplicationAttempt(
+      ApplicationAttemptId applicationAttemptId) {
+    SchedulerApplication app = applications.get(applicationAttemptId
+        .getApplicationId());
+    return app == null ? null : app.getCurrentAppAttempt();
+  }
+
+  /**
+   * Recover resource request back from RMContainer when a container is 
+   * preempted before AM pulled the same. If container is pulled by
+   * AM, then RMContainer will not have resource request to recover.
+   * @param rmContainer
+   */
+  protected void recoverResourceRequestForContainer(RMContainer rmContainer) {
+    List<ResourceRequest> requests = rmContainer.getResourceRequests();
+
+    // If container state is moved to ACQUIRED, request will be empty.
+    if (requests == null) {
+      return;
+    }
+    // Add resource request back to Scheduler.
+    SchedulerApplicationAttempt schedulerAttempt 
+ = getApplicationAttempt(rmContainer
+        .getContainerId().getApplicationAttemptId());
+    if (schedulerAttempt != null) {
+      schedulerAttempt.recoverResourceRequests(requests);
+    }
   }
 }

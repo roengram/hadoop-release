@@ -449,8 +449,8 @@ public class FairScheduler extends AbstractYarnScheduler {
       }
     }
   }
-  
-  private void warnOrKillContainer(RMContainer container, FSSchedulerApp app,
+
+  void warnOrKillContainer(RMContainer container, FSSchedulerApp app,
       FSLeafQueue queue) {
     LOG.info("Preempting container (prio=" + container.getContainer().getPriority() +
         "res=" + container.getContainer().getResource() +
@@ -466,6 +466,7 @@ public class FairScheduler extends AbstractYarnScheduler {
           SchedulerUtils.createPreemptedContainerStatus(
             container.getContainerId(), SchedulerUtils.PREEMPTED_CONTAINER);
 
+        recoverResourceRequestForContainer(container);
         // TODO: Not sure if this ever actually adds this to the list of cleanup
         // containers on the RMNode (see SchedulerNode.releaseContainer()).
         completedContainer(container, status, RMContainerEventType.KILL);
