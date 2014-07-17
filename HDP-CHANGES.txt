@@ -114,3 +114,6 @@ The changes also include jiras that are yet to become available in later apache 
 
     HADOOP-10839. Add unregisterSource() to MetricsSystem API.
     (Shanyu Zhao via cnauroth)
+
+    HADOOP-10840. Fix OutOfMemoryError caused by metrics system in Azure File
+    System. (Shanyu Zhao via cnauroth)
