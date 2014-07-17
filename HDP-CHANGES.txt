@@ -107,3 +107,7 @@ The changes also include jiras that are yet to become available in later apache 
 
     HDFS-6604. The short-circuit cache doesn't correctly time out replicas that
     haven't been used in a while (cmccabe)
+
+    HADOOP-7664. Remove warmings when overriding final parameter configuration
+    if the override value is same as the final parameter value.
+    (Ravi Prakash via suresh)
