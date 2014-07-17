@@ -111,3 +111,6 @@ The changes also include jiras that are yet to become available in later apache 
     HADOOP-7664. Remove warmings when overriding final parameter configuration
     if the override value is same as the final parameter value.
     (Ravi Prakash via suresh)
+
+    HADOOP-10839. Add unregisterSource() to MetricsSystem API.
+    (Shanyu Zhao via cnauroth)
