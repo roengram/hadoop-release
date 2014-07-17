@@ -1231,7 +1231,7 @@ class AzureNativeFileSystemStore implements NativeFileSystemStore {
       throws StorageException {
     if (blob instanceof CloudPageBlobWrapperImpl){
       return new PageBlobOutputStream(
-          (CloudPageBlobWrapper)blob, getInstrumentedContext());
+          (CloudPageBlobWrapper)blob, getInstrumentedContext(), sessionConfiguration);
     } else {
 
       // Handle both ClouldBlockBlobWrapperImpl and (only for the test code path)

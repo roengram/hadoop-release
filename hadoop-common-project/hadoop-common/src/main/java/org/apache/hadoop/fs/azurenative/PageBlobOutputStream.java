@@ -14,6 +14,7 @@ import org.apache.hadoop.fs.Syncable;
 import org.apache.hadoop.fs.azurenative.StorageInterface.*;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.conf.Configuration;
 
 import com.microsoft.windowsazure.storage.OperationContext;
 import com.microsoft.windowsazure.storage.StorageException;
@@ -93,6 +94,13 @@ final class PageBlobOutputStream extends OutputStream implements Syncable {
 
   public static final Log LOG = LogFactory.getLog(AzureNativeFileSystemStore.class);
 
+  // Set the minimum page blob file size to 128MB, which is >> the default block size of 32MB.
+  // This default block size is often used as the hbase.regionserver.hlog.blocksize.
+  // The goal is to have a safe minimum size for HBase log files to allow them
+  // to be filled and rolled without exceeding the minimum size. A larger size can be
+  // used by setting the fs.azure.page.blob.size configuration variable.
+  public static final long PAGE_BLOB_MIN_SIZE = 128L * 1024L * 1024L;
+
   /**
    * Constructs an output stream over the given page blob.
    *
@@ -101,7 +109,8 @@ final class PageBlobOutputStream extends OutputStream implements Syncable {
    * @throws StorageException if anything goes wrong creating the blob.
    */
   public PageBlobOutputStream(final CloudPageBlobWrapper blob,
-      final OperationContext opContext) throws StorageException {
+      final OperationContext opContext,
+      final Configuration conf) throws StorageException {
     this.blob = blob;
     this.outBuffer = new ByteArrayOutputStream();
     this.opContext = opContext;
@@ -113,8 +122,18 @@ final class PageBlobOutputStream extends OutputStream implements Syncable {
     this.ioThreadPool = new ThreadPoolExecutor(1, 1, 2, TimeUnit.SECONDS,
         ioQueue);
 
-    blob.create(1024l * 1024l * 1024l * 1024l, // TODO: validate this
-        new BlobRequestOptions(), opContext);
+    // Make page blob files have a size that is the greater of a
+    // minimum size, or the value of fs.azure.page.blob.size from configuration.
+    long pageBlobConfigSize = conf.getLong("fs.azure.page.blob.size", 0);
+    LOG.debug("Read value of fs.azure.page.blob.size as " + pageBlobConfigSize
+        + " from configuration (0 if not present).");
+    long pageBlobSize = Math.max(PAGE_BLOB_MIN_SIZE, pageBlobConfigSize);
+
+    // Ensure that the pageBlobSize is a multiple of page size.
+    if (pageBlobSize % PAGE_SIZE != 0) {
+      pageBlobSize += PAGE_SIZE - pageBlobSize % PAGE_SIZE;
+    }
+    blob.create(pageBlobSize, new BlobRequestOptions(), opContext);
   }
 
   private void checkStreamState() throws IOException {
