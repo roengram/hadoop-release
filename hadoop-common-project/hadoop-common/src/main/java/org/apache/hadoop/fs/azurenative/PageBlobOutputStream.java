@@ -1,11 +1,7 @@
 package org.apache.hadoop.fs.azurenative;
 
 import java.io.*;
-import java.nio.BufferOverflowException;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.*;
@@ -19,7 +15,6 @@ import org.apache.hadoop.conf.Configuration;
 import com.microsoft.windowsazure.storage.OperationContext;
 import com.microsoft.windowsazure.storage.StorageException;
 import com.microsoft.windowsazure.storage.blob.BlobRequestOptions;
-import com.microsoft.windowsazure.storage.blob.CloudPageBlob;
 
 import static org.apache.hadoop.fs.azurenative.PageBlobFormatHelpers.*;
 
@@ -182,10 +177,10 @@ final class PageBlobOutputStream extends OutputStream implements Syncable {
     for (Iterator i = liveThreads.keySet().iterator(); i.hasNext(); ) {
       Thread key = (Thread) i.next();
       log("Thread " + key.getName());
-        StackTraceElement[] trace = (StackTraceElement[])liveThreads.get(key);
-        for (int j = 0; j < trace.length; j++) {
-          log("\tat " + trace[j]);
-        }
+      StackTraceElement[] trace = (StackTraceElement[]) liveThreads.get(key);
+      for (int j = 0; j < trace.length; j++) {
+        log("\tat " + trace[j]);
+      }
     }
   }
 
