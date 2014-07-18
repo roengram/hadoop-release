@@ -134,3 +134,6 @@ The changes also include jiras that are yet to become available in later apache 
 
     MAPREDUCE-6032. Made MR jobs write job history files on the default FS when
     the current context's FS is different. (Benjamin Zhitomirsky via zjshen)
+
+    HDFS-6599. 2.4 addBlock is 10 to 20 times slower compared to 0.23. (daryn)
+
