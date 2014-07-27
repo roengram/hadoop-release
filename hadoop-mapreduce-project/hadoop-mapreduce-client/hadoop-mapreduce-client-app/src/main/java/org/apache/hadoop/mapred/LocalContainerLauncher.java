@@ -51,6 +51,7 @@ import org.apache.hadoop.mapreduce.v2.app.launcher.ContainerLauncher;
 import org.apache.hadoop.mapreduce.v2.app.launcher.ContainerLauncherEvent;
 import org.apache.hadoop.mapreduce.v2.app.launcher.ContainerRemoteLaunchEvent;
 import org.apache.hadoop.service.AbstractService;
+import org.apache.hadoop.util.ShutdownHookManager;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.yarn.api.ApplicationConstants;
 import org.apache.hadoop.yarn.api.ApplicationConstants.Environment;
@@ -355,7 +356,9 @@ public class LocalContainerLauncher extends AbstractService implements
       } catch (FSError e) {
         LOG.fatal("FSError from child", e);
         // umbilical:  MRAppMaster creates (taskAttemptListener), passes to us
-        umbilical.fsError(classicAttemptID, e.getMessage());
+        if (!ShutdownHookManager.get().isShutdownInProgress()) {
+          umbilical.fsError(classicAttemptID, e.getMessage());
+        }
         throw new RuntimeException();
 
       } catch (Exception exception) {
@@ -378,11 +381,12 @@ public class LocalContainerLauncher extends AbstractService implements
       } catch (Throwable throwable) {
         LOG.fatal("Error running local (uberized) 'child' : "
             + StringUtils.stringifyException(throwable));
-        Throwable tCause = throwable.getCause();
-        String cause = (tCause == null)
-            ? throwable.getMessage()
-                : StringUtils.stringifyException(tCause);
-            umbilical.fatalError(classicAttemptID, cause);
+        if (!ShutdownHookManager.get().isShutdownInProgress()) {
+          Throwable tCause = throwable.getCause();
+          String cause = (tCause == null) ? throwable.getMessage()
+              : StringUtils.stringifyException(tCause);
+          umbilical.fatalError(classicAttemptID, cause);
+        }
         throw new RuntimeException();
       }
     }
