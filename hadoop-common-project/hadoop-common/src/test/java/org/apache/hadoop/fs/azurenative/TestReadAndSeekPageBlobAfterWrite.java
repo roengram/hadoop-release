@@ -27,11 +27,14 @@ import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Random;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.azure.AzureException;
+import org.apache.hadoop.util.Time;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -41,6 +44,7 @@ import org.junit.Test;
  * or just a part of it.
  */
 public class TestReadAndSeekPageBlobAfterWrite {
+  private static final Log LOG = LogFactory.getLog(TestReadAndSeekPageBlobAfterWrite.class);
 
   private FileSystem fs;
   private AzureBlobStorageTestAccount testAccount;
@@ -51,7 +55,7 @@ public class TestReadAndSeekPageBlobAfterWrite {
 
   // Size of data on page (excluding header)
   private static final int PAGE_DATA_SIZE = PAGE_SIZE - PageBlobFormatHelpers.PAGE_HEADER_SIZE;
-  private static final int MAX_BYTES = (10000000 / PAGE_SIZE) * PAGE_SIZE; // maximum bytes in a file that we'll test
+  private static final int MAX_BYTES = 33554432; // maximum bytes in a file that we'll test
   private static final int MAX_PAGES = MAX_BYTES / PAGE_SIZE; // maximum number of pages we'll test
   private Random rand = new Random();
 
@@ -71,6 +75,9 @@ public class TestReadAndSeekPageBlobAfterWrite {
       fs = testAccount.getFileSystem();
     }
     assumeNotNull(testAccount);
+
+    // Make sure we are using an integral number of pages.
+    assertEquals(0, MAX_BYTES % PAGE_SIZE);
 
     // load an in-memory array of random data
     randomData = new byte[PAGE_SIZE * MAX_PAGES];
@@ -236,20 +243,62 @@ public class TestReadAndSeekPageBlobAfterWrite {
   // hflush/hsync.
   @Test
   public void testManySmallWritesWithHFlush() throws IOException {
-    final int NUM_WRITES = 50;
-    final int RECORD_LENGTH = 100;
-    final int SYNC_INTERVAL = 20;
+    writeAndReadOneFile(50, 100, 20);
+  }
+
+  /**
+   * Write a total of numWrites * recordLength data to a file, read it back,
+   * and check to make sure what was read is the same as what was written.
+   * The syncInterval is the number of writes after which to call hflush to
+   * force the data to storage.
+   */
+  private void writeAndReadOneFile(int numWrites, int recordLength, int syncInterval) throws IOException {
+    final int NUM_WRITES = numWrites;
+    final int RECORD_LENGTH = recordLength;
+    final int SYNC_INTERVAL = syncInterval;
+
+    // A lower bound on the minimum time we think it will take to do
+    // a write to Azure storage.
+    final long MINIMUM_EXPECTED_TIME = 20;
+    LOG.info("Writing " + NUM_WRITES * RECORD_LENGTH + " bytes to " + PATH.getName());
     FSDataOutputStream output = fs.create(PATH);
+    int writesSinceHFlush = 0;
     try {
+
+      // Do a flush and hflush to exercise case for empty write queue in PageBlobOutputStream,
+      // to test concurrent execution gates.
+      output.flush();
+      output.hflush();
       for (int i = 0; i < NUM_WRITES; i++) {
         output.write(randomData, i * RECORD_LENGTH, RECORD_LENGTH);
+        writesSinceHFlush++;
         output.flush();
         if ((i % SYNC_INTERVAL) == 0) {
+          long start = Time.monotonicNow();
           output.hflush();
+          writesSinceHFlush = 0;
+          long end = Time.monotonicNow();
+
+          // A true, round-trip synchronous flush to Azure must take
+          // a significant amount of time or we are not syncing to storage correctly.
+          LOG.debug("hflush duration = " + (end - start) + " msec.");
+          assertTrue(String.format(
+            "hflush duration of %d, less than minimum expected of %d",
+            end - start, MINIMUM_EXPECTED_TIME),
+            end - start >= MINIMUM_EXPECTED_TIME);
         }
       }
     } finally {
+      long start = Time.monotonicNow();
       output.close();
+      long end = Time.monotonicNow();
+      LOG.debug("close duration = " + (end - start) + " msec.");
+      if (writesSinceHFlush > 0) {
+        assertTrue(String.format(
+            "close duration with >= 1 pending write is %d, less than minimum expected of %d",
+            end - start, MINIMUM_EXPECTED_TIME),
+            end - start >= MINIMUM_EXPECTED_TIME);
+        }
     }
 
     // Read the data back and check it.
@@ -262,6 +311,23 @@ public class TestReadAndSeekPageBlobAfterWrite {
       verifyReadRandomData(b, SIZE, 0, SIZE);
     } finally {
       stream.close();
+    }
+
+    // delete the file
+    fs.delete(PATH, false);
+  }
+
+  // Test writing to a large file repeatedly as a stress test.
+  // Set the repetitions to a larger number for manual testing
+  // for a longer stress run.
+  @Test
+  public void testLargeFileStress() throws IOException {
+    int numWrites = 32;
+    int recordSize = 1024 * 1024;
+    int syncInterval = 10;
+    int repetitions = 1;
+    for (int i = 0; i < repetitions; i++) {
+      writeAndReadOneFile(numWrites, recordSize, syncInterval);
     }
   }
 }
