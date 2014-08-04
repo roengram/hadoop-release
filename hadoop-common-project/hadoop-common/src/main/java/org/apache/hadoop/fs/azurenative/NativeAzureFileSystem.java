@@ -118,10 +118,40 @@ public class NativeAzureFileSystem extends FileSystem {
     private InputStream in;
     private final String key;
     private long pos = 0;
+    private boolean closed = false;
+    private boolean isPageBlob;
 
-    public NativeAzureFsInputStream(DataInputStream in, String key) {
+    // File length, valid only for streams over block blobs.
+    private long fileLength;
+
+    public NativeAzureFsInputStream(DataInputStream in, String key, long fileLength) {
       this.in = in;
       this.key = key;
+      this.isPageBlob = store.isPageBlobKey(key);
+      this.fileLength = fileLength;
+    }
+
+    /**
+     * Return the size of the remaining available bytes
+     * if the size is less than or equal to {@link Integer#MAX_VALUE},
+     * otherwise, return {@link Integer#MAX_VALUE}.
+     *
+     * This is to match the behavior of DFSInputStream.available(),
+     * which some clients may rely on (HBase write-ahead log reading in
+     * particular).
+     */
+    @Override
+    public int available() throws IOException {
+      if (isPageBlob) {
+        return in.available();
+      } else {
+        if (closed) {
+          throw new IOException("Stream closed");
+        }
+        final long remaining = this.fileLength - pos;
+        return remaining <= Integer.MAX_VALUE ?
+            (int) remaining : Integer.MAX_VALUE;
+      }
     }
 
     /*
@@ -189,6 +219,7 @@ public class NativeAzureFileSystem extends FileSystem {
     @Override
     public void close() throws IOException {
       in.close();
+      closed = true;
     }
 
     @Override
@@ -1147,7 +1178,7 @@ public class NativeAzureFileSystem extends FileSystem {
     }
 
     return new FSDataInputStream(new BufferedFSInputStream(
-        new NativeAzureFsInputStream(store.retrieve(key), key), bufferSize));
+        new NativeAzureFsInputStream(store.retrieve(key), key, meta.getLength()), bufferSize));
   }
 
   @Override
@@ -1396,7 +1427,7 @@ public class NativeAzureFileSystem extends FileSystem {
     if (isClosed) {
       return;
     }
-    
+
     // Call the base close() to close any resources there.
     super.close();
     // Close the store to close any resources there - e.g. the bandwidth

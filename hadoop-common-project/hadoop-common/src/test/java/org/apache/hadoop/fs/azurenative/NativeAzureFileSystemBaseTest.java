@@ -152,14 +152,14 @@ public abstract class NativeAzureFileSystemBaseTest {
     fs.delete(testFolder, true);
   }
 
-  void testDeepFileCreationBase(String testFilePath, String firstDirPath, String middleDirPath, 
-          short permissionShort, short umaskedPermissionShort) throws Exception  {    
+  void testDeepFileCreationBase(String testFilePath, String firstDirPath, String middleDirPath,
+          short permissionShort, short umaskedPermissionShort) throws Exception  {
     Path testFile = new Path(testFilePath);
     Path firstDir = new Path(firstDirPath);
-    Path middleDir = new Path(middleDirPath);    
-    FsPermission permission = FsPermission.createImmutable(permissionShort);  
-    FsPermission umaskedPermission = FsPermission.createImmutable(umaskedPermissionShort); 
-      
+    Path middleDir = new Path(middleDirPath);
+    FsPermission permission = FsPermission.createImmutable(permissionShort);
+    FsPermission umaskedPermission = FsPermission.createImmutable(umaskedPermissionShort);
+
     createEmptyFile(testFile, permission);
     FsPermission rootPerm = fs.getFileStatus(firstDir.getParent()).getPermission();
     FsPermission inheritPerm = FsPermission.createImmutable((short)(rootPerm.toShort() | 0300));
@@ -173,7 +173,7 @@ public abstract class NativeAzureFileSystemBaseTest {
     // verify that the file itself has the permissions as specified
     FileStatus fileStatus = fs.getFileStatus(testFile);
     assertFalse(fileStatus.isDirectory());
-    assertEqualsIgnoreStickyBit(umaskedPermission, fileStatus.getPermission());    
+    assertEqualsIgnoreStickyBit(umaskedPermission, fileStatus.getPermission());
     assertTrue(fs.delete(firstDir, true));
     assertFalse(fs.exists(testFile));
 
@@ -181,14 +181,14 @@ public abstract class NativeAzureFileSystemBaseTest {
     // and then check for the existence of the upper folders still. But that
     // doesn't actually work as expected right now.
   }
-  
+
   @Test
   public void testDeepFileCreation() throws Exception {
     // normal permissions in user home
     testDeepFileCreationBase("deep/file/creation/test", "deep", "deep/file/creation", (short)0644, (short)0644);
     // extra permissions in user home. umask will change the actual permissions.
     testDeepFileCreationBase("deep/file/creation/test", "deep", "deep/file/creation", (short)0777, (short)0755);
-    // normal permissions in root    
+    // normal permissions in root
     testDeepFileCreationBase("/deep/file/creation/test", "/deep", "/deep/file/creation", (short)0644, (short)0644);
     // less permissions in root
     testDeepFileCreationBase("/deep/file/creation/test", "/deep", "/deep/file/creation", (short)0700, (short)0700);
@@ -555,6 +555,61 @@ public abstract class NativeAzureFileSystemBaseTest {
     //make sure close() can be called multiple times without doing any harm
     fs.close();
     fs.close();
+  }
+
+  // Test the available() method for the input stream returned by fs.open().
+  // This works for both page and block blobs.
+  int FILE_SIZE = 4 * 1024 * 1024 + 1; // Make this 1 bigger than internal
+                                       // buffer used in BlobInputStream
+                                       // to exercise that case.
+  int MAX_STRIDE = FILE_SIZE + 1;
+  Path PATH = new Path("/available.dat");
+  @Test
+  public void testAvailable() throws IOException {
+
+    // write FILE_SIZE bytes to page blob
+    FSDataOutputStream out = fs.create(PATH);
+    byte[] data = new byte[FILE_SIZE];
+    Arrays.fill(data, (byte) 5);
+    out.write(data, 0, FILE_SIZE);
+    out.close();
+
+    // Test available() for different read sizes
+    verifyAvailable(1);
+    verifyAvailable(100);
+    verifyAvailable(5000);
+    verifyAvailable(FILE_SIZE);
+    verifyAvailable(MAX_STRIDE);
+
+    fs.delete(PATH, false);
+  }
+
+  // Verify that available() for the input stream is always >= 1 unless we've
+  // consumed all the input, and then it is 0. This is to match expectations by
+  // HBase which were set based on behavior of DFSInputStream.available().
+  private void verifyAvailable(int readStride) throws IOException {
+    FSDataInputStream in = fs.open(PATH);
+    try {
+      byte[] inputBuffer = new byte[MAX_STRIDE];
+      int position = 0;
+      int bytesRead = 0;
+      while(bytesRead != FILE_SIZE) {
+        bytesRead += in.read(inputBuffer, position, readStride);
+        int available = in.available();
+        if (bytesRead < FILE_SIZE) {
+          if (available < 1) {
+            fail(String.format(
+                  "expected available > 0 but got: "
+                      + "position = %d, bytesRead = %d, in.available() = %d",
+                  position, bytesRead, available));
+          }
+        }
+      }
+      int available = in.available();
+      assertTrue(available == 0);
+    } finally {
+      in.close();
+    }
   }
 
   private boolean testModifiedTime(Path testPath, long time) throws Exception {

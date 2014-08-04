@@ -17,7 +17,6 @@ import static org.apache.hadoop.fs.azurenative.PageBlobFormatHelpers.*;
  * An input stream that reads file data from a page blob stored
  * using ASV's custom format.
  */
-// TODO: Make this seekable.
 final class PageBlobInputStream extends InputStream {
   private static final Log LOG = LogFactory.getLog(PageBlobInputStream.class);
 
@@ -37,6 +36,12 @@ final class PageBlobInputStream extends InputStream {
   // Maximum number of pages to get per any one request.
   private static final int MAX_PAGES_PER_DOWNLOAD =
       4 * 1024 * 1024 / PAGE_SIZE;
+  // Whether the stream has been closed.
+  private boolean closed = false;
+  // Total stream size, or -1 if not initialized.
+  long pageBlobSize = -1;
+  // Current position in stream of valid data.
+  long filePosition = 0;
 
   /**
    * Helper method to extract the actual data size of a page blob.
@@ -64,14 +69,14 @@ final class PageBlobInputStream extends InputStream {
       throw badStartRangeException(blob, pageRanges.get(0));
     }
     long totalRawBlobSize = pageRanges.get(0).getEndOffset() + 1;
-    
+
     // Get the last page.
     long lastPageStart = totalRawBlobSize - PAGE_SIZE;
-    ByteArrayOutputStream baos = 
+    ByteArrayOutputStream baos =
         new ByteArrayOutputStream (PageBlobFormatHelpers.PAGE_SIZE);
     blob.downloadRange(lastPageStart, PAGE_SIZE, baos,
         new BlobRequestOptions(), opContext);
-    
+
     byte[] lastPage = baos.toByteArray();
     short lastPageSize = getPageSize(blob, lastPage, 0);
     long totalNumberOfPages = totalRawBlobSize / PAGE_SIZE;
@@ -110,25 +115,35 @@ final class PageBlobInputStream extends InputStream {
     }
   }
 
-  /*
-   * Returns an estimate of the number of bytes that can be read (or skipped
-   * over) from this input stream without blocking by the next invocation of
-   * a method for this input stream. The next invocation might be the same
-   * thread or another thread. A single read or skip of this many bytes will
-   * not block, but may read or skip fewer bytes.
+  /** Return the size of the remaining available bytes
+   * if the size is less than or equal to {@link Integer#MAX_VALUE},
+   * otherwise, return {@link Integer#MAX_VALUE}.
+   *
+   * This is to match the behavior of DFSInputStream.available(),
+   * which some clients may rely on (HBase write-ahead log reading in
+   * particular).
    */
   @Override
   public synchronized int available() throws IOException {
-    if (currentBuffer == null) {
-      return 0;
+    if (closed) {
+      throw new IOException("Stream closed");
     }
-    // This is not very accurate because of the header bytes,
-    // but I'm supposed to return an estimate anyway.
-    return currentBuffer.length - currentOffsetInBuffer;
+    if (pageBlobSize == -1) {
+      try {
+        pageBlobSize = GetPageBlobSize(blob, opContext);
+      } catch (StorageException e) {
+        throw new IOException("Unable to get page blob size.", e);
+      }
+    }
+
+    final long remaining = pageBlobSize - filePosition;
+    return remaining <= Integer.MAX_VALUE ?
+        (int) remaining : Integer.MAX_VALUE;
   }
 
   @Override
-  public void close() throws IOException {
+  public synchronized void close() throws IOException {
+    closed = true;
   }
 
   private boolean dataAvailableInBuffer() {
@@ -154,7 +169,7 @@ final class PageBlobInputStream extends InputStream {
     final long pagesToRead = Math.min(MAX_PAGES_PER_DOWNLOAD,
         numberOfPagesRemaining);
     final int bufferSize = (int)(pagesToRead * PAGE_SIZE);
- 
+
     // Download page to current buffer.
     try {
       // Create a byte array output stream to capture the results of the
@@ -219,6 +234,7 @@ final class PageBlobInputStream extends InputStream {
     int numberOfBytesRead = 0;
     while (len > 0) {
       if (!ensureDataInBuffer()) {
+        filePosition += numberOfBytesRead;
         return numberOfBytesRead;
       }
       int bytesRemainingInCurrentPage = getBytesRemainingInCurrentPage();
@@ -235,6 +251,7 @@ final class PageBlobInputStream extends InputStream {
         currentOffsetInBuffer += numBytesToRead;
       }
     }
+    filePosition += numberOfBytesRead;
     return numberOfBytesRead;
   }
 
@@ -254,6 +271,13 @@ final class PageBlobInputStream extends InputStream {
    */
   @Override
   public synchronized long skip(long n) throws IOException {
+    long skipped = skipImpl(n);
+    filePosition += skipped; // track the position in the stream
+    return skipped;
+  }
+
+  private long skipImpl(long n) throws IOException {
+
     if (n == 0) {
       return 0;
     }
