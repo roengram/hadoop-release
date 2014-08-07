@@ -82,6 +82,7 @@ import com.microsoft.windowsazure.storage.table.*;
  * 		namenode.sink.dfsinstance.context=dfs
  * 		namenode.sink.dfsinstance.accountname=azure_storage_account_name_here
  * 		namenode.sink.dfsinstance.accesskey=azure_storage_account_key_here
+ *		namenode.sink.dfsinstance.storageEndpointSuffix=storage_endpoint_suffix
  * 		namenode.sink.dfsinstance.sas=azure_storage_account_sharedaccesskey_here
  *      namenode.sink.dfsnamenode.azureTable=dfsnamenode_table
  *      namenode.sink.dfsnamenode.azureDeploymentId=azure_deployment_id
@@ -93,6 +94,7 @@ public class WindowsAzureTableSink implements MetricsSink {
 
 	private static final String STORAGE_ACCOUNT_KEY = "accountname";
 	private static final String STORAGE_ACCESSKEY_KEY = "accesskey";
+	private static final String STORAGE_ENDPOINT_SUFFIX = "storageEndpointSuffix";
 	private static final String STORAGE_SAS_KEY = "sas";
 	private static final String AZURE_TABLENAME_KEY = "azureTable";
 	private static final String AZURE_DEPLOYMENTID_KEY = "azureDeploymentId";
@@ -115,6 +117,7 @@ public class WindowsAzureTableSink implements MetricsSink {
 	private Boolean createMetricsTables = false;
 	private Boolean useSas = false;
 	private String storageAccountName;
+	private String storageEndpointSuffix;
 	private String tableName;
 	private String partitionKeyTimeFormat;
 	private String storageAccountKey;
@@ -125,6 +128,7 @@ public class WindowsAzureTableSink implements MetricsSink {
 		logger.info("Entering init");
 		
 		storageAccountName = conf.getString(STORAGE_ACCOUNT_KEY);
+		storageEndpointSuffix = conf.getString(STORAGE_ENDPOINT_SUFFIX,"core.windows.net");
 		deploymentId = conf.getString(AZURE_DEPLOYMENTID_KEY);
 		roleName = conf.getString(AZURE_ROLENAME_KEY);
 		roleInstanceName = conf.getString(AZURE_ROLEINSTANCENAME_KEY);
@@ -257,8 +261,8 @@ public class WindowsAzureTableSink implements MetricsSink {
 			// If we use SAS, then we will have to create the CloudTableClient object
 			// manually using the table endpoint baseUri. 
 			URI tableBaseUri = new URI(
-					String.format("https://%s.table.core.windows.net",  
-					storageAccountName));
+					String.format("https://%s.table.%s",
+					storageAccountName,storageEndpointSuffix));
 			
 			StorageCredentials sasCredentials = new StorageCredentialsSharedAccessSignature(storageAccountSas);
 			tableClient = new CloudTableClient(tableBaseUri, sasCredentials);
