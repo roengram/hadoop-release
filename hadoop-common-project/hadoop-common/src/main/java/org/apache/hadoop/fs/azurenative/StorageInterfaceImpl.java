@@ -4,6 +4,8 @@ import java.io.*;
 import java.net.*;
 import java.util.*;
 
+import org.mortbay.log.Log;
+
 import com.microsoft.windowsazure.storage.*;
 import com.microsoft.windowsazure.storage.blob.*;
 
@@ -238,9 +240,22 @@ class StorageInterfaceImpl extends StorageInterface {
     }
 
     @Override
-    public void delete(OperationContext opContext)
+    public void delete(OperationContext opContext, SelfRenewingLease lease)
         throws StorageException {
-      blob.delete(DeleteSnapshotsOption.NONE, null, null, opContext);
+      blob.delete(DeleteSnapshotsOption.NONE, getLeaseCondition(lease),
+          null, opContext);
+    }
+
+    /**
+     * Return and access condition for this lease, or else null if
+     * there's no lease.
+     */
+    private AccessCondition getLeaseCondition(SelfRenewingLease lease) {
+      AccessCondition leaseCondition = null;
+      if (lease != null) {
+        leaseCondition = AccessCondition.generateLeaseCondition(lease.getLeaseID());
+      }
+      return leaseCondition;
     }
 
     @Override
@@ -301,9 +316,11 @@ class StorageInterfaceImpl extends StorageInterface {
       blob.uploadMetadata(null, null, opContext);
     }
 
-    public void uploadProperties(OperationContext opContext)
+    public void uploadProperties(OperationContext opContext, SelfRenewingLease lease)
         throws StorageException {
-      blob.uploadProperties(null, null, opContext);
+
+      // Include lease in request if lease not null.
+      blob.uploadProperties(getLeaseCondition(lease), null, opContext);
     }
 
     @Override
@@ -341,6 +358,16 @@ class StorageInterfaceImpl extends StorageInterface {
 
       blob.downloadRange(offset, length, outStream, null, options, opContext);
     }
+
+    @Override
+    public SelfRenewingLease acquireLease() throws StorageException {
+      return new SelfRenewingLease(this);
+    }
+
+    @Override
+    public CloudBlob getBlob() {
+      return blob;
+    }
   }
 
   //
@@ -367,7 +394,6 @@ class StorageInterfaceImpl extends StorageInterface {
         throws StorageException {
       blob.uploadProperties(null, null, opContext);
     }
-
   }
 
   static class CloudPageBlobWrapperImpl extends CloudBlobWrapperImpl implements CloudPageBlobWrapper {

@@ -25,7 +25,7 @@ public class MockStorageInterface extends StorageInterface {
   private final ArrayList<PreExistingContainer> preExistingContainers =
       new ArrayList<MockStorageInterface.PreExistingContainer>();
   private String baseUriString;
-  
+
   public InMemoryBlockBlobStore getBackingStore() {
     return backingStore;
   }
@@ -41,7 +41,7 @@ public class MockStorageInterface extends StorageInterface {
       HashMap<String, String> metadata) {
     preExistingContainers.add(new PreExistingContainer(uri, metadata));
   }
-  
+
   @Override
   public void setRetryPolicyFactory(final RetryPolicyFactory retryPolicyFactory) {
   }
@@ -65,7 +65,7 @@ public class MockStorageInterface extends StorageInterface {
     this.baseUriString = baseUri.toString();
     backingStore = new InMemoryBlockBlobStore();
   }
-  
+
   @Override
   public StorageCredentials getCredentials() {
     // Not implemented for mock interface.
@@ -83,7 +83,7 @@ public class MockStorageInterface extends StorageInterface {
     catch (URIException e){
       throw new RuntimeException("problem encoding fullUri", e);
     }
-    
+
     MockCloudBlobContainerWrapper container = new MockCloudBlobContainerWrapper(fullUri, name);
     // Check if we have a pre-existing container with that name, and prime
     // the wrapper with that knowledge if it's found.
@@ -147,38 +147,38 @@ public class MockStorageInterface extends StorageInterface {
         throws StorageException {
       backingStore.setContainerMetadata(metadata);
     }
-    
+
     @Override
     public CloudBlobDirectoryWrapper getDirectoryReference(String relativePath)
         throws URISyntaxException, StorageException {
       return new MockCloudBlobDirectoryWrapper(new URI(fullUriString(relativePath, true)));
     }
 
-    
+
     @Override
     public CloudBlockBlobWrapper getBlockBlobReference(String relativePath)
         throws URISyntaxException, StorageException {
       return new MockCloudBlockBlobWrapper(new URI(fullUriString(relativePath, false)), null, 0);
     }
-    
+
     @Override
     public CloudPageBlobWrapper getPageBlobReference(String blobAddressUri)
         throws URISyntaxException, StorageException {
       return new MockCloudPageBlobWrapper(new URI(blobAddressUri), null, 0);
     }
-    
-    //helper to create full URIs for directory and blob. 
-    //use withTrailingSlash=true to get a good path for a directory. 
+
+    //helper to create full URIs for directory and blob.
+    //use withTrailingSlash=true to get a good path for a directory.
     private String fullUriString(String relativePath, boolean withTrailingSlash){
       String fullUri;
-      
+
       String baseUri = this.baseUri;
       if(!baseUri.endsWith("/")){
-        baseUri += "/"; 
+        baseUri += "/";
       }
       if(withTrailingSlash && !relativePath.equals("") && !relativePath.endsWith("/")){
-        relativePath += "/"; 
-      }  
+        relativePath += "/";
+      }
 
       try {
         fullUri = baseUri + URIUtil.encodePath(relativePath);
@@ -186,11 +186,11 @@ public class MockStorageInterface extends StorageInterface {
       catch (URIException e){
         throw new RuntimeException("problem encoding fullUri", e);
       }
-      
+
       return fullUri;
     }
   }
-  
+
   private static class PreExistingContainer {
     final String containerUri;
     final HashMap<String, String> containerMetadata;
@@ -274,7 +274,7 @@ public class MockStorageInterface extends StorageInterface {
       throw new NotImplementedException();
     }
   }
-  
+
   abstract class MockCloudBlobWrapper implements CloudBlobWrapper {
     protected final URI uri;
     protected HashMap<String, String> metadata =
@@ -335,17 +335,18 @@ public class MockStorageInterface extends StorageInterface {
     public void startCopyFromBlob(CloudBlobWrapper sourceBlob,
         OperationContext opContext) throws StorageException, URISyntaxException {
       backingStore.copy(sourceBlob.getUri().toString(), uri.toString());
-      //TODO: set the backingStore.properties.CopyState and 
+      //TODO: set the backingStore.properties.CopyState and
       //      update azureNativeFileSystemStore.waitForCopyToComplete
     }
-    
+
     @Override
     public CopyState getCopyState() {
        return this.properties.getCopyState();
     }
-    
+
     @Override
-    public void delete(OperationContext opContext) throws StorageException {
+    public void delete(OperationContext opContext, SelfRenewingLease lease)
+        throws StorageException {
       backingStore.delete(uri.toString());
     }
 
@@ -376,7 +377,7 @@ public class MockStorageInterface extends StorageInterface {
         throws StorageException {
       backingStore.setMetadata(uri.toString(), metadata);
     }
-    
+
     @Override
     public void downloadRange(long offset, long length, OutputStream os,
         BlobRequestOptions options, OperationContext opContext)
@@ -399,20 +400,30 @@ public class MockStorageInterface extends StorageInterface {
     }
 
     @Override
-    public void setStreamMinimumReadSizeInBytes(int minimumReadSizeBytes) {  
+    public void setStreamMinimumReadSizeInBytes(int minimumReadSizeBytes) {
     }
 
     @Override
-    public void setWriteBlockSizeInBytes(int writeBlockSizeBytes) {  
+    public void setWriteBlockSizeInBytes(int writeBlockSizeBytes) {
     }
 
     @Override
     public StorageUri getStorageUri() {
       return null;
     }
-    
-    @Override 
-    public void uploadProperties(OperationContext context) {
+
+    @Override
+    public void uploadProperties(OperationContext context, SelfRenewingLease lease) {
+    }
+
+    @Override
+    public SelfRenewingLease acquireLease() {
+      return null;
+    }
+
+    @Override
+    public CloudBlob getBlob() {
+      return null;
     }
   }
 
@@ -441,7 +452,7 @@ public class MockStorageInterface extends StorageInterface {
         OperationContext opContext) throws StorageException {
       throw new NotImplementedException();
     }
-    
+
     @Override
     public void setStreamMinimumReadSizeInBytes(int minimumReadSize) {
     }
@@ -456,10 +467,19 @@ public class MockStorageInterface extends StorageInterface {
     }
 
     @Override
-    public void uploadProperties(OperationContext opContext)
+    public void uploadProperties(OperationContext opContext,
+        SelfRenewingLease lease)
         throws StorageException {
-      // TODO Auto-generated method stub
-      
+    }
+
+    @Override
+    public SelfRenewingLease acquireLease() {
+      return null;
+    }
+
+    @Override
+    public CloudBlob getBlob() {
+      return null;
     }
   }
 }

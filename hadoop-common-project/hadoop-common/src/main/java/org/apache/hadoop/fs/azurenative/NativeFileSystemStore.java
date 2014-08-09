@@ -29,6 +29,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.azure.AzureException;
 import org.apache.hadoop.fs.permission.*;
 
+import com.microsoft.windowsazure.storage.StorageException;
+
 /**
  * <p>
  * An abstraction for a key-based {@link File} store.
@@ -51,6 +53,8 @@ interface NativeFileSystemStore {
 
   boolean isPageBlobKey(String key);
 
+  boolean isAtomicRenameKey(String key);
+
   void storeEmptyLinkFile(String key, String tempBlobKey,
       PermissionStatus permissionStatus) throws AzureException;
 
@@ -72,6 +76,9 @@ interface NativeFileSystemStore {
 
   void rename(String srcKey, String dstKey) throws IOException;
 
+  void rename(String srcKey, String dstKey, boolean acquireLease, SelfRenewingLease existingLease)
+      throws IOException;
+
   /**
    * Delete all keys with the given prefix. Used for testing.
    *
@@ -88,7 +95,13 @@ interface NativeFileSystemStore {
 
   void close();
 
-  void updateFolderLastModifiedTime(String key) throws AzureException;
+  void updateFolderLastModifiedTime(String key, SelfRenewingLease folderLease)
+      throws AzureException;
 
-  void updateFolderLastModifiedTime(String key, Date lastModified) throws AzureException;
+  void updateFolderLastModifiedTime(String key, Date lastModified,
+      SelfRenewingLease folderLease) throws AzureException;
+
+  void delete(String key, SelfRenewingLease lease) throws IOException;
+
+  SelfRenewingLease acquireLease(String key) throws AzureException;
 }

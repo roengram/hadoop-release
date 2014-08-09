@@ -21,10 +21,13 @@ package org.apache.hadoop.fs.azurenative;
 import java.io.*;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.*;
 
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -40,10 +43,20 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.fs.azure.AzureException;
+import org.apache.hadoop.fs.azurenative.StorageInterface.CloudBlobWrapper;
+import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.Progressable;
+import org.codehaus.jettison.json.JSONArray;
+import org.codehaus.jettison.json.JSONException;
+import org.codehaus.jettison.json.JSONObject;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.microsoft.windowsazure.storage.AccessCondition;
+import com.microsoft.windowsazure.storage.OperationContext;
+import com.microsoft.windowsazure.storage.StorageException;
+import com.microsoft.windowsazure.storage.blob.CloudBlob;
 import com.microsoft.windowsazure.storage.core.*;
 
 /**
@@ -55,6 +68,410 @@ import com.microsoft.windowsazure.storage.core.*;
  * </p>
  */
 public class NativeAzureFileSystem extends FileSystem {
+
+  /**
+   * A description of a folder rename operation, including the source and
+   * destination keys, and descriptions of the files in the source folder.
+   */
+  public static class FolderRenamePending {
+    private SelfRenewingLease folderLease;
+    private String srcKey;
+    private String dstKey;
+    private FileMetadata[] fileMetadata = null;    // descriptions of source files
+    private ArrayList<String> fileStrings = null;
+    private NativeAzureFileSystem fs;
+    private static final int MAX_RENAME_PENDING_FILE_SIZE = 10000000;
+    private static final int FORMATTING_BUFFER = 10000;
+    private boolean committed;
+    public static final String SUFFIX = "-RenamePending.json";
+
+    // Prepare in-memory information needed to do or redo a folder rename.
+    public FolderRenamePending(String srcKey, String dstKey, SelfRenewingLease lease,
+        NativeAzureFileSystem fs) throws IOException {
+      this.srcKey = srcKey;
+      this.dstKey = dstKey;
+      this.folderLease = lease;
+      this.fs = fs;
+      ArrayList<FileMetadata> fileMetadataList = new ArrayList<FileMetadata>();
+
+      // List all the files in the folder.
+      String priorLastKey = null;
+      do {
+        PartialListing listing = fs.getStoreInterface().listAll(srcKey, AZURE_LIST_ALL,
+          AZURE_UNBOUNDED_DEPTH, priorLastKey);
+        for(FileMetadata file : listing.getFiles()) {
+          fileMetadataList.add(file);
+        }
+        priorLastKey = listing.getPriorLastKey();
+      } while (priorLastKey != null);
+      fileMetadata = fileMetadataList.toArray(new FileMetadata[fileMetadataList.size()]);
+      this.committed = true;
+    }
+
+    // Prepare in-memory information needed to do or redo folder rename from
+    // a -RenamePending.json file read from storage. This constructor is to use during
+    // redo processing.
+    public FolderRenamePending(Path redoFile, NativeAzureFileSystem fs)
+        throws IllegalArgumentException, IOException {
+
+      this.fs = fs;
+
+      // open redo file
+      Path f = redoFile;
+      FSDataInputStream input = fs.open(f);
+      byte[] bytes = new byte[MAX_RENAME_PENDING_FILE_SIZE];
+      int l = input.read(bytes);
+      if (l < 0) {
+        throw new IOException(
+            "Error reading pending rename file contents -- no data available");
+      }
+      if (l == MAX_RENAME_PENDING_FILE_SIZE) {
+        throw new IOException(
+            "Error reading pending rename file contents -- "
+                + "maximum file size exceeded");
+      }
+      String contents = new String(bytes, 0, l);
+
+      // parse the JSON
+      JSONObject json = null;
+      try {
+        json = new JSONObject(contents);
+        this.committed = true;
+      } catch (JSONException e) {
+
+        // The -RedoPending.json file is corrupted, so we assume it was
+        // not completely written
+        // and the redo operation did not commit.
+        this.committed = false;
+      }
+      if (!this.committed) {
+        LOG.error("Deleting corruped rename pending file "
+            + redoFile + "\n" + contents);
+
+        // delete the -RenamePending.json file
+        fs.delete(redoFile, false);
+        return;
+      }
+
+      // initialize this object's fields
+      ArrayList<String> fileStrList = new ArrayList<String>();
+      try {
+        this.srcKey = json.getString("OldFolderName");
+        this.dstKey = json.getString("NewFolderName");
+        JSONArray fileList = json.getJSONArray("FileList");
+        for (int i = 0; i < fileList.length(); i++) {
+          fileStrList.add(fileList.getString(i));
+        }
+        this.fileStrings = fileStrList;
+      } catch (JSONException e) {
+        this.committed = false;
+      }
+    }
+
+    public FileMetadata[] getFiles() {
+      return fileMetadata;
+    }
+
+    public SelfRenewingLease getFolderLease() {
+      return folderLease;
+    }
+
+    /**
+     * Write to disk the information needed to redo folder rename, in JSON format.
+     * The file name will be wasb://<sourceFolderPrefix>/folderName-RenamePending.json
+     * The file format will be:
+     * {
+     *   FormatVersion: "1.0",
+     *   OperationTime: "<YYYY-MM-DD HH:MM:SS.MMM>",
+     *   OldFolderName: "<key>",
+     *   NewFolderName: "<key>",
+     *   FileList: [ <string> , <string> , ... ]
+     * }
+     *
+     * Here's a sample:
+     * {
+     *  FormatVersion: "1.0",
+     *  OperationUTCTime: "2014-07-01 23:50:35.572",
+     *  OldFolderName: "user/ehans/folderToRename",
+     *  NewFolderName: "user/ehans/renamedFolder",
+     *  FileList: [
+     *    "innerFile",
+     *    "innerFile2"
+     *  ]
+     * }
+     * @throws IOException
+     */
+    public void writeFile(FileSystem fs) throws IOException {
+      Path path = getRenamePendingFilePath();
+      if (LOG.isDebugEnabled()){
+        LOG.debug("Preparing to write atomic rename state to " + path.toString());
+      }
+      OutputStream output = null;
+
+      String contents = makeRenamePendingFileContents();
+
+      // Write file.
+      try {
+        output = fs.create(path);
+        output.write(contents.getBytes());
+      } catch (IOException e) {
+        throw new IOException("Unable to write RenamePending file for folder rename from "
+            + srcKey + " to " + dstKey, e);
+      } finally {
+        IOUtils.cleanup(LOG, output);
+      }
+    }
+
+    /**
+     * Return the contents of the JSON file to represent the operations
+     * to be performed for a folder rename.
+     */
+    public String makeRenamePendingFileContents() {
+      SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+      sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+      String time = sdf.format(new Date());
+
+      // Make file list string
+      StringBuilder builder = new StringBuilder();
+      builder.append("[\n");
+      for (int i = 0; i != fileMetadata.length; i++) {
+        if (i > 0) {
+          builder.append(",\n");
+        }
+        builder.append("    ");
+        String noPrefix = StringUtils.removeStart(fileMetadata[i].getKey(), srcKey + "/");
+
+        // Quote string file names, escaping any possible " characters or other
+        // necessary characters in the name.
+        builder.append(JSONObject.quote(noPrefix));
+        if (builder.length() >=
+            MAX_RENAME_PENDING_FILE_SIZE - FORMATTING_BUFFER) {
+
+          // Give up now to avoid using too much memory.
+          LOG.error("Internal error: Exceeded maximum rename pending file size of "
+              + MAX_RENAME_PENDING_FILE_SIZE + " bytes.");
+
+          // return some bad JSON with an error message to make it human readable
+          return "exceeded maximum rename pending file size";
+        }
+      }
+      builder.append("\n  ]");
+      String fileList = builder.toString();
+
+      // Make file contents as a string. Again, quote file names, escaping
+      // characters as appropriate.
+      String contents = "{\n"
+          + "  FormatVersion: \"1.0\",\n"
+          + "  OperationUTCTime: \"" + time + "\",\n"
+          + "  OldFolderName: " + JSONObject.quote(srcKey) + ",\n"
+          + "  NewFolderName: " + JSONObject.quote(dstKey) + ",\n"
+          + "  FileList: " + fileList + "\n"
+          + "}\n";
+
+      return contents;
+    }
+
+    public String getSrcKey() {
+      return srcKey;
+    }
+
+    public String getDstKey() {
+      return dstKey;
+    }
+
+    public FileMetadata getSourceMetadata() throws IOException {
+      return fs.getStoreInterface().retrieveMetadata(srcKey);
+    }
+
+    /**
+     * Execute a folder rename. This is the execution path followed
+     * when everything is working normally. See redo() for the alternate
+     * execution path for the case where we're recovering from a folder rename
+     * failure.
+     * @throws IOException
+     */
+    public void execute() throws IOException {
+
+      for (FileMetadata file : this.getFiles()) {
+
+        // Rename all materialized entries under the folder to point to the
+        // final destination.
+        if (file.getBlobMaterialization() == BlobMaterialization.Explicit) {
+          String srcName = file.getKey();
+          String suffix  = srcName.substring((this.getSrcKey()).length());
+          String dstName = this.getDstKey() + suffix;
+
+          // Rename gets exclusive access (via a lease) for files
+          // designated for atomic rename.
+          // The main use case is for HBase write-ahead log (WAL) and data
+          // folder processing correctness.  See the rename code for details.
+          boolean acquireLease = fs.getStoreInterface().isAtomicRenameKey(srcName);
+          fs.getStoreInterface().rename(srcName, dstName, acquireLease, null);
+        }
+      }
+
+      // Rename the source folder 0-byte root file itself.
+      FileMetadata srcMetadata2 = this.getSourceMetadata();
+      if (srcMetadata2.getBlobMaterialization() ==
+          BlobMaterialization.Explicit) {
+
+        // It already has a lease on it from the "prepare" phase so there's no
+        // need to get one now. Pass in existing lease to allow file delete.
+        fs.getStoreInterface().rename(this.getSrcKey(), this.getDstKey(),
+            false, folderLease);
+      }
+
+      // Update the last-modified time of the parent folders of both source and
+      // destination.
+      fs.updateParentFolderLastModifiedTime(srcKey);
+      fs.updateParentFolderLastModifiedTime(dstKey);
+    }
+
+    /** Clean up after execution of rename.
+     * @throws IOException */
+    public void cleanup() throws IOException {
+
+      if (fs.getStoreInterface().isAtomicRenameKey(srcKey)) {
+
+        // Remove RenamePending file
+        fs.delete(getRenamePendingFilePath(), false);
+
+        // Freeing source folder lease is not necessary since the source
+        // folder file was deleted.
+      }
+    }
+
+    private Path getRenamePendingFilePath() {
+      String fileName = srcKey + SUFFIX;
+      Path fileNamePath = keyToPath(fileName);
+      Path path = fs.makeAbsolute(fileNamePath);
+      return path;
+    }
+
+    /**
+     * Recover from a folder rename failure by redoing the intended work,
+     * as recorded in the -RenamePending.json file.
+     * @param fs
+     * @throws IOException
+     */
+    public void redo() throws IOException {
+
+      if (!committed) {
+
+        // Nothing to do. The -RedoPending.json file should have already been
+        // deleted.
+        return;
+      }
+
+      // Try to get a lease on source folder to block concurrent access to it.
+      // It may fail if the folder is already gone. We don't check if the
+      // source exists explicitly because that could recursively trigger redo
+      // and give an infinite recursion.
+      SelfRenewingLease lease = null;
+      boolean sourceFolderGone = false;
+      try {
+        lease = fs.leaseSourceFolder(srcKey);
+      } catch (AzureException e) {
+
+        // If the source folder was not found then somebody probably
+        // raced with us and finished the rename first, or the
+        // first rename failed right before deleting the rename pending
+        // file.
+        String errorCode = "";
+        try {
+          StorageException se = (StorageException) e.getCause();
+          errorCode = se.getErrorCode();
+        } catch (Exception e2) {
+          ; // do nothing -- could not get errorCode
+        }
+        if (errorCode.equals("BlobNotFound")) {
+          sourceFolderGone = true;
+        } else {
+          throw new IOException(
+              "Unexpected error when trying to lease source folder name during "
+              + "folder rename redo",
+              e);
+        }
+      }
+
+      if (!sourceFolderGone) {
+        // Make sure the target folder exists.
+        Path dst = fullPath(dstKey);
+        if (!fs.exists(dst)) {
+          fs.mkdirs(dst);
+        }
+
+        // For each file inside the folder to be renamed,
+        // make sure it has been renamed.
+        for(String fileName : fileStrings) {
+          finishSingleFileRename(fileName);
+        }
+
+        // Remove the source folder. Don't check explicitly if it exists,
+        // to avoid triggering redo recursively.
+        try {
+          fs.getStoreInterface().delete(srcKey, lease);
+        } catch (Exception e) {
+          LOG.info("Unable to delete source folder during folder rename redo. "
+              + "If the source folder is already gone, this is not an error "
+              + "condition. Continuing with redo.", e);
+        }
+
+        // Update the last-modified time of the parent folders of both source
+        // and destination.
+        fs.updateParentFolderLastModifiedTime(srcKey);
+        fs.updateParentFolderLastModifiedTime(dstKey);
+      }
+
+      // Remove the -RenamePending.json file.
+      fs.delete(getRenamePendingFilePath(), false);
+    }
+
+    // See if the source file is still there, and if it is, rename it.
+    private void finishSingleFileRename(String fileName)
+        throws IOException {
+      Path srcFile = fullPath(srcKey, fileName);
+      Path dstFile = fullPath(dstKey, fileName);
+      boolean srcExists = fs.exists(srcFile);
+      boolean dstExists = fs.exists(dstFile);
+      if (srcExists && !dstExists) {
+
+        // Rename gets exclusive access (via a lease) for HBase write-ahead log
+        // (WAL) file processing correctness.  See the rename code for details.
+        String srcName = fs.pathToKey(srcFile);
+        String dstName = fs.pathToKey(dstFile);
+        fs.getStoreInterface().rename(srcName, dstName, true, null);
+      } else if (srcExists && dstExists) {
+
+        // Get a lease on source to block write access.
+        String srcName = fs.pathToKey(srcFile);
+        SelfRenewingLease lease = fs.acquireLease(srcFile);
+
+        // Delete the file. This will free the lease too.
+        fs.getStoreInterface().delete(srcName, lease);
+      } else if (!srcExists && dstExists) {
+
+        // The rename already finished, so do nothing.
+        ;
+      } else {
+        throw new IOException(
+            "Attempting to complete rename of file " + srcKey + "/" + fileName
+            + " during folder rename redo, and file was not found in source "
+            + "or destination.");
+      }
+    }
+
+    // Return an absolute path for the specific fileName within the folder
+    // specified by folderKey.
+    private Path fullPath(String folderKey, String fileName) {
+      return new Path(new Path(fs.getUri()), "/" + folderKey + "/" + fileName);
+    }
+
+    private Path fullPath(String fileKey) {
+      return new Path(new Path(fs.getUri()), "/" + fileKey);
+    }
+  }
+
   private static final String TRAILING_PERIOD_PLACEHOLDER = "[[.]]";
   private static final Pattern TRAILING_PERIOD_PLACEHOLDER_PATTERN =
       Pattern.compile("\\[\\[\\.\\]\\](?=$|/)");
@@ -253,8 +670,7 @@ public class NativeAzureFileSystem extends FileSystem {
     public NativeAzureFsOutputStream(OutputStream out, String aKey,
         String anEncodedKey) throws IOException {
       // Check input arguments. The output stream should be non-null and the
-      // keys
-      // should be valid strings.
+      // keys should be valid strings.
       //
       if (null == out) {
         throw new IllegalArgumentException(
@@ -548,7 +964,8 @@ public class NativeAzureFileSystem extends FileSystem {
    * Convert the path to a key. By convention, any leading or trailing slash is
    * removed, except for the special case of a single slash.
    */
-  private String pathToKey(Path path) {
+  @VisibleForTesting
+  public String pathToKey(Path path) {
     // Convert the path to a URI to parse the scheme, the authority, and the
     // path from the path object.
     //
@@ -599,7 +1016,15 @@ public class NativeAzureFileSystem extends FileSystem {
     return new Path("/" + decodeTrailingPeriod(key));
   }
 
-  private Path makeAbsolute(Path path) {
+  /**
+   * Get the absolute version of the path (fully qualified).
+   * This is public for testing purposes.
+   *
+   * @param path
+   * @return
+   */
+  @VisibleForTesting
+  public Path makeAbsolute(Path path) {
     if (path.isAbsolute()) {
       return path;
     }
@@ -613,6 +1038,10 @@ public class NativeAzureFileSystem extends FileSystem {
    */
   AzureNativeFileSystemStore getStore() {
     return actualStore;
+  }
+
+  NativeFileSystemStore getStoreInterface() {
+    return store;
   }
 
   /**
@@ -637,15 +1066,90 @@ public class NativeAzureFileSystem extends FileSystem {
       boolean overwrite, int bufferSize, short replication, long blockSize,
       Progressable progress) throws IOException {
     return create(f, permission, overwrite, true,
-        bufferSize, replication, blockSize, progress);
+        bufferSize, replication, blockSize, progress,
+        (SelfRenewingLease) null);
+  }
+
+  /**
+   * Get a self-renewing lease on the specified file.
+   */
+  public SelfRenewingLease acquireLease(Path path) throws AzureException {
+    String fullKey = pathToKey(makeAbsolute(path));
+    return getStore().acquireLease(fullKey);
   }
 
   @Override
   public FSDataOutputStream createNonRecursive(Path f, FsPermission permission,
       boolean overwrite, int bufferSize, short replication, long blockSize,
       Progressable progress) throws IOException {
-    return create(f, permission, overwrite, false,
-        bufferSize, replication, blockSize, progress);
+
+    Path parent = f.getParent();
+
+    // Get exclusive access to folder if this is a directory designated
+    // for atomic rename. The primary use case of for HBase write-ahead
+    // log file management.
+    SelfRenewingLease lease = null;
+    if (store.isAtomicRenameKey(pathToKey(f))) {
+      try {
+        lease = acquireLease(parent);
+      } catch (AzureException e) {
+
+        String errorCode = "";
+        try {
+          StorageException e2 = (StorageException) e.getCause();
+          errorCode = e2.getErrorCode();
+        } catch (Exception e3) {
+          // do nothing if cast fails
+        }
+        if (errorCode.equals("BlobNotFound")) {
+          throw new FileNotFoundException("Cannot create file " +
+              f.getName() + " because parent folder does not exist.");
+        }
+
+        LOG.warn("Got unexpected exception trying to get lease on "
+          + pathToKey(parent) + ". " + e.getMessage());
+        throw e;
+      }
+    }
+
+    // See if the parent folder exists. If not, throw error.
+    // The exists() check will push any pending rename operation forward,
+    // if there is one, and return false.
+    //
+    // At this point, we have exclusive access to the source folder
+    // via the lease, so we will not conflict with an active folder
+    // rename operation.
+    if (!exists(parent)) {
+      try {
+
+        // This'll let the keep-alive thread exit as soon as it wakes up.
+        lease.free();
+      } catch (Exception e) {
+        LOG.warn("Unable to free lease because: " + e.getMessage());
+      }
+      throw new FileNotFoundException("Cannot create file " +
+          f.getName() + " because parent folder does not exist.");
+    }
+
+    // Create file inside folder.
+    FSDataOutputStream out = null;
+    try {
+      out = create(f, permission, overwrite, false,
+          bufferSize, replication, blockSize, progress, lease);
+    } finally {
+      // Release exclusive access to folder.
+      try {
+        if (lease != null) {
+          lease.free();
+        }
+      } catch (Exception e) {
+        IOUtils.cleanup(LOG, out);
+        String msg = "Unable to free lease on " + parent.toUri();
+        LOG.error(msg);
+        throw new IOException(msg, e);
+      }
+    }
+    return out;
   }
 
   @Override
@@ -675,9 +1179,27 @@ public class NativeAzureFileSystem extends FileSystem {
   }
 
 
+  /**
+   * Create an Azure blob and return an output stream to use
+   * to write data to it.
+   *
+   * @param f
+   * @param permission
+   * @param overwrite
+   * @param createParent
+   * @param bufferSize
+   * @param replication
+   * @param blockSize
+   * @param progress
+   * @param parentFolderLease Lease on parent folder (or null if
+   * no lease).
+   * @return
+   * @throws IOException
+   */
   private FSDataOutputStream create(Path f, FsPermission permission,
       boolean overwrite, boolean createParent, int bufferSize,
-      short replication, long blockSize, Progressable progress)
+      short replication, long blockSize, Progressable progress,
+      SelfRenewingLease parentFolderLease)
           throws IOException {
 
     if (LOG.isDebugEnabled()){
@@ -708,8 +1230,9 @@ public class NativeAzureFileSystem extends FileSystem {
       // Update the parent folder last modified time if the parent folder already exists.
       String parentKey = pathToKey(parentFolder);
       FileMetadata parentMetadata = store.retrieveMetadata(parentKey);
-      if (parentMetadata != null && parentMetadata.isDir() && parentMetadata.getBlobMaterialization() == BlobMaterialization.Explicit) {
-        store.updateFolderLastModifiedTime(parentKey);
+      if (parentMetadata != null && parentMetadata.isDir() &&
+          parentMetadata.getBlobMaterialization() == BlobMaterialization.Explicit) {
+        store.updateFolderLastModifiedTime(parentKey, parentFolderLease);
       } else {
         // Make sure that the parent folder exists.
         // Create it using inherited permissions from the first existing directory going up the path
@@ -784,6 +1307,28 @@ public class NativeAzureFileSystem extends FileSystem {
 
   @Override
   public boolean delete(Path f, boolean recursive) throws IOException {
+    return delete(f, recursive, false);
+  }
+
+  /**
+   * Delete the specified file or folder. The parameter
+   * skipParentFolderLastModifidedTimeUpdate
+   * is used in the case of atomic folder rename redo. In that case, there is
+   * a lease on the parent folder, so (without reworking the code) modifying
+   * the parent folder update time will fail because of a conflict with the
+   * lease. Since we are going to delete the folder soon anyway so accurate
+   * modified time is not necessary, it's easier to just skip
+   * the modified time update.
+   *
+   * @param f
+   * @param recursive
+   * @param skipParentFolderLastModifidedTimeUpdate If true, don't update the folder last
+   * modified time.
+   * @return
+   * @throws IOException
+   */
+  public boolean delete(Path f, boolean recursive,
+      boolean skipParentFolderLastModifidedTimeUpdate) throws IOException {
 
     if (LOG.isDebugEnabled()){
       LOG.debug("Deleting file: " + f.toString());
@@ -834,7 +1379,9 @@ public class NativeAzureFileSystem extends FileSystem {
           store.storeEmptyFolder(parentKey,
               createPermissionStatus(FsPermission.getDefault()));
         } else {
-          store.updateFolderLastModifiedTime(parentKey);
+          if (!skipParentFolderLastModifidedTimeUpdate) {
+            store.updateFolderLastModifiedTime(parentKey, null);
+          }
         }
       }
       store.delete(key);
@@ -898,7 +1445,9 @@ public class NativeAzureFileSystem extends FileSystem {
       Path parent = absolutePath.getParent();
       if (parent != null && parent.getParent() != null) { // not root
         String parentKey = pathToKey(parent);
-        store.updateFolderLastModifiedTime(parentKey);
+        if (!skipParentFolderLastModifidedTimeUpdate) {
+          store.updateFolderLastModifiedTime(parentKey, null);
+        }
       }
       instrumentation.directoryDeleted();
     }
@@ -936,6 +1485,13 @@ public class NativeAzureFileSystem extends FileSystem {
           LOG.debug("Path " + f.toString() + "is a folder.");
         }
 
+        // If a rename operation for the folder was pending, redo it.
+        // Then the file does not exist, so signal that.
+        if (conditionalRedoFolderRename(f)) {
+          throw new FileNotFoundException(
+              absolutePath + ": No such file or directory.");
+        }
+
         // Return reference to the directory object.
         //
         return newDirectory(meta, absolutePath);
@@ -954,10 +1510,38 @@ public class NativeAzureFileSystem extends FileSystem {
     }
 
     // File not found. Throw exception no such file or directory.
-    // Note: Should never get to this point since the root always exists.
     //
     throw new FileNotFoundException(
         absolutePath + ": No such file or directory.");
+  }
+
+  // Return true if there is a rename pending and we redo it, otherwise false.
+  private boolean conditionalRedoFolderRename(Path f) throws IOException {
+
+    // Can't rename /, so return immediately in that case.
+    if (f.getName().equals("")) {
+      return false;
+    }
+
+    // Check if there is a -RenamePending.json file for this folder, and if so,
+    // redo the rename.
+    Path absoluteRenamePendingFile = renamePendingFilePath(f);
+    if (exists(absoluteRenamePendingFile)) {
+      FolderRenamePending pending =
+          new FolderRenamePending(absoluteRenamePendingFile, this);
+      pending.redo();
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  // Return the path name that would be used for rename of folder with path f.
+  private Path renamePendingFilePath(Path f) {
+    Path absPath = makeAbsolute(f);
+    String key = pathToKey(absPath);
+    key += "-RenamePending.json";
+    return keyToPath(key);
   }
 
   @Override
@@ -990,6 +1574,17 @@ public class NativeAzureFileSystem extends FileSystem {
       }
       String partialKey = null;
       PartialListing listing = store.list(key, AZURE_LIST_ALL, 1, partialKey);
+
+      // For any -RenamePending.json files in the listing,
+      // push the rename forward.
+      boolean renamed = conditionalRedoFolderRenames(listing);
+
+      // If any renames were redone, get another listing,
+      // since the current one may have changed due to the redo.
+      if (renamed) {
+        listing = store.list(key, AZURE_LIST_ALL, 1, partialKey);
+      }
+
       for (FileMetadata fileMetadata : listing.getFiles()) {
         Path subpath = keyToPath(fileMetadata.getKey());
 
@@ -1027,6 +1622,28 @@ public class NativeAzureFileSystem extends FileSystem {
     }
 
     return status.toArray(new FileStatus[0]);
+  }
+
+  // Redo any folder renames needed if there are rename pending files in the
+  // directory listing. Return true if one or more redo operations were done.
+  private boolean conditionalRedoFolderRenames(PartialListing listing)
+      throws IllegalArgumentException, IOException {
+    boolean renamed = false;
+    for (FileMetadata fileMetadata : listing.getFiles()) {
+      Path subpath = keyToPath(fileMetadata.getKey());
+      if (isRenamePendingFile(subpath)) {
+        FolderRenamePending pending =
+            new FolderRenamePending(subpath, this);
+        pending.redo();
+        renamed = true;
+      }
+    }
+    return renamed;
+  }
+
+  // True if this is a folder rename pending file, else false.
+  private boolean isRenamePendingFile(Path path) {
+    return path.toString().endsWith(FolderRenamePending.SUFFIX);
   }
 
   private FileStatus newFile(FileMetadata meta, Path path) {
@@ -1184,13 +1801,16 @@ public class NativeAzureFileSystem extends FileSystem {
   @Override
   public boolean rename(Path src, Path dst) throws IOException {
 
+    FolderRenamePending renamePending = null;
+
     if (LOG.isDebugEnabled()) {
       LOG.debug("Moving " + src + " to " + dst);
     }
 
     if (containsColon(dst)) {
       throw new IOException(
-          "Cannot rename to file "+ dst + " through WASB that has colons in the name");
+          "Cannot rename to file "+ dst +
+          " through WASB that has colons in the name");
     }
 
     String srcKey = pathToKey(makeAbsolute(src));
@@ -1249,76 +1869,109 @@ public class NativeAzureFileSystem extends FileSystem {
       }
       store.rename(srcKey, dstKey);
     } else {
-      // Move everything inside the folder.
-      //
-      String priorLastKey = null;
 
-      // Calculate the index of the part of the string to be moved. That
-      // is everything on the path up to the folder name.
-      //
-      do {
-        // List all blobs rooted at the source folder.
-        //
-        PartialListing listing = store.listAll(srcKey, AZURE_LIST_ALL,
-            AZURE_UNBOUNDED_DEPTH, priorLastKey);
+      // Prepare for, execute and clean up after of all files in folder, and
+      // the root file, and update the last modified time of the source and
+      // target parent folders. The operation can be redone if it fails part
+      // way through, by applying the "Rename Pending" file.
 
-        // Rename all the files in the folder.
-        //
-        for (FileMetadata file : listing.getFiles()) {
-          // Rename all materialized entries under the folder to point to the
-          // final destination.
-          //
-          if (file.getBlobMaterialization() == BlobMaterialization.Explicit) {
-            String srcName = file.getKey();
-            String suffix  = srcName.substring(srcKey.length());
-            String dstName = dstKey + suffix;
-            store.rename(srcName, dstName);
-          }
-        }
-        priorLastKey = listing.getPriorLastKey();
-      } while (priorLastKey != null);
-      // Rename the top level empty blob for the folder.
-      //
-      if (srcMetadata.getBlobMaterialization() ==
-          BlobMaterialization.Explicit) {
-        store.rename(srcKey, dstKey);
+      // The following code (internally) only does atomic rename preparation
+      // and lease management for page blob folders, limiting the scope of the
+      // operation to HBase log file folders, where atomic rename is required.
+      // In the future, we could generalize it easily to all folders.
+      renamePending = prepareAtomicFolderRename(srcKey, dstKey);
+      renamePending.execute();
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Renamed " + src + " to " + dst + " successfully.");
       }
+      renamePending.cleanup();
+      return true;
     }
 
-    // Update both source and destination parent folder last modified time.
-    //
-    Path srcParent = makeAbsolute(keyToPath(srcKey)).getParent();
-    if (srcParent != null && srcParent.getParent() != null) { // not root
-      String srcParentKey = pathToKey(srcParent);
-
-      // ensure the srcParent is a materialized folder
-      FileMetadata srcParentMetadata = store.retrieveMetadata(srcParentKey);
-      if( srcParentMetadata.isDir() &&
-          srcParentMetadata.getBlobMaterialization() == BlobMaterialization.Implicit){
-        store.storeEmptyFolder(srcParentKey, createPermissionStatus(FsPermission.getDefault()));
-      }
-
-      store.updateFolderLastModifiedTime(srcParentKey);
-    }
-
-    Path destParent = makeAbsolute(keyToPath(dstKey)).getParent();
-    if (destParent != null && destParent.getParent() != null) { // not root
-      String dstParentKey = pathToKey(destParent);
-
-      // ensure the dstParent is a materialized folder
-      FileMetadata dstParentMetadata = store.retrieveMetadata(dstParentKey);
-      if( dstParentMetadata.isDir() &&
-          dstParentMetadata.getBlobMaterialization() == BlobMaterialization.Implicit){
-        store.storeEmptyFolder(dstParentKey, createPermissionStatus(FsPermission.getDefault()));
-      }
-
-      store.updateFolderLastModifiedTime(dstParentKey);
-    }
+    // Update the last-modified time of the parent folders of both source
+    // and destination.
+    updateParentFolderLastModifiedTime(srcKey);
+    updateParentFolderLastModifiedTime(dstKey);
 
     if (LOG.isDebugEnabled()) {
       LOG.debug("Renamed " + src + " to " + dst + " successfully.");
     }
     return true;
+  }
+
+  /**
+   * Update the last-modified time of the parent folder of the file
+   * identified by key.
+   * @param key
+   * @throws IOException
+   */
+  private void updateParentFolderLastModifiedTime(String key)
+      throws IOException {
+    Path parent = makeAbsolute(keyToPath(key)).getParent();
+    if (parent != null && parent.getParent() != null) { // not root
+      String parentKey = pathToKey(parent);
+
+      // ensure the parent is a materialized folder
+      FileMetadata parentMetadata = store.retrieveMetadata(parentKey);
+      if( parentMetadata.isDir() &&
+          parentMetadata.getBlobMaterialization()
+          == BlobMaterialization.Implicit){
+        store.storeEmptyFolder(parentKey,
+            createPermissionStatus(FsPermission.getDefault()));
+      }
+
+      store.updateFolderLastModifiedTime(parentKey, null);
+    }
+  }
+
+  /**
+   * If the source is a page blob folder,
+   * prepare to rename this folder atomically. This means to get exclusive
+   * access to the source folder, and record the actions to be performed for
+   * this rename in a "Rename Pending" file. This code was designed to
+   * meet the needs of HBase, which requires atomic rename of write-ahead log
+   * (WAL) folders for correctness.
+   *
+   * Before calling this method, the caller must ensure that the source is a
+   * folder.
+   *
+   * For non-page-blob directories, prepare the in-memory information needed,
+   * but don't take the lease or write the redo file. This is done to limit the
+   * scope of atomic folder rename to HBase, at least at the time of writing
+   * this code.
+   *
+   * @param srcKey Source folder name.
+   * @param dstKey Destination folder name.
+   * @throws IOException
+   */
+  private FolderRenamePending prepareAtomicFolderRename(
+      String srcKey, String dstKey) throws IOException {
+
+    if (store.isAtomicRenameKey(srcKey)) {
+
+      // Block unwanted concurrent access to source folder.
+      SelfRenewingLease lease = leaseSourceFolder(srcKey);
+
+      // Prepare in-memory information needed to do or redo a folder rename.
+      FolderRenamePending renamePending =
+          new FolderRenamePending(srcKey, dstKey, lease, this);
+
+      // Save it to persistent storage to help recover if the operation fails.
+      renamePending.writeFile(this);
+      return renamePending;
+    } else {
+      FolderRenamePending renamePending =
+          new FolderRenamePending(srcKey, dstKey, null, this);
+      return renamePending;
+    }
+  }
+
+  /**
+   * Get a self-renewing Azure blob lease on the source folder zero-byte file.
+   */
+  private SelfRenewingLease leaseSourceFolder(String srcKey)
+      throws AzureException {
+    return store.acquireLease(srcKey);
   }
 
   /**

@@ -45,6 +45,7 @@ public final class AzureBlobStorageTestAccount {
   private static final String KEY_DISABLE_THROTTLING = "fs.azure.disable.bandwidth.throttling";
   private static final String KEY_READ_TOLERATE_CONCURRENT_APPEND = "fs.azure.io.read.tolerate.concurrent.append";
   public static final String DEFAULT_PAGE_BLOB_DIRECTORY = "pageBlobs";
+  public static final String DEFAULT_ATOMIC_RENAME_DIRECTORIES = "/atomicRenameDir1,/atomicRenameDir2";
 
   private CloudStorageAccount account;
   private CloudBlobContainer container;
@@ -217,6 +218,7 @@ public final class AzureBlobStorageTestAccount {
   public static AzureBlobStorageTestAccount createMock(Configuration conf) throws Exception {
     saveMetricsConfigFile();
     configurePageBlobDir(conf);
+    configureAtomicRenameDir(conf);
     AzureNativeFileSystemStore store = new AzureNativeFileSystemStore();
     MockStorageInterface mockStorage = new MockStorageInterface();
     store.setAzureStorageInteractionLayer(mockStorage);
@@ -238,6 +240,14 @@ public final class AzureBlobStorageTestAccount {
     if (conf.get(AzureNativeFileSystemStore.KEY_PAGE_BLOB_DIRECTORIES) == null) {
       conf.set(AzureNativeFileSystemStore.KEY_PAGE_BLOB_DIRECTORIES,
           "/" + DEFAULT_PAGE_BLOB_DIRECTORY);
+    }
+  }
+
+  /** Do the same for the atomic rename directories configuration */
+  private static void configureAtomicRenameDir(Configuration conf) {
+    if (conf.get(AzureNativeFileSystemStore.KEY_ATOMIC_RENAME_DIRECTORIES) == null) {
+      conf.set(AzureNativeFileSystemStore.KEY_ATOMIC_RENAME_DIRECTORIES,
+          DEFAULT_ATOMIC_RENAME_DIRECTORIES);
     }
   }
 
@@ -458,6 +468,7 @@ public final class AzureBlobStorageTestAccount {
     CloudBlobContainer container = null;
     Configuration conf = createTestConfiguration(initialConfiguration);
     configurePageBlobDir(conf);
+    configureAtomicRenameDir(conf);
     CloudStorageAccount account = createTestAccount(conf);
     if (account == null) {
       return null;

@@ -126,7 +126,7 @@ class AzureNativeFileSystemStore implements NativeFileSystemStore {
   static final String OLD_LINK_BACK_TO_UPLOAD_IN_PROGRESS_METADATA_KEY = "asv_tmpupload";
 
   /**
-   * Configuration key to indicate the set of directories in ASV where we
+   * Configuration key to indicate the set of directories in WASB where we
    * should store files as page blobs instead of block blobs.
    *
    * Entries should be plain directory names (i.e. not URIs) with no leading or
@@ -138,6 +138,19 @@ class AzureNativeFileSystemStore implements NativeFileSystemStore {
    * The set of directories where we should store files as page blobs.
    */
   private Set<String> pageBlobDirs;
+
+  /**
+   * Configuration key to indicate the set of directories in WASB where
+   * we should do atomic folder rename synchronized with createNonRecursive.
+   */
+  public static final String KEY_ATOMIC_RENAME_DIRECTORIES =
+      "fs.azure.atomic.rename.dir";
+
+  /**
+   * The set of directories where we should apply atomic folder rename
+   * synchronized with createNonRecursive.
+   */
+  private Set<String> atomicRenameDirs;
 
   private static final String HTTP_SCHEME = "http";
   private static final String HTTPS_SCHEME = "https";
@@ -371,7 +384,38 @@ class AzureNativeFileSystemStore implements NativeFileSystemStore {
     createAzureStorageSession ();
 
     // Extract the directories that should contain page blobs
-    initializePageBlobDirs();
+    pageBlobDirs = getDirectorySet(KEY_PAGE_BLOB_DIRECTORIES);
+    LOG.debug("Page blob directories:  " + setToString(pageBlobDirs));
+
+    // Extract directories that should have atomic rename applied.
+    atomicRenameDirs = getDirectorySet(KEY_ATOMIC_RENAME_DIRECTORIES);
+    String hbaseRoot;
+    try {
+
+      // Add to this the hbase root directory, or /hbase is that is not set.
+      hbaseRoot = verifyAndConvertToStandardFormat(
+          sessionConfiguration.get("hbase.rootdir", "hbase"));
+      atomicRenameDirs.add(hbaseRoot);
+    } catch (URISyntaxException e) {
+      LOG.warn("Unable to initialize HBase root as an atomic rename directory.");
+    }
+    LOG.debug("Atomic rename directories:  " + setToString(atomicRenameDirs));
+  }
+
+  /**
+   * Helper to format a string for log output from Set<String>
+   */
+  private String setToString(Set<String> set) {
+    StringBuilder sb = new StringBuilder();
+    int i = 1;
+    for (String s : set) {
+      sb.append("/" + s);
+      if (i != set.size()) {
+        sb.append(", ");
+      }
+      i++;
+    }
+    return sb.toString();
   }
 
   /**
@@ -924,20 +968,14 @@ class AzureNativeFileSystemStore implements NativeFileSystemStore {
   }
 
   /**
-   * Initialize the set of directories where we should create page blobs
-   * instead of block blobs from configuration.
+   * Take a comma-separated list of directories from a configuration variable
+   * and transform it to a set of directories.
    */
-  private void initializePageBlobDirs()
-      throws AzureException {
-    String[] rawPageBlobDirs =
-        sessionConfiguration.getStrings(KEY_PAGE_BLOB_DIRECTORIES);
-    if (rawPageBlobDirs == null) {
-      // Nothing is specified
-      pageBlobDirs = Collections.emptySet();
-      return;
-    }
-    pageBlobDirs = new HashSet<String>();
-    for (String currentDir : rawPageBlobDirs) {
+  private Set<String> getDirectorySet(final String configVar)
+    throws AzureException {
+    String[] rawDirs = sessionConfiguration.getStrings(configVar, new String[0]);
+    Set<String> directorySet = new HashSet<String>();
+    for (String currentDir : rawDirs) {
       String myDir;
       try {
         myDir = verifyAndConvertToStandardFormat(currentDir);
@@ -945,12 +983,13 @@ class AzureNativeFileSystemStore implements NativeFileSystemStore {
         throw new AzureException(String.format(
             "The directory %s specified in the configuration entry %s is not" +
             " a valid URI.",
-            currentDir, KEY_PAGE_BLOB_DIRECTORIES));
+            currentDir, configVar));
       }
       if (myDir != null) {
-        pageBlobDirs.add(myDir);
+        directorySet.add(myDir);
       }
     }
+    return directorySet;
   }
 
   /**
@@ -959,10 +998,23 @@ class AzureNativeFileSystemStore implements NativeFileSystemStore {
    * @throws URISyntaxException
    */
   public boolean isPageBlobKey(String key) {
+    return isKeyForDirectorySet(key, pageBlobDirs);
+  }
+
+  /**
+   * Checks if the given key in Azure storage should have synchronized
+   * atomic folder rename createNonRecursive implemented.
+   */
+  @Override
+  public boolean isAtomicRenameKey(String key) {
+    return isKeyForDirectorySet(key, atomicRenameDirs);
+  }
+
+  public boolean isKeyForDirectorySet(String key, Set<String> dirSet) {
     String defaultFS = FileSystem.getDefaultUri(sessionConfiguration).toString();
-    for (String pageBlobDir : pageBlobDirs) {
-      if (pageBlobDir.isEmpty() ||
-          key.startsWith(pageBlobDir + "/")) {
+    for (String dir : dirSet) {
+      if (dir.isEmpty() ||
+          key.startsWith(dir + "/")) {
         return true;
       }
 
@@ -970,18 +1022,18 @@ class AzureNativeFileSystemStore implements NativeFileSystemStore {
       // system.
       //
       try {
-        URI uriPageBlobDir = new URI (pageBlobDir);
+        URI uriPageBlobDir = new URI (dir);
         if (null == uriPageBlobDir.getAuthority()) {
           // Concatenate the default file system prefix with the relative
           // page blob directory path.
           //
-          if (key.startsWith(trim(defaultFS, "/") + "/" + pageBlobDir + "/")){
+          if (key.startsWith(trim(defaultFS, "/") + "/" + dir + "/")){
             return true;
           }
         }
       } catch (URISyntaxException e) {
         LOG.info(String.format(
-                   "URI syntax error creating URI for %s", pageBlobDir));
+                   "URI syntax error creating URI for %s", dir));
       }
     }
     return false;
@@ -2214,12 +2266,14 @@ class AzureNativeFileSystemStore implements NativeFileSystemStore {
    * swallow the error since what most probably happened is that
    * the first operation succeeded on the server.
    * @param blob The blob to delete.
+   * @param leaseID A string identifying the lease, or null if no
+   *        lease is to be used.
    * @throws StorageException
    */
-  private void safeDelete(CloudBlobWrapper blob) throws StorageException {
+  private void safeDelete(CloudBlobWrapper blob, SelfRenewingLease lease) throws StorageException {
     OperationContext operationContext = getInstrumentedContext();
     try {
-      blob.delete(operationContext);
+      blob.delete(operationContext, lease);
     } catch (StorageException e) {
       // On exception, check that if:
       // 1. It's a BlobNotFound exception AND
@@ -2236,11 +2290,15 @@ class AzureNativeFileSystemStore implements NativeFileSystemStore {
       } else {
         throw e;
       }
+    } finally {
+      if (lease != null) {
+        lease.free();
+      }
     }
   }
 
   @Override
-  public void delete(String key) throws IOException {
+  public void delete(String key, SelfRenewingLease lease) throws IOException {
     try {
       if (checkContainer(ContainerAccessType.ReadThenWrite) ==
           ContainerState.DoesntExist) {
@@ -2248,34 +2306,48 @@ class AzureNativeFileSystemStore implements NativeFileSystemStore {
         return;
       }
 
-      // Get the blob reference an delete it.
-      //
+      // Get the blob reference and delete it.
       CloudBlobWrapper blob = getBlobReference(key);
       if (blob.exists(getInstrumentedContext())) {
-        safeDelete(blob);
+        safeDelete(blob, lease);
       }
     } catch (Exception e) {
+
       // Re-throw as an Azure storage exception.
-      //
       throw new AzureException(e);
     }
   }
 
   @Override
-  public void rename(String srcKey, String dstKey)
-      throws IOException {
+  public void delete(String key) throws IOException {
+    delete(key, null);
+  }
+
+  @Override
+  public void rename(String srcKey, String dstKey) throws IOException {
+    rename(srcKey, dstKey, false, null);
+  }
+
+  @Override
+  public void rename(String srcKey, String dstKey, boolean acquireLease,
+      SelfRenewingLease existingLease) throws IOException {
 
     if (LOG.isDebugEnabled()) {
       LOG.debug("Moving " + srcKey + " to " + dstKey);
     }
 
+    if (acquireLease && existingLease != null) {
+      throw new IOException("Cannot acquire new lease if one already exists.");
+    }
+
     try {
-      // Attempts rename may occur before opening any streams so first,
-      // check if a session exists, if not create a session with the Azure storage server.
-      //
+
+      // Make sure a storage session exists.
       if (null == storageInteractionLayer) {
         final String errMsg =
-            String.format("Storage session expected for URI '%s' but does not exist.", sessionUri);
+            String.format(
+                "Storage session expected for URI '%s' but does not exist.",
+                sessionUri);
         throw new AssertionError(errMsg);
       }
 
@@ -2286,7 +2358,26 @@ class AzureNativeFileSystemStore implements NativeFileSystemStore {
       CloudBlobWrapper srcBlob = getBlobReference(srcKey);
 
       if (!srcBlob.exists(getInstrumentedContext())) {
-        throw new AzureException ("Source blob " + srcKey+ " does not exist.");
+        throw new AzureException ("Source blob " + srcKey +
+            " does not exist.");
+      }
+
+      /**
+       * Conditionally get a lease on the source blob to prevent other writers
+       * from changing it. This is used for correctness in HBase when log files
+       * are renamed. It generally should do no harm other than take a little
+       * more time for other rename scenarios. When the HBase master renames a
+       * log file folder, the lease locks out other writers.  This
+       * prevents a region server that the master thinks is dead, but is still
+       * alive, from committing additional updates.  This is different than
+       * when HBase runs on HDFS, where the region server recovers the lease
+       * on a log file, to gain exclusive access to it, before it splits it.
+       */
+      SelfRenewingLease lease = null;
+      if (acquireLease) {
+        lease = srcBlob.acquireLease();
+      } else if (existingLease != null) {
+        lease = existingLease;
       }
 
       // Get the destination blob. The destination key always needs to be
@@ -2300,7 +2391,7 @@ class AzureNativeFileSystemStore implements NativeFileSystemStore {
       dstBlob.startCopyFromBlob(srcBlob, getInstrumentedContext());
       waitForCopyToComplete(dstBlob, getInstrumentedContext());
 
-      safeDelete(srcBlob);
+      safeDelete(srcBlob, lease);
     } catch (Exception e) {
       // Re-throw exception as an Azure storage exception.
       //
@@ -2379,14 +2470,35 @@ class AzureNativeFileSystemStore implements NativeFileSystemStore {
     }
   }
 
+  /**
+   * Get a lease on the blob identified by key. This lease will be renewed
+   * indefinitely by a background thread.
+   */
   @Override
-  public void updateFolderLastModifiedTime(String key, Date lastModified)
+  public SelfRenewingLease acquireLease(String key) throws AzureException {
+    LOG.debug("acquiring lease on " + key);
+    try {
+      checkContainer(ContainerAccessType.ReadThenWrite);
+      CloudBlobWrapper blob = getBlobReference(key);
+      return blob.acquireLease();
+    }
+    catch (Exception e) {
+
+      // Caught exception while attempting to get lease. Re-throw as an
+      // Azure storage exception.
+      throw new AzureException(e);
+    }
+  }
+
+  @Override
+  public void updateFolderLastModifiedTime(String key, Date lastModified,
+      SelfRenewingLease folderLease)
       throws AzureException {
     try {
       checkContainer(ContainerAccessType.ReadThenWrite);
       CloudBlobWrapper blob = getBlobReference(key);
       blob.getProperties().setLastModified(lastModified);
-      blob.uploadProperties(getInstrumentedContext());
+      blob.uploadProperties(getInstrumentedContext(), folderLease);
     } catch (Exception e) {
 
       // Caught exception while attempting to update the properties. Re-throw as an
@@ -2396,12 +2508,13 @@ class AzureNativeFileSystemStore implements NativeFileSystemStore {
   }
 
   @Override
-  public void updateFolderLastModifiedTime(String key) throws AzureException {
+  public void updateFolderLastModifiedTime(String key,
+      SelfRenewingLease folderLease) throws AzureException {
     final Calendar lastModifiedCalendar = Calendar
         .getInstance(Utility.LOCALE_US);
     lastModifiedCalendar.setTimeZone(Utility.UTC_ZONE);
     Date lastModified = lastModifiedCalendar.getTime();
-    updateFolderLastModifiedTime(key, lastModified);
+    updateFolderLastModifiedTime(key, lastModified, folderLease);
   }
 
   @Override

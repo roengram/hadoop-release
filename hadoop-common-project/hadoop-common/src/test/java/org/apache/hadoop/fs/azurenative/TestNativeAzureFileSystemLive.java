@@ -51,4 +51,40 @@ public class TestNativeAzureFileSystemLive
       assertTrue(store.isPageBlobKey(uriPrefix + s));
     }
   }
+
+  /**
+   * Test that isAtomicRenameKey() works as expected.
+   */
+  @Test
+  public void testIsAtomicRenameKey() {
+
+    AzureNativeFileSystemStore store = ((NativeAzureFileSystem) fs).getStore();
+
+    // We want to know if the default configuration changes so we can fix
+    // this test.
+    assertEquals(AzureBlobStorageTestAccount.DEFAULT_ATOMIC_RENAME_DIRECTORIES,
+        "/atomicRenameDir1,/atomicRenameDir2");
+
+    // URI prefix for test environment.
+    String uriPrefix = "file:///";
+
+    // negative tests
+    String[] negativeKeys = { "", "/", "bar", "bar/", "bar/hbase",
+        "bar/hbase/foo", "bar/hbase/foo/", "/hbase/", "/hbase", "hbase",
+        "hbasexyz/", "foo/atomicRenameDir1/"};
+    for (String s : negativeKeys) {
+      assertFalse(store.isAtomicRenameKey(s));
+      assertFalse(store.isAtomicRenameKey(uriPrefix + s));
+    }
+
+    // Positive tests. The directories for atomic rename are /hbase
+    // plus the ones in the configuration (DEFAULT_ATOMIC_RENAME_DIRECTORIES
+    // for this test).
+    String[] positiveKeys = { "hbase/", "hbase/foo/", "hbase/foo/bar/",
+        "atomicRenameDir1/foo/", "atomicRenameDir2/bar/"};
+    for (String s : positiveKeys) {
+      assertTrue(store.isAtomicRenameKey(s));
+      assertTrue(store.isAtomicRenameKey(uriPrefix + s));
+    }
+  }
 }

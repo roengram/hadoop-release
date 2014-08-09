@@ -20,8 +20,8 @@ package org.apache.hadoop.fs.azurenative;
 import org.apache.hadoop.conf.Configuration;
 
 /**
- * Run the base Azure file system tests strictly on page blobs to make sure fundamental
- * operations on page blob files and folders work as expected.
+ * Run the base Azure file system tests strictly on page blobs to make sure
+ * fundamental operations on page blob files and folders work as expected.
  * These operations include create, delete, rename, list, and so on.
  */
 public class TestNativeAzureFSPageBlobLive extends
@@ -32,8 +32,13 @@ public class TestNativeAzureFSPageBlobLive extends
       throws Exception {
     Configuration conf = new Configuration();
 
-    // Configure the page blob directories key so every file created is a page blob.
+    // Configure the page blob directories key so every file created is a page
+    // blob.
     conf.set(AzureNativeFileSystemStore.KEY_PAGE_BLOB_DIRECTORIES, "/");
+
+    // Configure the atomic rename directories key so every folder will have
+    // atomic rename applied.
+    conf.set(AzureNativeFileSystemStore.KEY_ATOMIC_RENAME_DIRECTORIES, "/");
     return AzureBlobStorageTestAccount.create(conf);
   }
 }
