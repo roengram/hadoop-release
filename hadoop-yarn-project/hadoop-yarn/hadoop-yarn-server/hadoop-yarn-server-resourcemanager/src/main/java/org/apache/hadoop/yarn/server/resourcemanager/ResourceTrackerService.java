@@ -121,9 +121,8 @@ public class ResourceTrackerService extends AbstractService implements
   @Override
   protected void serviceInit(Configuration conf) throws Exception {
 
-    resourceTrackerAddress = RPCUtil.getSocketAddr(
-        conf,
-        YarnConfiguration.RM_RESOURCE_TRACKER_BIND_HOST,
+    resourceTrackerAddress = conf.getSocketAddr(
+        YarnConfiguration.RM_BIND_HOST,
         YarnConfiguration.RM_RESOURCE_TRACKER_ADDRESS,
         YarnConfiguration.DEFAULT_RM_RESOURCE_TRACKER_ADDRESS,
         YarnConfiguration.DEFAULT_RM_RESOURCE_TRACKER_PORT);
@@ -180,10 +179,10 @@ public class ResourceTrackerService extends AbstractService implements
     }
 
     this.server.start();
-    RPCUtil.updateConnectAddr(conf,
-        YarnConfiguration.RM_RESOURCE_TRACKER_ADDRESS,
-        YarnConfiguration.DEFAULT_RM_RESOURCE_TRACKER_ADDRESS,
-        server.getListenerAddress());
+    conf.updateConnectAddr(YarnConfiguration.RM_BIND_HOST,
+			   YarnConfiguration.RM_RESOURCE_TRACKER_ADDRESS,
+			   YarnConfiguration.DEFAULT_RM_RESOURCE_TRACKER_ADDRESS,
+                           server.getListenerAddress());
   }
 
   @Override

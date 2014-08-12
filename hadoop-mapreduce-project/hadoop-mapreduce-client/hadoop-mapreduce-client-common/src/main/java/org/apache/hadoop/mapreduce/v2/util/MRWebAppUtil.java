@@ -106,13 +106,13 @@ public class MRWebAppUtil {
   
   public static InetSocketAddress getJHSWebBindAddress(Configuration conf) {
     if (httpPolicyInJHS == Policy.HTTPS_ONLY) {
-      return RPCUtil.getSocketAddr(conf,
+      return conf.getSocketAddr(
           JHAdminConfig.MR_HISTORY_WEBAPP_HTTPS_BIND_HOST,
           JHAdminConfig.MR_HISTORY_WEBAPP_HTTPS_ADDRESS,
           JHAdminConfig.DEFAULT_MR_HISTORY_WEBAPP_HTTPS_ADDRESS,
           JHAdminConfig.DEFAULT_MR_HISTORY_WEBAPP_HTTPS_PORT);
     } else {
-      return RPCUtil.getSocketAddr(conf,
+      return conf.getSocketAddr(
           JHAdminConfig.MR_HISTORY_WEBAPP_BIND_HOST,
           JHAdminConfig.MR_HISTORY_WEBAPP_ADDRESS,
           JHAdminConfig.DEFAULT_MR_HISTORY_WEBAPP_ADDRESS,

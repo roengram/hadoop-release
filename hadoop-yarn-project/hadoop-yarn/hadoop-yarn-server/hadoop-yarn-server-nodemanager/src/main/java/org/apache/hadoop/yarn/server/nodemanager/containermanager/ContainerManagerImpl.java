@@ -262,8 +262,7 @@ public class ContainerManagerImpl extends CompositeService implements
     
     YarnRPC rpc = YarnRPC.create(conf);
 
-    InetSocketAddress initialAddress = RPCUtil.getSocketAddr(
-        conf,
+    InetSocketAddress initialAddress = conf.getSocketAddr(
         YarnConfiguration.NM_BIND_HOST,
         YarnConfiguration.NM_ADDRESS,
         YarnConfiguration.DEFAULT_NM_ADDRESS,
@@ -288,17 +287,18 @@ public class ContainerManagerImpl extends CompositeService implements
     server.start();
 
     InetSocketAddress connectAddress;
-    String connectHost = conf.getTrimmed(YarnConfiguration.NM_ADDRESS);
-    if (connectHost == null || connectHost.isEmpty()) {
-      // Get hostname and port from the listening endpoint.
+    String bindHost = conf.get(YarnConfiguration.NM_BIND_HOST);
+    String nmAddress = conf.getTrimmed(YarnConfiguration.NM_ADDRESS);
+    if (bindHost == null || bindHost.isEmpty() ||
+	nmAddress == null || nmAddress.isEmpty()) {
       connectAddress = NetUtils.getConnectAddress(server);
     } else {
-      // Combine the configured hostname with the port from the listening
-      // endpoint. This gets the correct port number if the configuration
-      // specifies an ephemeral port (port number 0).      
+      //a bind-host case with an address, to support overriding the first hostname
+      //found when querying for our hostname with the specified address, combine
+      //the specified address with the actual port listened on by the server
       connectAddress = NetUtils.getConnectAddress(
-          new InetSocketAddress(connectHost.split(":")[0],
-                                server.getListenerAddress().getPort()));
+	new InetSocketAddress(nmAddress.split(":")[0],
+			      server.getListenerAddress().getPort()));
     }
 
     NodeId nodeId = NodeId.newInstance(

@@ -47,8 +47,6 @@ public class JHAdminConfig {
   public static final int DEFAULT_JHS_ADMIN_PORT = 10033;
   public static final String DEFAULT_JHS_ADMIN_ADDRESS = "0.0.0.0:"
       + DEFAULT_JHS_ADMIN_PORT;
-  public static final String JHS_ADMIN_BIND_HOST = MR_HISTORY_PREFIX
-      + "admin.bind-host";
 
   /** ACL of who can be admin of Job history server. */
   public static final String JHS_ADMIN_ACL = MR_HISTORY_PREFIX + "admin.acl";
