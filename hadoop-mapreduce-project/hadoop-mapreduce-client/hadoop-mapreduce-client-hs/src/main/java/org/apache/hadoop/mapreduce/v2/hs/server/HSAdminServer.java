@@ -95,8 +95,8 @@ public class HSAdminServer extends AbstractService implements HSAdminProtocol {
 
     WritableRpcEngine.ensureInitialized();
 
-    clientRpcAddress = RPCUtil.getSocketAddr(conf,
-        JHAdminConfig.JHS_ADMIN_BIND_HOST,
+    clientRpcAddress = conf.getSocketAddr(
+        JHAdminConfig.MR_HISTORY_BIND_HOST,
         JHAdminConfig.JHS_ADMIN_ADDRESS,
         JHAdminConfig.DEFAULT_JHS_ADMIN_ADDRESS,
         JHAdminConfig.DEFAULT_JHS_ADMIN_PORT);

@@ -122,9 +122,8 @@ public class ApplicationMasterService extends AbstractService implements
     Configuration conf = getConfig();
     YarnRPC rpc = YarnRPC.create(conf);
 
-    InetSocketAddress masterServiceAddress = RPCUtil.getSocketAddr(
-        conf,
-        YarnConfiguration.RM_SCHEDULER_BIND_HOST,
+    InetSocketAddress masterServiceAddress = conf.getSocketAddr(
+        YarnConfiguration.RM_BIND_HOST,
         YarnConfiguration.RM_SCHEDULER_ADDRESS,
         YarnConfiguration.DEFAULT_RM_SCHEDULER_ADDRESS,
         YarnConfiguration.DEFAULT_RM_SCHEDULER_PORT);
@@ -156,10 +155,11 @@ public class ApplicationMasterService extends AbstractService implements
     }
     
     this.server.start();
-    this.bindAddress = RPCUtil.updateConnectAddr(conf,
-        YarnConfiguration.RM_SCHEDULER_ADDRESS,
-        YarnConfiguration.DEFAULT_RM_SCHEDULER_ADDRESS,
-        server.getListenerAddress());
+    this.bindAddress =
+        conf.updateConnectAddr(YarnConfiguration.RM_BIND_HOST,
+                               YarnConfiguration.RM_SCHEDULER_ADDRESS,
+                               YarnConfiguration.DEFAULT_RM_SCHEDULER_ADDRESS,
+                               server.getListenerAddress());
     super.serviceStart();
   }
 

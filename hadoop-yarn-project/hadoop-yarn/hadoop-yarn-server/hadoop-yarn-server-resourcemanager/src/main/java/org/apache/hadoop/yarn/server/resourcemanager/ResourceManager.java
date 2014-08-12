@@ -150,7 +150,8 @@ public class ResourceManager extends CompositeService implements Recoverable {
   private AppReportFetcher fetcher = null;
   protected ResourceTrackerService resourceTracker;
 
-  private String webAppAddress;
+  @VisibleForTesting
+  protected String webAppAddress;
   private ConfigurationProvider configurationProvider = null;
   /** End of Active services */
 
@@ -225,7 +226,9 @@ public class ResourceManager extends CompositeService implements Recoverable {
     }
     createAndInitActiveServices();
 
-    webAppAddress = WebAppUtils.getRMWebAppURLWithoutScheme(this.conf);
+    webAppAddress = WebAppUtils.getWebAppBindURL(this.conf,
+                      YarnConfiguration.RM_BIND_HOST,
+                      WebAppUtils.getRMWebAppURLWithoutScheme(this.conf));
 
     this.rmLoginUGI = UserGroupInformation.getCurrentUser();
 

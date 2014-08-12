@@ -34,8 +34,8 @@ import org.apache.hadoop.http.HttpServer2;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.conf.HAUtil;
+import org.apache.hadoop.yarn.exceptions.YarnRuntimeException;
 import org.apache.hadoop.yarn.util.RMHAUtils;
-import org.apache.hadoop.yarn.ipc.RPCUtil;
 
 @Private
 @Evolving
@@ -75,20 +75,14 @@ public class WebAppUtils {
   public static String getRMWebAppURLWithScheme(Configuration conf) {
     return getHttpSchemePrefix(conf) + getRMWebAppURLWithoutScheme(conf);
   }
-
+  
   public static String getRMWebAppURLWithoutScheme(Configuration conf) {
     if (YarnConfiguration.useHttps(conf)) {
-      return RPCUtil.getAddressAsString(conf,
-          YarnConfiguration.RM_WEBAPP_HTTPS_BIND_HOST,
-          conf.get(YarnConfiguration.RM_WEBAPP_HTTPS_ADDRESS,
-              YarnConfiguration.DEFAULT_RM_WEBAPP_HTTPS_ADDRESS),
-          YarnConfiguration.DEFAULT_RM_WEBAPP_HTTPS_PORT);
+      return conf.get(YarnConfiguration.RM_WEBAPP_HTTPS_ADDRESS,
+          YarnConfiguration.DEFAULT_RM_WEBAPP_HTTPS_ADDRESS);
     }else {
-      return RPCUtil.getAddressAsString(conf,
-          YarnConfiguration.RM_WEBAPP_BIND_HOST,
-          conf.get(YarnConfiguration.RM_WEBAPP_ADDRESS,
-              YarnConfiguration.DEFAULT_RM_WEBAPP_ADDRESS),
-          YarnConfiguration.DEFAULT_RM_WEBAPP_PORT);
+      return conf.get(YarnConfiguration.RM_WEBAPP_ADDRESS,
+          YarnConfiguration.DEFAULT_RM_WEBAPP_ADDRESS);
     }
   }
 
@@ -121,7 +115,7 @@ public class WebAppUtils {
     }
     return addrs;
   }
-
+  
   public static String getProxyHostAndPort(Configuration conf) {
     String addr = conf.get(YarnConfiguration.PROXY_ADDRESS);
     if(addr == null || addr.isEmpty()) {
@@ -177,29 +171,45 @@ public class WebAppUtils {
     return sb.toString();
   }
   
-  public static String getNMWebAppBindURLWithoutScheme(Configuration conf) {
-    String address;
-    String bindHost;
-
-    if (YarnConfiguration.useHttps(conf)) {
-      address = conf.get(YarnConfiguration.NM_WEBAPP_HTTPS_ADDRESS,
-        YarnConfiguration.DEFAULT_NM_WEBAPP_HTTPS_ADDRESS);
-      bindHost = conf.getTrimmed(
-          YarnConfiguration.NM_WEBAPP_HTTPS_BIND_HOST);
-    } else {
-      address = conf.get(YarnConfiguration.NM_WEBAPP_ADDRESS,
-                         YarnConfiguration.DEFAULT_NM_WEBAPP_ADDRESS);
-      bindHost = conf.getTrimmed(
-          YarnConfiguration.NM_WEBAPP_BIND_HOST);
-    }
+  /**
+   * Get the URL to use for binding where bind hostname can be specified
+   * to override the hostname in the webAppURLWithoutScheme. Port specified in the
+   * webAppURLWithoutScheme will be used.
+   *
+   * @param conf the configuration
+   * @param hostProperty bind host property name
+   * @param webAppURLWithoutScheme web app URL without scheme String
+   * @return String representing bind URL
+   */
+  public static String getWebAppBindURL(
+      Configuration conf,
+      String hostProperty,
+      String webAppURLWithoutScheme) {
 
     // If the bind-host setting exists then it overrides the hostname
-    // portion of the corresponding address.
-    if (bindHost != null && !bindHost.isEmpty()) {
-      address = bindHost + ":" + address.split(":")[1];
+    // portion of the corresponding webAppURLWithoutScheme
+    String host = conf.getTrimmed(hostProperty);
+    if (host != null && !host.isEmpty()) {
+      if (webAppURLWithoutScheme.contains(":")) {
+        webAppURLWithoutScheme = host + ":" + webAppURLWithoutScheme.split(":")[1];
+      }
+      else {
+        throw new YarnRuntimeException("webAppURLWithoutScheme must include port specification but doesn't: " +
+                                       webAppURLWithoutScheme);
+      }
     }
-          
-    return address;
+
+    return webAppURLWithoutScheme;
+  }
+
+  public static String getNMWebAppURLWithoutScheme(Configuration conf) {
+    if (YarnConfiguration.useHttps(conf)) {
+      return conf.get(YarnConfiguration.NM_WEBAPP_HTTPS_ADDRESS,
+        YarnConfiguration.DEFAULT_NM_WEBAPP_HTTPS_ADDRESS);
+    } else {
+      return conf.get(YarnConfiguration.NM_WEBAPP_ADDRESS,
+        YarnConfiguration.DEFAULT_NM_WEBAPP_ADDRESS);
+    }
   }
 
   public static String getAHSWebAppURLWithoutScheme(Configuration conf) {
@@ -211,32 +221,7 @@ public class WebAppUtils {
         YarnConfiguration.DEFAULT_TIMELINE_SERVICE_WEBAPP_ADDRESS);
     }
   }
-
-  public static String getAHSWebAppBindURLWithoutScheme(Configuration conf) {
-    String address;
-    String bindHost;
-
-    if (YarnConfiguration.useHttps(conf)) {
-      address = conf.get(YarnConfiguration.TIMELINE_SERVICE_WEBAPP_HTTPS_ADDRESS,
-        YarnConfiguration.DEFAULT_TIMELINE_SERVICE_WEBAPP_HTTPS_ADDRESS);
-      bindHost = conf.getTrimmed(
-        YarnConfiguration.TIMELINE_SERVICE_WEBAPP_HTTPS_BIND_HOST);
-    } else {
-      address = conf.get(YarnConfiguration.TIMELINE_SERVICE_WEBAPP_ADDRESS,
-        YarnConfiguration.DEFAULT_TIMELINE_SERVICE_WEBAPP_ADDRESS);
-      bindHost = conf.getTrimmed(
-        YarnConfiguration.TIMELINE_SERVICE_WEBAPP_BIND_HOST); 
-    }
-    
-    // If bindHost is specified it overrides the hostname portion of the
-    // address.
-    if (bindHost != null && !bindHost.isEmpty()) {
-      address = bindHost + ":" + address.split(":")[1];
-    }
-    
-    return address;
-  }
-
+  
   /**
    * if url has scheme then it will be returned as it is else it will return
    * url with scheme.

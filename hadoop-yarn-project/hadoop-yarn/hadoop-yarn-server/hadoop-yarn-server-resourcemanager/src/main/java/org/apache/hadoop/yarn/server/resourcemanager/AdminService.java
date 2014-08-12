@@ -117,9 +117,8 @@ public class AdminService extends CompositeService implements
       }
     }
 
-    masterServiceBindAddress = RPCUtil.getSocketAddr(
-        conf,
-        YarnConfiguration.RM_ADMIN_BIND_HOST,
+    masterServiceBindAddress = conf.getSocketAddr(
+        YarnConfiguration.RM_BIND_HOST,
         YarnConfiguration.RM_ADMIN_ADDRESS,
         YarnConfiguration.DEFAULT_RM_ADMIN_ADDRESS,
         YarnConfiguration.DEFAULT_RM_ADMIN_PORT);
@@ -176,10 +175,10 @@ public class AdminService extends CompositeService implements
     }
 
     this.server.start();
-    RPCUtil.updateConnectAddr(conf,
-        YarnConfiguration.RM_ADMIN_ADDRESS,
-        YarnConfiguration.DEFAULT_RM_ADMIN_ADDRESS,
-        server.getListenerAddress());
+    conf.updateConnectAddr(YarnConfiguration.RM_BIND_HOST,
+                           YarnConfiguration.RM_ADMIN_ADDRESS,
+                           YarnConfiguration.DEFAULT_RM_ADMIN_ADDRESS,
+                           server.getListenerAddress());
   }
 
   protected void stopServer() throws Exception {

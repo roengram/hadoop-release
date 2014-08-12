@@ -119,8 +119,7 @@ public class HistoryClientService extends AbstractService {
     Configuration conf = getConfig();
     YarnRPC rpc = YarnRPC.create(conf);
     initializeWebApp(conf);
-    InetSocketAddress address = RPCUtil.getSocketAddr(
-        conf,
+    InetSocketAddress address = conf.getSocketAddr(
         JHAdminConfig.MR_HISTORY_BIND_HOST,
         JHAdminConfig.MR_HISTORY_ADDRESS,
         JHAdminConfig.DEFAULT_MR_HISTORY_ADDRESS,
@@ -140,10 +139,10 @@ public class HistoryClientService extends AbstractService {
     }
     
     server.start();
-    this.bindAddress = RPCUtil.updateConnectAddr(conf,
-        JHAdminConfig.MR_HISTORY_ADDRESS,
-        JHAdminConfig.DEFAULT_MR_HISTORY_ADDRESS,
-        server.getListenerAddress());
+    this.bindAddress = conf.updateConnectAddr(JHAdminConfig.MR_HISTORY_BIND_HOST,
+                                              JHAdminConfig.MR_HISTORY_ADDRESS,
+                                              JHAdminConfig.DEFAULT_MR_HISTORY_ADDRESS,
+                                              server.getListenerAddress());
     LOG.info("Instantiated HistoryClientService at " + this.bindAddress);
 
     super.serviceStart();
@@ -163,8 +162,9 @@ public class HistoryClientService extends AbstractService {
             JHAdminConfig.MR_WEBAPP_SPNEGO_USER_NAME_KEY)
         .at(NetUtils.getHostPortString(bindAddress)).start(webApp);
     
+    String connectHost = MRWebAppUtil.getJHSWebappURLWithoutScheme(conf).split(":")[0];
     MRWebAppUtil.setJHSWebappURLWithoutScheme(conf,
-        NetUtils.getHostPortString(webApp.getListenerAddress()));
+        connectHost + ":" + webApp.getListenerAddress().getPort());
   }
 
   @Override

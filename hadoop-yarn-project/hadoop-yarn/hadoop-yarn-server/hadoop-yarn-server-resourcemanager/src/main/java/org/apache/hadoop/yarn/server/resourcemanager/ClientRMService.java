@@ -198,11 +198,10 @@ public class ClientRMService extends AbstractService implements
     }
 
     this.server.start();
-    clientBindAddress = RPCUtil.updateConnectAddr(conf,
-        YarnConfiguration.RM_ADDRESS,
-        YarnConfiguration.DEFAULT_RM_ADDRESS,
-        server.getListenerAddress());
-
+    clientBindAddress = conf.updateConnectAddr(YarnConfiguration.RM_BIND_HOST,
+                                               YarnConfiguration.RM_ADDRESS,
+                                               YarnConfiguration.DEFAULT_RM_ADDRESS,
+                                               server.getListenerAddress());
     super.serviceStart();
   }
 
@@ -215,8 +214,7 @@ public class ClientRMService extends AbstractService implements
   }
 
   InetSocketAddress getBindAddress(Configuration conf) {
-    return RPCUtil.getSocketAddr(
-            conf,
+    return conf.getSocketAddr(
             YarnConfiguration.RM_BIND_HOST,
             YarnConfiguration.RM_ADDRESS,
             YarnConfiguration.DEFAULT_RM_ADDRESS,
