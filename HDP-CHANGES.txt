@@ -120,3 +120,6 @@ The changes also include jiras that are yet to become available in later apache 
 
     YARN-2251. Avoid negative elapsed time in JHS/MRAM web UI and services.
     (Zhijie Shen via junping_du)
+
+    HDFS-6340. DN can't finalize upgrade. (Rahul Singhal via Arpit Agarwal)
+
