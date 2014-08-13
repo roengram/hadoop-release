@@ -207,13 +207,14 @@ public class WindowsAzureTableSink implements MetricsSink {
 		try {
 			tableClient = getTableClient(tableName);
 		} catch (StorageException storageException) {
-			logger.error(String.format("getTableClient failed. Details: %s, %s", 
-					storageException.getMessage(), storageException));
-			
+			logger.error("getTableClient failed. Details: " +
+                                     storageException.getMessage(),
+                                     storageException);
 			return;
 		} catch (URISyntaxException syntaxException) {
-			logger.error(String.format("getTableClient failed. Details: %s, %s", 
-					syntaxException.getMessage(), syntaxException));
+			logger.error("getTableClient failed. Details: " +
+                                     syntaxException.getMessage(),
+                                     syntaxException);
 			
 			return;
 		}
@@ -225,9 +226,9 @@ public class WindowsAzureTableSink implements MetricsSink {
 			requestOptions.setTablePayloadFormat(TablePayloadFormat.AtomPub);
 			tableClient.execute(tableName, insertMetricOperation, requestOptions, null);
 		} catch (StorageException storageException) {
-			logger.error(String.format("tableClient.execute failed. Details: %s, %s", 
-					storageException.getMessage(), storageException));
-			
+                        logger.error("tableClient.execute failed. Details: " +
+                                     storageException.getMessage(),
+                                     storageException);
 			return;
 		}
 	}
