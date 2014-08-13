@@ -1913,14 +1913,18 @@ public class NativeAzureFileSystem extends FileSystem {
 
       // ensure the parent is a materialized folder
       FileMetadata parentMetadata = store.retrieveMetadata(parentKey);
-      if( parentMetadata.isDir() &&
-          parentMetadata.getBlobMaterialization()
-          == BlobMaterialization.Implicit){
-        store.storeEmptyFolder(parentKey,
-            createPermissionStatus(FsPermission.getDefault()));
-      }
+      // The metadata could be null if the implicit folder only contains a
+      // single file. In this case, the parent folder no longer exists if the
+      // file is renamed; so we can safely ignore the null pointer case.
+      if (parentMetadata != null) {
+        if (parentMetadata.isDir()
+            && parentMetadata.getBlobMaterialization() == BlobMaterialization.Implicit) {
+          store.storeEmptyFolder(parentKey,
+              createPermissionStatus(FsPermission.getDefault()));
+        }
 
-      store.updateFolderLastModifiedTime(parentKey, null);
+        store.updateFolderLastModifiedTime(parentKey, null);
+      }
     }
   }
 
