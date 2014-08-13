@@ -67,6 +67,7 @@ import org.apache.hadoop.hdfs.web.resources.DelegationParam;
 import org.apache.hadoop.hdfs.web.resources.DeleteOpParam;
 import org.apache.hadoop.hdfs.web.resources.DestinationParam;
 import org.apache.hadoop.hdfs.web.resources.DoAsParam;
+import org.apache.hadoop.hdfs.web.resources.ExcludeDatanodesParam;
 import org.apache.hadoop.hdfs.web.resources.GetOpParam;
 import org.apache.hadoop.hdfs.web.resources.GroupParam;
 import org.apache.hadoop.hdfs.web.resources.HttpOpParam;
@@ -446,6 +447,7 @@ public class WebHdfsFileSystem extends FileSystem
 
     protected final HttpOpParam.Op op;
     private final boolean redirected;
+    protected ExcludeDatanodesParam excludeDatanodes = new ExcludeDatanodesParam("");
 
     private boolean checkRetry;
     protected HttpURLConnection conn = null;
@@ -607,6 +609,9 @@ public class WebHdfsFileSystem extends FileSystem
     }
 
     void getResponse(boolean getJsonAndDisconnect) throws IOException {
+      //redirect hostname and port
+      String redirectHost = null;
+
       try {
         connect();
         final int code = conn.getResponseCode();
@@ -618,9 +623,23 @@ public class WebHdfsFileSystem extends FileSystem
           disconnect();
   
           checkRetry = false;
-          conn = (HttpURLConnection) connectionFactory.openConnection(new URL(
-              redirect));
-          connect();
+          final URL url = new URL(redirect);
+          redirectHost = url.getHost() + ":" + url.getPort();
+          conn = (HttpURLConnection) connectionFactory.openConnection(url);
+
+          try {
+            connect();
+          } catch (IOException ioe) {
+            if (redirectHost != null) {
+              if (excludeDatanodes.getValue() != null) {
+                excludeDatanodes = new ExcludeDatanodesParam(redirectHost + ","
+                    + excludeDatanodes.getValue());
+              } else {
+                excludeDatanodes = new ExcludeDatanodesParam(redirectHost);
+              }
+            }
+            throw ioe;
+          }
         }
 
         json = validateResponse(op, conn, false);
@@ -647,7 +666,14 @@ public class WebHdfsFileSystem extends FileSystem
 
     @Override
     protected URL getUrl() throws IOException {
-      return toUrl(op, fspath, parameters);
+      if (excludeDatanodes.getValue() != null) {
+        Param<?, ?>[] tmpParam = new Param<?, ?>[parameters.length + 1];
+        System.arraycopy(parameters, 0, tmpParam, 0, parameters.length);
+        tmpParam[parameters.length] = excludeDatanodes;
+        return toUrl(op, fspath, tmpParam);
+      } else {
+        return toUrl(op, fspath, parameters);
+      }
     }
   }
 
