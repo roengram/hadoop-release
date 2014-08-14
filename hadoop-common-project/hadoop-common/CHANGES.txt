@@ -33,6 +33,9 @@ Release 2.4.1 - UNRELEASED
 
     HADOOP-10612. NFS failed to refresh the user group id mapping table (brandonli)
 
+    HADOOP-10710. hadoop.auth cookie is not properly constructed according to 
+    RFC2109. (Juan Yu via tucu)
+
 Release 2.4.0 - 2014-04-07 
 
   INCOMPATIBLE CHANGES
