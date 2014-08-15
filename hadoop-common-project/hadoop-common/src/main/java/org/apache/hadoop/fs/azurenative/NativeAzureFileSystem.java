@@ -48,9 +48,13 @@ import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.Progressable;
-import org.codehaus.jettison.json.JSONArray;
-import org.codehaus.jettison.json.JSONException;
-import org.codehaus.jettison.json.JSONObject;
+
+
+import org.codehaus.jackson.JsonNode;
+import org.codehaus.jackson.JsonParseException;
+import org.codehaus.jackson.JsonParser;
+import org.codehaus.jackson.map.JsonMappingException;
+import org.codehaus.jackson.map.ObjectMapper;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.microsoft.windowsazure.storage.AccessCondition;
@@ -133,17 +137,24 @@ public class NativeAzureFileSystem extends FileSystem {
       String contents = new String(bytes, 0, l);
 
       // parse the JSON
-      JSONObject json = null;
+      ObjectMapper objMapper = new ObjectMapper();
+      objMapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
+      JsonNode json = null;
       try {
-        json = new JSONObject(contents);
+        json = objMapper.readValue(contents, JsonNode.class);
         this.committed = true;
-      } catch (JSONException e) {
+      } catch (JsonMappingException e) {
 
         // The -RedoPending.json file is corrupted, so we assume it was
         // not completely written
         // and the redo operation did not commit.
         this.committed = false;
+      } catch (JsonParseException e) {
+        this.committed = false;
+      } catch (IOException e) {
+        this.committed = false;  
       }
+      
       if (!this.committed) {
         LOG.error("Deleting corruped rename pending file "
             + redoFile + "\n" + contents);
@@ -155,17 +166,27 @@ public class NativeAzureFileSystem extends FileSystem {
 
       // initialize this object's fields
       ArrayList<String> fileStrList = new ArrayList<String>();
-      try {
-        this.srcKey = json.getString("OldFolderName");
-        this.dstKey = json.getString("NewFolderName");
-        JSONArray fileList = json.getJSONArray("FileList");
-        for (int i = 0; i < fileList.length(); i++) {
-          fileStrList.add(fileList.getString(i));
+      JsonNode oldFolderName = json.get("OldFolderName");
+      JsonNode newFolderName = json.get("NewFolderName");
+      if (oldFolderName == null || newFolderName == null) {
+    	  this.committed = false;
+      } else {
+        this.srcKey = oldFolderName.getTextValue();
+        this.dstKey = newFolderName.getTextValue();
+        if (this.srcKey == null || this.dstKey == null) {
+          this.committed = false;    	  
+        } else {
+          JsonNode fileList = json.get("FileList");
+          if (fileList == null) {
+            this.committed = false;	
+          } else {
+            for (int i = 0; i < fileList.size(); i++) {
+              fileStrList.add(fileList.get(i).getTextValue());
+            }
+          }
         }
-        this.fileStrings = fileStrList;
-      } catch (JSONException e) {
-        this.committed = false;
       }
+      this.fileStrings = fileStrList;
     }
 
     public FileMetadata[] getFiles() {
@@ -243,7 +264,7 @@ public class NativeAzureFileSystem extends FileSystem {
 
         // Quote string file names, escaping any possible " characters or other
         // necessary characters in the name.
-        builder.append(JSONObject.quote(noPrefix));
+        builder.append(quote(noPrefix));
         if (builder.length() >=
             MAX_RENAME_PENDING_FILE_SIZE - FORMATTING_BUFFER) {
 
@@ -263,12 +284,75 @@ public class NativeAzureFileSystem extends FileSystem {
       String contents = "{\n"
           + "  FormatVersion: \"1.0\",\n"
           + "  OperationUTCTime: \"" + time + "\",\n"
-          + "  OldFolderName: " + JSONObject.quote(srcKey) + ",\n"
-          + "  NewFolderName: " + JSONObject.quote(dstKey) + ",\n"
+          + "  OldFolderName: " + quote(srcKey) + ",\n"
+          + "  NewFolderName: " + quote(dstKey) + ",\n"
           + "  FileList: " + fileList + "\n"
           + "}\n";
 
       return contents;
+    }
+    
+    /**
+     * This is an exact copy of org.codehaus.jettison.json.JSONObject.quote 
+     * method.
+     * 
+     * Produce a string in double quotes with backslash sequences in all the
+     * right places. A backslash will be inserted within </, allowing JSON
+     * text to be delivered in HTML. In JSON text, a string cannot contain a
+     * control character or an unescaped quote or backslash.
+     * @param string A String
+     * @return  A String correctly formatted for insertion in a JSON text.
+     */
+    private String quote(String string) {
+        if (string == null || string.length() == 0) {
+            return "\"\"";
+        }
+
+        char c = 0;
+        int  i;
+        int  len = string.length();
+        StringBuilder sb = new StringBuilder(len + 4);
+        String t;
+
+        sb.append('"');
+        for (i = 0; i < len; i += 1) {
+            c = string.charAt(i);
+            switch (c) {
+            case '\\':
+            case '"':
+                sb.append('\\');
+                sb.append(c);
+                break;
+            case '/':
+                sb.append('\\');
+                sb.append(c);
+                break;
+            case '\b':
+                sb.append("\\b");
+                break;
+            case '\t':
+                sb.append("\\t");
+                break;
+            case '\n':
+                sb.append("\\n");
+                break;
+            case '\f':
+                sb.append("\\f");
+                break;
+            case '\r':
+                sb.append("\\r");
+                break;
+            default:
+                if (c < ' ') {
+                    t = "000" + Integer.toHexString(c);
+                    sb.append("\\u" + t.substring(t.length() - 4));
+                } else {
+                    sb.append(c);
+                }
+            }
+        }
+        sb.append('"');
+        return sb.toString();
     }
 
     public String getSrcKey() {
