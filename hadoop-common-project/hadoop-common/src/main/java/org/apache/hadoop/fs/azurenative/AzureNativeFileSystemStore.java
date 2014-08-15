@@ -26,8 +26,11 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.security.InvalidKeyException;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -1376,18 +1379,34 @@ class AzureNativeFileSystemStore implements NativeFileSystemStore {
   }
 
   private static void storeLinkAttribute(CloudBlobWrapper blob,
-      String linkTarget) {
+      String linkTarget) throws UnsupportedEncodingException {
+    // We have to URL encode the link attribute as the link URI could
+    // have URI special characters which unless encoded will result
+    // in 403 errors from the server. This is due to metadata properties
+    // being sent in the HTTP header of the request which is in turn used
+    // on the server side to authorize the request.
+    String encodedLinkTarget = null;
+    if (linkTarget != null) {
+      encodedLinkTarget = URLEncoder.encode(linkTarget, "UTF-8");
+    }
     storeMetadataAttribute(blob,
-        LINK_BACK_TO_UPLOAD_IN_PROGRESS_METADATA_KEY, linkTarget);
+        LINK_BACK_TO_UPLOAD_IN_PROGRESS_METADATA_KEY,
+        encodedLinkTarget);
     // Remove the old metadata key if present
     removeMetadataAttribute(blob,
         OLD_LINK_BACK_TO_UPLOAD_IN_PROGRESS_METADATA_KEY);
   }
 
-  private static String getLinkAttributeValue(CloudBlobWrapper blob) {
-    return getMetadataAttribute(blob,
+  private static String getLinkAttributeValue(CloudBlobWrapper blob)
+      throws UnsupportedEncodingException {
+    String encodedLinkTarget = getMetadataAttribute(blob,
         LINK_BACK_TO_UPLOAD_IN_PROGRESS_METADATA_KEY,
         OLD_LINK_BACK_TO_UPLOAD_IN_PROGRESS_METADATA_KEY);
+    String linkTarget = null;
+    if (encodedLinkTarget != null) {
+      linkTarget = URLDecoder.decode(encodedLinkTarget, "UTF-8");
+    }
+    return linkTarget;
   }
 
   private static boolean retrieveFolderAttribute(CloudBlobWrapper blob) {
@@ -2385,10 +2404,19 @@ class AzureNativeFileSystemStore implements NativeFileSystemStore {
       //
       CloudBlobWrapper dstBlob = getBlobReference(dstKey);
 
+      // TODO: Remove at the time when we move to Azure Java SDK 1.2+.
+      // This is the workaround provided by Azure Java SDK team to
+      // mitigate the issue with un-encoded x-ms-copy-source HTTP
+      // request header. Azure sdk version before 1.2+ does not encode this
+      // header what causes all URIs that have special (category "other")
+      // characters in the URI not to work with startCopyFromBlob when
+      // specified as source (requests fail with HTTP 403).
+      URI srcUri = new URI(srcBlob.getUri().toASCIIString());
+
       // Rename the source blob to the destination blob by copying it to
       // the destination blob then deleting it.
       //
-      dstBlob.startCopyFromBlob(srcBlob, getInstrumentedContext());
+      dstBlob.startCopyFromBlob(srcUri, getInstrumentedContext());
       waitForCopyToComplete(dstBlob, getInstrumentedContext());
 
       safeDelete(srcBlob, lease);

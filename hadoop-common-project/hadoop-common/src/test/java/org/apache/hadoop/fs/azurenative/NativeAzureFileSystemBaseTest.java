@@ -381,6 +381,43 @@ public abstract class NativeAzureFileSystemBaseTest {
   }
 
   @Test
+  public void testChineseCharacters() throws Exception {
+    // Create a file and a folder with Chinese (non-ASCI) characters
+    String chinese = "" + '\u963f' + '\u4db5';
+    String fileName = "filename" + chinese;
+    String directoryName = chinese;
+    fs.create(new Path(directoryName, fileName)).close();
+    FileStatus[] listing = fs.listStatus(new Path(directoryName));
+    assertEquals(1, listing.length);
+    assertEquals(fileName, listing[0].getPath().getName());
+    FileStatus status = fs.getFileStatus(new Path(directoryName, fileName));
+    assertEquals(fileName, status.getPath().getName());
+    InputStream stream = fs.open(new Path(directoryName, fileName));
+    assertNotNull(stream);
+    stream.close();
+    assertTrue(fs.delete(new Path(directoryName, fileName), true));
+    assertTrue(fs.delete(new Path(directoryName), true));
+  }
+
+  @Test
+  public void testChineseCharactersFolderRename() throws Exception {
+    // Create a file and a folder with Chinese (non-ASCI) characters
+    String chinese = "" + '\u963f' + '\u4db5';
+    String fileName = "filename" + chinese;
+    String srcDirectoryName = chinese;
+    String targetDirectoryName = "target" + chinese;
+    fs.create(new Path(srcDirectoryName, fileName)).close();
+    fs.rename(new Path(srcDirectoryName), new Path(targetDirectoryName));
+    FileStatus[] listing = fs.listStatus(new Path(targetDirectoryName));
+    assertEquals(1, listing.length);
+    assertEquals(fileName, listing[0].getPath().getName());
+    FileStatus status = fs.getFileStatus(new Path(targetDirectoryName, fileName));
+    assertEquals(fileName, status.getPath().getName());
+    assertTrue(fs.delete(new Path(targetDirectoryName, fileName), true));
+    assertTrue(fs.delete(new Path(targetDirectoryName), true));
+  }
+
+  @Test
   public void testReadingDirectoryAsFile() throws Exception {
     Path dir = new Path("/x");
     assertTrue(fs.mkdirs(dir));

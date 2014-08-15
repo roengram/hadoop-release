@@ -4,12 +4,11 @@ import java.io.*;
 import java.net.*;
 import java.util.*;
 
+import javax.ws.rs.core.UriBuilder;
+import javax.ws.rs.core.UriBuilderException;
+
 import org.apache.commons.httpclient.URIException;
 import org.apache.commons.httpclient.util.URIUtil;
-import org.apache.commons.io.output.ByteArrayOutputStream;
-
-
-
 
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
@@ -72,6 +71,32 @@ public class MockStorageInterface extends StorageInterface {
     return null;
   }
 
+  /**
+   * Utility function used to convert a given URI to a decoded string
+   * representation sent to the backing store. URIs coming as input
+   * to this class will be encoded by the URI class, and we want
+   * the underlying storage to store keys in their original UTF-8 form.
+   */
+  private static String convertUriToDecodedString(URI uri) {
+    try {
+      String result = URIUtil.decode(uri.toString());
+      return result;
+    } catch (URIException e) {
+      throw new AssertionError("Failed to decode URI: " + uri.toString());
+    }
+  }
+
+  private static URI convertKeyToEncodedUri(String key) {
+    try {
+      String encodedKey = URIUtil.encodePath(key);
+      URI uri = new URI(encodedKey);
+      return uri;
+    } catch (URISyntaxException e) {
+      throw new AssertionError("Failed to encode key: " + key);
+    } catch (URIException e) {
+      throw new AssertionError("Failed to encode key: " + key);
+    }
+  }
 
   @Override
   public CloudBlobContainerWrapper getContainerReference(String name)
@@ -232,14 +257,18 @@ public class MockStorageInterface extends StorageInterface {
         BlobRequestOptions options, OperationContext opContext)
         throws URISyntaxException, StorageException {
       ArrayList<ListBlobItem> ret = new ArrayList<ListBlobItem>();
-      String fullPrefix = prefix == null ?
-          uri.toString() :
-          new URI(
-              uri.getScheme(),
-              uri.getAuthority(),
-              uri.getPath() + prefix,
-              uri.getQuery(),
-              uri.getFragment()).toString();
+      URI searchUri = null;
+      if (prefix == null) {
+        searchUri = uri;
+      } else {
+        try {
+          searchUri = UriBuilder.fromUri(uri).path(prefix).build();
+        } catch (UriBuilderException e) {
+          throw new AssertionError("Failed to encode path: " + prefix);
+        }
+      }
+
+      String fullPrefix = convertUriToDecodedString(searchUri);
       boolean includeMetadata = listingDetails.contains(BlobListingDetails.METADATA);
       HashSet<String> addedDirectories = new HashSet<String>();
       for (InMemoryBlockBlobStore.ListBlobEntry current : backingStore.listBlobs(
@@ -248,12 +277,12 @@ public class MockStorageInterface extends StorageInterface {
         if (useFlatBlobListing || indexOfSlash < 0) {
           if (current.isPageBlob()) {
             ret.add(new MockCloudPageBlobWrapper(
-                new URI(current.getKey()),
+                convertKeyToEncodedUri(current.getKey()),
                 current.getMetadata(),
                 current.getContentLength()));
           } else {
           ret.add(new MockCloudBlockBlobWrapper(
-              new URI(current.getKey()),
+              convertKeyToEncodedUri(current.getKey()),
               current.getMetadata(),
               current.getContentLength()));
           }
@@ -292,14 +321,14 @@ public class MockStorageInterface extends StorageInterface {
     }
 
     protected void refreshProperties(boolean getMetadata) {
-      if (backingStore.exists(uri.toString())) {
-        byte[] content = backingStore.getContent(uri.toString());
+      if (backingStore.exists(convertUriToDecodedString(uri))) {
+        byte[] content = backingStore.getContent(convertUriToDecodedString(uri));
         properties = new BlobProperties();
         properties.setLength(content.length);
         properties.setLastModified(
             Calendar.getInstance(TimeZone.getTimeZone("UTC")).getTime());
         if (getMetadata) {
-          metadata = backingStore.getMetadata(uri.toString());
+          metadata = backingStore.getMetadata(convertUriToDecodedString(uri));
         }
       }
     }
@@ -332,9 +361,9 @@ public class MockStorageInterface extends StorageInterface {
     }
 
     @Override
-    public void startCopyFromBlob(CloudBlobWrapper sourceBlob,
+    public void startCopyFromBlob(URI source,
         OperationContext opContext) throws StorageException, URISyntaxException {
-      backingStore.copy(sourceBlob.getUri().toString(), uri.toString());
+      backingStore.copy(convertUriToDecodedString(source), convertUriToDecodedString(uri));
       //TODO: set the backingStore.properties.CopyState and
       //      update azureNativeFileSystemStore.waitForCopyToComplete
     }
@@ -347,12 +376,12 @@ public class MockStorageInterface extends StorageInterface {
     @Override
     public void delete(OperationContext opContext, SelfRenewingLease lease)
         throws StorageException {
-      backingStore.delete(uri.toString());
+      backingStore.delete(convertUriToDecodedString(uri));
     }
 
     @Override
     public boolean exists(OperationContext opContext) throws StorageException {
-      return backingStore.exists(uri.toString());
+      return backingStore.exists(convertUriToDecodedString(uri));
     }
 
     @Override
@@ -369,13 +398,14 @@ public class MockStorageInterface extends StorageInterface {
     @Override
     public InputStream openInputStream(BlobRequestOptions options,
         OperationContext opContext) throws StorageException {
-      return new ByteArrayInputStream(backingStore.getContent(uri.toString()));
+      return new ByteArrayInputStream(
+          backingStore.getContent(convertUriToDecodedString(uri)));
     }
 
     @Override
     public void uploadMetadata(OperationContext opContext)
         throws StorageException {
-      backingStore.setMetadata(uri.toString(), metadata);
+      backingStore.setMetadata(convertUriToDecodedString(uri), metadata);
     }
 
     @Override
@@ -396,7 +426,8 @@ public class MockStorageInterface extends StorageInterface {
     @Override
     public OutputStream openOutputStream(BlobRequestOptions options,
         OperationContext opContext) throws StorageException {
-      return backingStore.uploadBlockBlob(uri.toString(), metadata);
+      return backingStore.uploadBlockBlob(convertUriToDecodedString(uri),
+          metadata);
     }
 
     @Override

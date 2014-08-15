@@ -3,6 +3,7 @@ package org.apache.hadoop.fs.azurenative;
 import static org.junit.Assert.*;
 
 import java.io.*;
+import java.net.URLDecoder;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -40,6 +41,7 @@ public class TestNativeAzureFileSystemConcurrency {
             AzureBlobStorageTestAccount.toMockUri(filePath));
     assertNotNull(metadata);
     String linkValue = metadata.get(AzureNativeFileSystemStore.LINK_BACK_TO_UPLOAD_IN_PROGRESS_METADATA_KEY);
+    linkValue = URLDecoder.decode(linkValue, "UTF-8");
     assertNotNull(linkValue);
     assertTrue(backingStore.exists(
         AzureBlobStorageTestAccount.toMockUri(linkValue)));

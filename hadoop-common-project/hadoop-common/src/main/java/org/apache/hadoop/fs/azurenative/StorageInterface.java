@@ -312,8 +312,8 @@ abstract class StorageInterface {
      * Copies an existing blob's contents, properties, and metadata to this instance of the <code>CloudBlob</code>
      * class, using the specified operation context.
      *
-     * @param sourceBlob
-     *            A <code>CloudBlob</code> object that represents the source blob to copy.
+     * @param source
+     *            A <code>java.net.URI</code> The URI of a source blob.
      * @param opContext
      *            An {@link OperationContext} object that represents the context for the current operation. This object
      *            is used to track requests to the storage service, and to provide additional runtime information about
@@ -324,7 +324,7 @@ abstract class StorageInterface {
      * @throws URISyntaxException
      *
      */
-    public abstract void startCopyFromBlob(CloudBlobWrapper sourceBlob,
+    public abstract void startCopyFromBlob(URI source,
         OperationContext opContext)
         throws StorageException, URISyntaxException;
 
