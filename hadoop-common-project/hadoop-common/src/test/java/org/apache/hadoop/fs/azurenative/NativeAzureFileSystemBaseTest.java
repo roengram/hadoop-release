@@ -109,23 +109,10 @@ public abstract class NativeAzureFileSystemBaseTest {
     testOwnership(testFolder);
   }
 
-  private boolean checkUserInGroup(String group, UserGroupInformation userInfo){
-    // Check if user is in a specific group.
-  	for (String usergroup : userInfo.getGroupNames()){
-  	  if (usergroup.equals(group)){
-  	      // A user group name corresponds to one of the group name.
-          return true;
-        }
-  	}
-
-  	// None of the user group names correspond to the specific group.
-  	return false;
-  }
   private void testOwnership(Path pathUnderTest) throws IOException {
     FileStatus ret = fs.getFileStatus(pathUnderTest);
     UserGroupInformation currentUser = UserGroupInformation.getCurrentUser();
-    assertTrue(ret.getOwner().equals(currentUser.getShortUserName()) &&
-    		       checkUserInGroup(ret.getGroup(), currentUser));
+    assertTrue(ret.getOwner().equals(currentUser.getShortUserName()));
     fs.delete(pathUnderTest, true);
   }
 
