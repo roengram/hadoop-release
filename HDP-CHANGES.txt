@@ -137,3 +137,5 @@ The changes also include jiras that are yet to become available in later apache 
 
     HDFS-6599. 2.4 addBlock is 10 to 20 times slower compared to 0.23. (daryn)
 
+    MAPREDUCE-6044. Fully qualified intermediate done dir path breaks per-user dir
+    creation on Windows. (zjshen)
