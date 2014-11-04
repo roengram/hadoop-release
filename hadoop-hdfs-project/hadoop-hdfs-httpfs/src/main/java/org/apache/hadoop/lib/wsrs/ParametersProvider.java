@@ -32,6 +32,7 @@ import java.lang.reflect.Type;
 import java.text.MessageFormat;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Jersey provider that parses the request parameters based on the
@@ -59,6 +60,16 @@ public class ParametersProvider
     Map<String, Param<?>> map = new HashMap<String, Param<?>>();
     MultivaluedMap<String, String> queryString =
       httpContext.getRequest().getQueryParameters();
+
+    HashMap<String, String> tmpParams = new HashMap<String, String>();
+    Set<String> keySets = queryString.keySet();
+    for (String key: keySets) {
+        String value = queryString.getFirst(key);
+        tmpParams.put(key.toLowerCase(), value);
+    }
+
+
+
     String str = queryString.getFirst(driverParam);
     if (str == null) {
       throw new IllegalArgumentException(
@@ -87,7 +98,7 @@ public class ParametersProvider
             paramClass.getName()));
       }
       try {
-        param.parseParam(queryString.getFirst(param.getName()));
+        param.parseParam(tmpParams.get(param.getName().toLowerCase()));
       }
       catch (Exception ex) {
         throw new IllegalArgumentException(ex.toString(), ex);
